@@ -1,0 +1,10 @@
+.runs-screen {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.runs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

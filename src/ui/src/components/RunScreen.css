@@ -1,0 +1,30 @@
+.run-screen {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.run-console {
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #d4d4d4;
+  padding: 8px;
+}
+
+.log-line {
+  margin-bottom: 4px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.log-line.error {
+  color: #f87171;
+}
+
+.log-line.success {
+  color: #4ade80;
+}
+
+.log-line.info {
+  color: #60a5fa;
+}

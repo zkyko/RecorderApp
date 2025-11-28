@@ -1,0 +1,36 @@
+.top-toolbar {
+  background: #1f2937;
+  border-bottom: 1px solid #374151;
+  padding: 0;
+  height: 56px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.toolbar-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 100%;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.toolbar-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #f3f4f6;
+  margin: 0;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+

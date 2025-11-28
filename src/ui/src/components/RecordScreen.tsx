@@ -1,0 +1,513 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, Text, Button, Group, Alert, Badge, ScrollArea, Code, Grid, Stack, List, Divider } from '@mantine/core';
+import { CircleDot, Square, Play, Info, Clock, CheckCircle2, AlertTriangle, XCircle, Settings } from 'lucide-react';
+import { ipc } from '../ipc';
+import { useWorkspaceStore } from '../store/workspace-store';
+import { CodegenCodeUpdate, RecorderCodeUpdate, RecordingEngine } from '../../../types/v1.5';
+import './RecordScreen.css';
+
+const RecordScreen: React.FC = () => {
+  const navigate = useNavigate();
+  const { workspacePath } = useWorkspaceStore();
+  const [isRecording, setIsRecording] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [liveCodeContent, setLiveCodeContent] = useState<string | null>(null);
+  const [lastCodeUpdateAt, setLastCodeUpdateAt] = useState<string | null>(null);
+  const [envUrl, setEnvUrl] = useState<string | null>(null);
+  const [selectedStepLine, setSelectedStepLine] = useState<number | null>(null);
+  const [locatorHealth, setLocatorHealth] = useState<{
+    total: number;
+    good: number;
+    medium: number;
+    bad: number;
+  } | null>(null);
+  const [recordingEngine, setRecordingEngine] = useState<RecordingEngine>('qaStudio');
+
+  // Load recording engine setting on mount
+  useEffect(() => {
+    if (workspacePath) {
+      loadRecordingEngine();
+    }
+  }, [workspacePath]);
+
+  const loadRecordingEngine = async () => {
+    if (!workspacePath) return;
+    try {
+      const response = await ipc.settings.getRecordingEngine({ workspacePath });
+      if (response.success && response.recordingEngine) {
+        setRecordingEngine(response.recordingEngine);
+      }
+    } catch (error) {
+      console.error('Failed to load recording engine setting:', error);
+    }
+  };
+
+  // Listen for live code updates from both engines
+  useEffect(() => {
+    if (isRecording) {
+      const handleCodegenUpdate = (update: CodegenCodeUpdate) => {
+        console.log('[RecordScreen] Received codegen update:', update.timestamp);
+        setLiveCodeContent(update.content);
+        setLastCodeUpdateAt(update.timestamp);
+      };
+      
+      const handleRecorderUpdate = (update: RecorderCodeUpdate) => {
+        console.log('[RecordScreen] Received recorder update:', update.timestamp);
+        setLiveCodeContent(update.content);
+        setLastCodeUpdateAt(update.timestamp);
+      };
+      
+      if (recordingEngine === 'playwright') {
+        ipc.codegen.onCodeUpdate(handleCodegenUpdate);
+      } else {
+        ipc.recorder.onCodeUpdate(handleRecorderUpdate);
+      }
+      
+      return () => {
+        if (recordingEngine === 'playwright') {
+          ipc.codegen.removeCodeUpdateListener();
+        } else {
+          ipc.recorder.removeCodeUpdateListener();
+        }
+      };
+    }
+  }, [isRecording, recordingEngine]);
+
+  const handleStartRecording = async () => {
+    if (!workspacePath) {
+      setError('Workspace not set');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setLiveCodeContent(null);
+    setLastCodeUpdateAt(null);
+
+    try {
+      const config = await window.electronAPI?.getConfig();
+      if (!config?.d365Url) {
+        setError('D365 URL not configured');
+        return;
+      }
+
+      setEnvUrl(config.d365Url);
+
+      // Get storage state path - check config first, then try default location
+      let storageStatePath = config.storageStatePath;
+      if (!storageStatePath) {
+        // Try to get from config manager's default location
+        const fullConfig = await window.electronAPI?.getConfig();
+        storageStatePath = fullConfig?.storageStatePath;
+      }
+
+      // If still no path, try default workspace location
+      if (!storageStatePath && workspacePath) {
+        // Construct path manually (can't use Node.js path in browser)
+        const defaultPath = `${workspacePath}/storage_state/d365.json`;
+        storageStatePath = defaultPath;
+      }
+
+      // Start the appropriate recording engine
+      let response;
+      if (recordingEngine === 'playwright') {
+        response = await ipc.codegen.start({
+          envUrl: config.d365Url,
+          workspacePath,
+          storageStatePath: storageStatePath || '',
+        });
+      } else {
+        response = await ipc.recorder.start({
+          envUrl: config.d365Url,
+          workspacePath,
+          storageStatePath: storageStatePath || '',
+        });
+      }
+
+      if (response.success) {
+        setIsRecording(true);
+        setError(null);
+      } else {
+        setError(response.error || 'Failed to start recording');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to start recording');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Parse steps from code content
+  const steps = useMemo(() => {
+    if (!liveCodeContent) return [];
+    const lines = liveCodeContent.split('\n');
+    const parsedSteps: Array<{ index: number; description: string; line: number }> = [];
+    let stepIndex = 1;
+
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('await page.')) {
+        // Extract a short description
+        let description = trimmed;
+        // Try to extract meaningful text
+        const textMatch = trimmed.match(/['"]([^'"]+)['"]/);
+        if (textMatch) {
+          description = textMatch[1];
+        } else {
+          // Extract method name
+          const methodMatch = trimmed.match(/page\.(\w+)/);
+          if (methodMatch) {
+            description = methodMatch[1] + '()';
+          }
+        }
+        if (description.length > 50) {
+          description = description.substring(0, 50) + '...';
+        }
+        parsedSteps.push({
+          index: stepIndex++,
+          description,
+          line: index + 1,
+        });
+      }
+    });
+
+    return parsedSteps;
+  }, [liveCodeContent]);
+
+  // Calculate locator health
+  useEffect(() => {
+    if (liveCodeContent && !isRecording) {
+      // Analyze locators in the code
+      const lines = liveCodeContent.split('\n');
+      let total = 0;
+      let good = 0;
+      let medium = 0;
+      let bad = 0;
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        
+        // Good locators
+        if (trimmed.includes('getByRole') || trimmed.includes('getByLabel') || 
+            trimmed.includes('getByPlaceholder') || trimmed.includes('data-dyn-controlname')) {
+          total++;
+          good++;
+        }
+        // Medium locators
+        else if (trimmed.includes('getByText')) {
+          total++;
+          medium++;
+        }
+        // Bad locators
+        else if (trimmed.includes('nth-child') || trimmed.includes('locator(') && 
+                 (trimmed.includes('#') || trimmed.includes('>') || trimmed.match(/\d+/))) {
+          total++;
+          bad++;
+        }
+      });
+
+      setLocatorHealth({ total, good, medium, bad });
+    }
+  }, [liveCodeContent, isRecording]);
+
+  const handleStopRecording = async () => {
+    setLoading(true);
+    try {
+      // Stop the appropriate recording engine
+      let response;
+      if (recordingEngine === 'playwright') {
+        response = await ipc.codegen.stop();
+      } else {
+        response = await ipc.recorder.stop();
+      }
+
+      if (response.success) {
+        setIsRecording(false);
+        // Keep the final code content for display
+        if (response.rawCode) {
+          setLiveCodeContent(response.rawCode);
+        }
+        // Navigate to locator cleanup with the final code
+        if (response.rawCode) {
+          navigate('/record/locator-cleanup', { state: { rawCode: response.rawCode } });
+        } else {
+          setError('No code was generated. Please try recording again.');
+        }
+      } else {
+        setError(response.error || 'Failed to stop recording');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to stop recording');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTimestamp = (timestamp: string | null) => {
+    if (!timestamp) return 'Never';
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString();
+    } catch {
+      return timestamp;
+    }
+  };
+
+  return (
+    <div className="record-screen">
+      <Grid gutter="md">
+        {/* Left: Status and Controls */}
+        <Grid.Col span={{ base: 12, md: 3 }}>
+          <Card padding="lg" radius="md" withBorder>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <Text size="3rem" mb="md">🎬</Text>
+              <Text size="xl" fw={600} mb="xs">Ready to Record</Text>
+              <Text c="dimmed" size="sm">
+                Click the button below to start recording. A browser window will open where you can perform your D365 flow.
+              </Text>
+            </div>
+
+            {/* Status Section */}
+            <Card padding="md" radius="md" withBorder mb="md" style={{ background: '#1f2937' }}>
+              <Group justify="space-between" mb="xs">
+                <Text size="sm" fw={500}>Status</Text>
+                <Badge 
+                  color={isRecording ? 'blue' : 'gray'} 
+                  variant="light"
+                  leftSection={isRecording ? <Play size={12} /> : <Square size={12} />}
+                >
+                  {isRecording ? 'Recording' : 'Idle'}
+                </Badge>
+              </Group>
+              <Group justify="space-between" mb="xs">
+                <Text size="sm" c="dimmed">Recording Engine</Text>
+                <Group gap={4}>
+                  <Badge 
+                    variant="light" 
+                    color="indigo"
+                    size="sm"
+                  >
+                    {recordingEngine === 'qaStudio' ? 'QA Studio Recorder' : 'Playwright Codegen'}
+                  </Badge>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    leftSection={<Settings size={12} />}
+                    onClick={() => navigate('/settings')}
+                    style={{ padding: '2px 8px' }}
+                  >
+                    Change
+                  </Button>
+                </Group>
+              </Group>
+              {envUrl && (
+                <Group justify="space-between" mb="xs">
+                  <Text size="sm" c="dimmed">Environment</Text>
+                  <Text size="xs" ff="monospace" c="dimmed" style={{ maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {envUrl}
+                  </Text>
+                </Group>
+              )}
+              {lastCodeUpdateAt && (
+                <Group justify="space-between">
+                  <Text size="sm" c="dimmed">Last Updated</Text>
+                  <Group gap={4}>
+                    <Clock size={12} />
+                    <Text size="xs" c="dimmed">{formatTimestamp(lastCodeUpdateAt)}</Text>
+                  </Group>
+                </Group>
+              )}
+            </Card>
+
+            {/* Control Buttons */}
+            <Group justify="center" mb="lg">
+              {!isRecording ? (
+                <Button
+                  leftSection={<CircleDot size={18} />}
+                  onClick={handleStartRecording}
+                  size="lg"
+                  color="green"
+                  loading={loading}
+                  disabled={loading}
+                  fullWidth
+                >
+                  Start Recording
+                </Button>
+              ) : (
+                <Button
+                  leftSection={<Square size={18} />}
+                  onClick={handleStopRecording}
+                  size="lg"
+                  color="red"
+                  loading={loading}
+                  disabled={loading}
+                  fullWidth
+                >
+                  Stop Recording
+                </Button>
+              )}
+            </Group>
+
+            {/* Error Display */}
+            {error && (
+              <Alert icon={<Info size={16} />} title="Error" color="red" mb="md">
+                {error}
+              </Alert>
+            )}
+
+            {/* Recording Status */}
+            {isRecording && (
+              <Alert icon={<Play size={16} />} title="Recording" color="blue" mb="md">
+                <Group gap="xs">
+                  <div className="recording-dot"></div>
+                  <Text size="sm">Recording in progress... Perform your actions in the browser window. Click "Stop Recording" when done.</Text>
+                </Group>
+              </Alert>
+            )}
+
+            {/* Instructions */}
+            <Card padding="md" radius="md" withBorder style={{ background: '#1f2937' }}>
+              <Text fw={600} mb="md" size="sm">How it works:</Text>
+              <ol style={{ paddingLeft: 20, color: '#9ca3af', fontSize: '0.875rem', lineHeight: 1.8 }}>
+                <li>Click "Start Recording" to launch Playwright Codegen</li>
+                <li>Perform your D365 flow in the browser window</li>
+                <li>Watch the code preview update in real-time</li>
+                <li>Click "Stop Recording" when finished</li>
+                <li>Review and clean up locators</li>
+                <li>Parameterize input fields</li>
+                <li>Generate your test files</li>
+              </ol>
+            </Card>
+          </Card>
+        </Grid.Col>
+
+        {/* Middle: Step Timeline */}
+        {steps.length > 0 && (
+          <Grid.Col span={{ base: 12, md: 3 }}>
+            <Card padding="lg" radius="md" withBorder style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Text fw={600} size="lg" mb="md">Step Timeline</Text>
+              <ScrollArea h="calc(100vh - 300px)" style={{ flex: 1 }}>
+                <List spacing="xs" size="sm">
+                  {steps.map((step) => (
+                    <List.Item
+                      key={step.index}
+                      onClick={() => setSelectedStepLine(step.line)}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        backgroundColor: selectedStepLine === step.line ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                      }}
+                    >
+                      <Group gap="xs">
+                        <Badge size="sm" variant="light">#{step.index}</Badge>
+                        <Text size="sm">{step.description}</Text>
+                      </Group>
+                    </List.Item>
+                  ))}
+                </List>
+              </ScrollArea>
+            </Card>
+          </Grid.Col>
+        )}
+
+        {/* Right: Code Preview */}
+        <Grid.Col span={{ base: 12, md: steps.length > 0 ? 6 : 9 }}>
+          <Card padding="lg" radius="md" withBorder style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Group justify="space-between" mb="md">
+              <Text fw={600} size="lg">Code Preview</Text>
+              {lastCodeUpdateAt && (
+                <Group gap={4}>
+                  <Clock size={14} />
+                  <Text size="xs" c="dimmed">Updated: {formatTimestamp(lastCodeUpdateAt)}</Text>
+                </Group>
+              )}
+            </Group>
+
+            {!liveCodeContent && !isRecording ? (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                <div>
+                  <Text size="4rem" mb="md">📝</Text>
+                  <Text size="lg" fw={600} mb="xs">No recording yet</Text>
+                  <Text c="dimmed" mb="lg">Start recording to see the generated Playwright code appear here in real-time</Text>
+                  <Button
+                    leftSection={<CircleDot size={18} />}
+                    onClick={handleStartRecording}
+                    size="md"
+                    color="green"
+                  >
+                    Start Recording
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <ScrollArea h="calc(100vh - 400px)" style={{ flex: 1 }}>
+                  <Code block style={{ 
+                    background: '#0b1020', 
+                    color: '#d4d4d4',
+                    padding: '16px',
+                    borderRadius: '8px',
+                    fontFamily: "'Courier New', monospace",
+                    fontSize: '0.875rem',
+                    lineHeight: 1.6,
+                  }}>
+                    {liveCodeContent?.split('\n').map((line, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          backgroundColor: selectedStepLine === index + 1 ? 'rgba(59, 130, 246, 0.3)' : 'transparent',
+                          padding: '2px 0',
+                        }}
+                      >
+                        {line || ' '}
+                      </div>
+                    )) || 'Waiting for codegen output...'}
+                  </Code>
+                </ScrollArea>
+                
+                {/* Locator Health Summary */}
+                {locatorHealth && locatorHealth.total > 0 && (
+                  <Card padding="md" radius="md" withBorder mt="md" style={{ background: '#1f2937' }}>
+                    <Text fw={600} size="sm" mb="xs">Locator Health Summary</Text>
+                    <Group gap="xl">
+                      <div>
+                        <Text size="xs" c="dimmed">Total Locators</Text>
+                        <Text size="lg" fw={700}>{locatorHealth.total}</Text>
+                      </div>
+                      <div>
+                        <Group gap="xs">
+                          <CheckCircle2 size={16} color="green" />
+                          <Text size="xs" c="dimmed">Good</Text>
+                        </Group>
+                        <Text size="lg" fw={700} c="green">{locatorHealth.good}</Text>
+                      </div>
+                      <div>
+                        <Group gap="xs">
+                          <AlertTriangle size={16} color="yellow" />
+                          <Text size="xs" c="dimmed">Medium</Text>
+                        </Group>
+                        <Text size="lg" fw={700} c="yellow">{locatorHealth.medium}</Text>
+                      </div>
+                      <div>
+                        <Group gap="xs">
+                          <XCircle size={16} color="red" />
+                          <Text size="xs" c="dimmed">Bad</Text>
+                        </Group>
+                        <Text size="lg" fw={700} c="red">{locatorHealth.bad}</Text>
+                      </div>
+                    </Group>
+                  </Card>
+                )}
+              </>
+            )}
+          </Card>
+        </Grid.Col>
+      </Grid>
+    </div>
+  );
+};
+
+export default RecordScreen;

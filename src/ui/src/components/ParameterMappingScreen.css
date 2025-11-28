@@ -1,0 +1,10 @@
+.parameter-mapping-screen {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.parameter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

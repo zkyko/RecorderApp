@@ -1,0 +1,40 @@
+.dashboard {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.stat-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.stat-card.success {
+  border-left: 4px solid #10b981;
+}
+
+.stat-card.error {
+  border-left: 4px solid #ef4444;
+}
+
+.recent-tests {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recent-test-card {
+  transition: all 0.15s ease;
+}
+
+.recent-test-card:hover {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.tests-table-compact {
+  display: flex;
+  flex-direction: column;
+}

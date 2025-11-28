@@ -1,0 +1,1064 @@
+import { ipcMain, BrowserWindow } from 'electron';
+import * as path from 'path';
+import * as fs from 'fs';
+import { SessionManager } from '../core/session/session-manager';
+import { BrowserManager } from '../core/playwright/browser-manager';
+import { RecorderEngine } from '../core/recorder/recorder-engine';
+import { POMGenerator } from '../generators/pom-generator';
+import { SpecGenerator } from '../generators/spec-generator';
+import { CodeFormatter } from '../generators/code-formatter';
+import { SessionConfig, OutputConfig, RecordedStep } from '../types';
+import { ConfigManager } from './config-manager';
+// v1.5 services
+import { CodegenService } from './services/codegen-service';
+import { RecorderService } from './services/recorder-service';
+import { LocatorCleanupService } from './services/locator-cleanup-service';
+import { ParameterDetector } from './services/parameter-detector';
+import { SpecWriter } from './services/spec-writer';
+import { DataWriter } from './services/data-writer';
+import { TestRunner } from './services/test-runner';
+import { TraceServer } from './services/trace-server';
+import { WorkspaceManager } from './services/workspace-manager';
+import {
+  CodegenStartRequest,
+  LocatorCleanupRequest,
+  ParamDetectRequest,
+  SpecWriteRequest,
+  DataWriteRequest,
+  TestListRequest,
+  TestRunRequest,
+  TestRunMeta,
+  RunIndex,
+  TraceOpenRequest,
+  ReportOpenRequest,
+  TestSummary,
+  TestMeta,
+  WorkspaceListResponse,
+  WorkspaceCreateRequest,
+  WorkspaceCreateResponse,
+  WorkspaceGetCurrentResponse,
+  WorkspaceSetCurrentRequest,
+  WorkspaceSetCurrentResponse,
+  WorkspaceType,
+  TestGetSpecRequest,
+  TestGetSpecResponse,
+  TestParseLocatorsRequest,
+  TestParseLocatorsResponse,
+  LocatorInfo,
+  TestExportBundleRequest,
+  TestExportBundleResponse,
+  DataReadRequest,
+  DataReadResponse,
+  DataImportExcelRequest,
+  DataImportExcelResponse,
+  WorkspaceLocatorsListRequest,
+  WorkspaceLocatorsListResponse,
+  LocatorIndexEntry,
+  SettingsGetBrowserStackRequest,
+  SettingsGetBrowserStackResponse,
+  SettingsUpdateBrowserStackRequest,
+  SettingsUpdateBrowserStackResponse,
+  BrowserStackSettings,
+  SettingsGetRecordingEngineRequest,
+  SettingsGetRecordingEngineResponse,
+  SettingsUpdateRecordingEngineRequest,
+  SettingsUpdateRecordingEngineResponse,
+  RecordingEngine,
+  RecorderStartRequest,
+  RecorderStartResponse,
+  RecorderStopResponse,
+} from '../types/v1.5';
+
+/**
+ * IPC bridge between React UI and Node.js core
+ */
+export class IPCBridge {
+  private sessionManager: SessionManager;
+  private browserManager: BrowserManager;
+  private recorderEngine: RecorderEngine;
+  private pomGenerator: POMGenerator;
+  private specGenerator: SpecGenerator;
+  private codeFormatter: CodeFormatter;
+  private currentSessionId: string | null = null;
+  private configManager: ConfigManager;
+  // v1.5 services
+  private codegenService: CodegenService;
+  private recorderService: RecorderService;
+  private locatorCleanupService: LocatorCleanupService;
+  private parameterDetector: ParameterDetector;
+  private specWriter: SpecWriter;
+  private dataWriter: DataWriter;
+  private testRunner: TestRunner | null = null;
+  private traceServer: TraceServer;
+  private mainWindow: BrowserWindow | null = null;
+  private workspaceManager: WorkspaceManager;
+
+  constructor(configManager: ConfigManager, workspaceManager: WorkspaceManager, mainWindow: BrowserWindow | null = null) {
+    this.configManager = configManager;
+    this.workspaceManager = workspaceManager;
+    this.mainWindow = mainWindow;
+    this.sessionManager = new SessionManager();
+    this.browserManager = new BrowserManager();
+    // RecorderEngine will be created per session with module context
+    this.recorderEngine = new RecorderEngine();
+    this.pomGenerator = new POMGenerator();
+    this.specGenerator = new SpecGenerator();
+    this.codeFormatter = new CodeFormatter();
+    // v1.5 services
+    this.codegenService = new CodegenService();
+    this.codegenService.setMainWindow(mainWindow);
+    this.recorderService = new RecorderService();
+    this.recorderService.setMainWindow(mainWindow);
+    this.locatorCleanupService = new LocatorCleanupService();
+    this.parameterDetector = new ParameterDetector();
+    this.specWriter = new SpecWriter(workspaceManager);
+    this.dataWriter = new DataWriter();
+    this.traceServer = new TraceServer();
+  }
+
+  /**
+   * Set main window (needed for test runner events)
+   */
+  setMainWindow(window: BrowserWindow | null): void {
+    this.mainWindow = window;
+    this.testRunner = new TestRunner(window);
+    this.codegenService.setMainWindow(window);
+    if (this.recorderService) {
+      this.recorderService.setMainWindow(window);
+    }
+  }
+
+  /**
+   * Get storage state path from config or default
+   */
+  private getStorageStatePath(): string {
+    const config = this.configManager.getConfig();
+    if (config.storageStatePath && fs.existsSync(config.storageStatePath)) {
+      return config.storageStatePath;
+    }
+    // Fallback to config manager's default
+    return this.configManager.getStorageStatePath();
+  }
+
+  /**
+   * Get D365 URL from config or env
+   */
+  private getD365Url(config?: { d365Url?: string }): string | null {
+    const appConfig = this.configManager.getConfig();
+    return config?.d365Url || appConfig.d365Url || process.env.D365_URL || null;
+  }
+
+  /**
+   * Check if authentication is needed
+   */
+  checkAuthentication(): { needsLogin: boolean; hasStorageState: boolean } {
+    const storageStatePath = this.getStorageStatePath();
+    const hasStorageState = this.browserManager.isStorageStateValid(storageStatePath);
+    
+    // If we have a valid storage state, we don't need login
+    // If we don't have storage state, we'll need login (user will enter credentials in UI)
+    return {
+      needsLogin: !hasStorageState,
+      hasStorageState,
+    };
+  }
+
+  /**
+   * Check storage state and determine next steps
+   */
+  async checkStorageState(): Promise<{
+    status: 'valid' | 'missing' | 'invalid' | 'expired' | 'error';
+    message: string;
+    nextSteps: string[];
+    storageStatePath: string;
+    details?: any;
+  }> {
+    const storageStatePath = this.getStorageStatePath();
+    const d365Url = this.getD365Url() || process.env.D365_URL || '';
+    
+    if (!d365Url) {
+      return {
+        status: 'error',
+        message: 'D365 URL not configured',
+        nextSteps: ['Configure D365 URL in settings'],
+        storageStatePath,
+      };
+    }
+
+    if (!fs.existsSync(storageStatePath)) {
+      return {
+        status: 'missing',
+        message: 'Storage state file does not exist',
+        nextSteps: [
+          'Go to Setup screen',
+          'Enter D365 URL and credentials',
+          'Click "Sign in to D365" to create storage state',
+        ],
+        storageStatePath,
+      };
+    }
+
+    // Test if storage state works
+    const testResult = await this.browserManager.testStorageState(storageStatePath, d365Url);
+    
+    if (!testResult.isValid) {
+      return {
+        status: 'invalid',
+        message: testResult.error || 'Storage state is invalid',
+        nextSteps: [
+          'Storage state file is corrupted or invalid',
+          'Go to Setup screen',
+          'Re-enter credentials and sign in again',
+        ],
+        storageStatePath,
+        details: testResult.details,
+      };
+    }
+
+    if (!testResult.isWorking) {
+      return {
+        status: 'expired',
+        message: 'Storage state exists but authentication has expired',
+        nextSteps: [
+          'Go to Setup screen',
+          'Re-enter credentials and sign in again',
+          'This will update the storage state',
+        ],
+        storageStatePath,
+        details: testResult.details,
+      };
+    }
+
+    return {
+      status: 'valid',
+      message: 'Storage state is valid and working',
+      nextSteps: [
+        'You can start recording sessions',
+        'Tests can run with authentication',
+      ],
+      storageStatePath,
+      details: testResult.details,
+    };
+  }
+
+  /**
+   * Register all IPC handlers
+   */
+  registerHandlers(): void {
+    // Authentication
+    ipcMain.handle('auth:check', async () => {
+      return this.checkAuthentication();
+    });
+
+    // Storage state checker
+    ipcMain.handle('config:check-storage-state', async () => {
+      return await this.checkStorageState();
+    });
+
+    ipcMain.handle('auth:login', async (_, credentials: { username: string; password: string; d365Url?: string }) => {
+      return this.handleLogin(credentials);
+    });
+
+    // Session management
+    ipcMain.handle('session:start', async (_, config: SessionConfig) => {
+      return this.handleStartSession(config);
+    });
+
+    ipcMain.handle('session:stop', async (_, sessionId: string) => {
+      return this.handleStopSession(sessionId);
+    });
+
+    ipcMain.handle('session:getSteps', async (_, sessionId: string) => {
+      return this.handleGetSteps(sessionId);
+    });
+
+    ipcMain.handle('session:updateStep', async (_, sessionId: string, stepOrder: number, description: string) => {
+      return this.handleUpdateStep(sessionId, stepOrder, description);
+    });
+
+    // Code generation
+    ipcMain.handle('code:generate', async (_, sessionId: string, outputConfig: OutputConfig) => {
+      return this.handleGenerateCode(sessionId, outputConfig);
+    });
+
+    // Browser control
+    ipcMain.handle('browser:close', async () => {
+      return this.handleCloseBrowser();
+    });
+
+    // ============================================================================
+    // v1.5 IPC Handlers
+    // ============================================================================
+
+    // Codegen control
+    ipcMain.handle('codegen:start', async (_, request: CodegenStartRequest) => {
+      return await this.codegenService.start(request);
+    });
+
+    ipcMain.handle('codegen:stop', async () => {
+      return await this.codegenService.stop();
+    });
+
+    // Recorder control (QA Studio Recorder)
+    ipcMain.handle('recorder:start', async (_, request: RecorderStartRequest) => {
+      return await this.recorderService.start(request);
+    });
+
+    ipcMain.handle('recorder:stop', async () => {
+      return await this.recorderService.stop();
+    });
+
+    // Locator cleanup
+    ipcMain.handle('locator:cleanup', async (_, request: LocatorCleanupRequest) => {
+      return await this.locatorCleanupService.cleanup(request);
+    });
+
+    // Parameter detection
+    ipcMain.handle('params:detect', async (_, request: ParamDetectRequest) => {
+      return await this.parameterDetector.detect(request);
+    });
+
+    // Spec writing
+    ipcMain.handle('spec:write', async (_, request: SpecWriteRequest) => {
+      return await this.specWriter.writeSpec(request);
+    });
+
+    // Data writing
+    ipcMain.handle('data:write', async (_, request: DataWriteRequest) => {
+      return await this.dataWriter.writeData(request);
+    });
+
+    // Test library
+    ipcMain.handle('workspace:tests:list', async (_, request: TestListRequest) => {
+      return await this.handleTestList(request);
+    });
+
+    // Test execution
+    ipcMain.handle('test:run', async (_, request: TestRunRequest) => {
+      if (!this.testRunner) {
+        this.testRunner = new TestRunner(this.mainWindow);
+      }
+      return await this.testRunner.run(request);
+    });
+
+    ipcMain.handle('test:stop', async () => {
+      if (this.testRunner) {
+        this.testRunner.stop();
+      }
+      return { success: true };
+    });
+
+    // Trace & Report
+    ipcMain.handle('trace:open', async (_, request: TraceOpenRequest) => {
+      return await this.traceServer.openTrace(request);
+    });
+
+    ipcMain.handle('report:open', async (_, request: ReportOpenRequest) => {
+      return await this.traceServer.openReport(request);
+    });
+
+    // Run metadata
+    ipcMain.handle('runs:list', async (_, request: { workspacePath: string; testName?: string }) => {
+      return await this.handleListRuns(request);
+    });
+
+    ipcMain.handle('run:get', async (_, request: { workspacePath: string; runId: string }) => {
+      return await this.handleGetRun(request);
+    });
+
+    // ============================================================================
+    // Workspace Management IPC Handlers
+    // ============================================================================
+
+    ipcMain.handle('workspaces:list', async (): Promise<WorkspaceListResponse> => {
+      try {
+        const workspaces = await this.workspaceManager.listWorkspaces();
+        return { success: true, workspaces };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to list workspaces' };
+      }
+    });
+
+    ipcMain.handle('workspaces:create', async (_, request: WorkspaceCreateRequest): Promise<WorkspaceCreateResponse> => {
+      try {
+        const defaultType: WorkspaceType = (request.type || 'd365') as WorkspaceType;
+        const workspace = await this.workspaceManager.createWorkspace({
+          name: request.name,
+          type: defaultType,
+        });
+        return { success: true, workspace };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to create workspace' };
+      }
+    });
+
+    ipcMain.handle('workspaces:getCurrent', async (): Promise<WorkspaceGetCurrentResponse> => {
+      try {
+        const workspaceId = this.workspaceManager.getCurrentWorkspaceId();
+        if (!workspaceId) {
+          return { success: true, workspace: null };
+        }
+
+        // Find workspace by ID
+        const workspaces = await this.workspaceManager.listWorkspaces();
+        const workspace = workspaces.find(w => w.id === workspaceId);
+        
+        if (workspace) {
+          // Ensure migrated
+          const migrated = await this.workspaceManager.ensureWorkspaceMigrated(workspace);
+          return { success: true, workspace: migrated };
+        }
+
+        return { success: true, workspace: null };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get current workspace' };
+      }
+    });
+
+    ipcMain.handle('workspaces:setCurrent', async (_, request: WorkspaceSetCurrentRequest): Promise<WorkspaceSetCurrentResponse> => {
+      try {
+        await this.workspaceManager.setCurrentWorkspaceId(request.workspaceId);
+        
+        // Load and return the workspace
+        const workspaces = await this.workspaceManager.listWorkspaces();
+        const workspace = workspaces.find(w => w.id === request.workspaceId);
+        
+        if (!workspace) {
+          return { success: false, error: `Workspace not found: ${request.workspaceId}` };
+        }
+
+        // Ensure migrated
+        const migrated = await this.workspaceManager.ensureWorkspaceMigrated(workspace);
+        
+        // Update config manager with new workspace path
+        this.configManager.setWorkspacePath(migrated.workspacePath);
+        
+        return { success: true, workspace: migrated };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to set current workspace' };
+      }
+    });
+
+    // ============================================================================
+    // v1.6: Test Details IPC Handlers
+    // ============================================================================
+
+    // Get spec file content
+    ipcMain.handle('test:getSpec', async (_, request: TestGetSpecRequest): Promise<TestGetSpecResponse> => {
+      try {
+        const specPath = path.join(request.workspacePath, 'tests', `${request.testName}.spec.ts`);
+        if (!fs.existsSync(specPath)) {
+          return { success: false, error: `Spec file not found: ${request.testName}` };
+        }
+        const content = fs.readFileSync(specPath, 'utf-8');
+        return { success: true, content };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to read spec file' };
+      }
+    });
+
+    // Parse locators from spec file
+    ipcMain.handle('test:parseLocators', async (_, request: TestParseLocatorsRequest): Promise<TestParseLocatorsResponse> => {
+      try {
+        const specPath = path.join(request.workspacePath, 'tests', `${request.testName}.spec.ts`);
+        if (!fs.existsSync(specPath)) {
+          return { success: false, error: `Spec file not found: ${request.testName}` };
+        }
+        const content = fs.readFileSync(specPath, 'utf-8');
+        const lines = content.split('\n');
+        const locators: LocatorInfo[] = [];
+        
+        // Simple regex-based parsing (can be enhanced with AST later)
+        lines.forEach((line, index) => {
+          const lineNum = index + 1;
+          
+          // Match page.getByRole(...)
+          const roleMatch = line.match(/page\.getByRole\(['"]([^'"]+)['"],\s*\{[^}]*name:\s*['"]([^'"]+)['"]/);
+          if (roleMatch) {
+            locators.push({
+              selector: line.trim(),
+              type: 'role',
+              lines: [lineNum],
+            });
+          }
+          
+          // Match page.getByLabel(...)
+          const labelMatch = line.match(/page\.getByLabel\(['"]([^'"]+)['"]/);
+          if (labelMatch) {
+            locators.push({
+              selector: line.trim(),
+              type: 'label',
+              lines: [lineNum],
+            });
+          }
+          
+          // Match page.locator(...)
+          const locatorMatch = line.match(/page\.locator\(['"]([^'"]+)['"]/);
+          if (locatorMatch) {
+            const selector = locatorMatch[1];
+            let type: LocatorInfo['type'] = 'css';
+            if (selector.includes('data-dyn-controlname')) {
+              type = 'd365-controlname';
+            } else if (selector.includes('data-test-id')) {
+              type = 'testid';
+            } else if (selector.startsWith('//') || selector.startsWith('/')) {
+              type = 'xpath';
+            }
+            locators.push({
+              selector: line.trim(),
+              type,
+              lines: [lineNum],
+            });
+          }
+          
+          // Match page.getByText(...)
+          const textMatch = line.match(/page\.getByText\(['"]([^'"]+)['"]/);
+          if (textMatch) {
+            locators.push({
+              selector: line.trim(),
+              type: 'text',
+              lines: [lineNum],
+            });
+          }
+          
+          // Match page.getByPlaceholder(...)
+          const placeholderMatch = line.match(/page\.getByPlaceholder\(['"]([^'"]+)['"]/);
+          if (placeholderMatch) {
+            locators.push({
+              selector: line.trim(),
+              type: 'placeholder',
+              lines: [lineNum],
+            });
+          }
+        });
+        
+        // Merge duplicate locators
+        const merged: Map<string, LocatorInfo> = new Map();
+        locators.forEach(loc => {
+          const key = loc.selector;
+          if (merged.has(key)) {
+            const existing = merged.get(key)!;
+            existing.lines.push(...loc.lines);
+            existing.lines = [...new Set(existing.lines)].sort();
+          } else {
+            merged.set(key, { ...loc });
+          }
+        });
+        
+        return { success: true, locators: Array.from(merged.values()) };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to parse locators' };
+      }
+    });
+
+    // Export test bundle (stub)
+    ipcMain.handle('test:exportBundle', async (_, request: TestExportBundleRequest): Promise<TestExportBundleResponse> => {
+      try {
+        // Stub: just log for now
+        console.log(`[TestExport] Export bundle requested for test: ${request.testName}`);
+        // TODO: Implement actual bundle export (zip spec + data + metadata)
+        return { success: true, bundlePath: `bundles/${request.testName}.zip` };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to export bundle' };
+      }
+    });
+
+    // Read data file
+    ipcMain.handle('data:read', async (_, request: DataReadRequest): Promise<DataReadResponse> => {
+      try {
+        const dataPath = path.join(request.workspacePath, 'data', `${request.testName}.json`);
+        if (!fs.existsSync(dataPath)) {
+          return { success: true, rows: [] };
+        }
+        const content = fs.readFileSync(dataPath, 'utf-8');
+        const rows = JSON.parse(content);
+        return { success: true, rows: Array.isArray(rows) ? rows : [] };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to read data file' };
+      }
+    });
+
+    // Import Excel (stub)
+    ipcMain.handle('data:importExcel', async (_, request: DataImportExcelRequest): Promise<DataImportExcelResponse> => {
+      try {
+        // Stub: just log for now
+        console.log(`[DataImport] Excel import requested for test: ${request.testName}`);
+        // TODO: Implement Excel parsing and conversion to JSON
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to import Excel' };
+      }
+    });
+
+    // List all locators across workspace
+    ipcMain.handle('workspace:locators:list', async (_, request: WorkspaceLocatorsListRequest): Promise<WorkspaceLocatorsListResponse> => {
+      try {
+        const testsDir = path.join(request.workspacePath, 'tests');
+        if (!fs.existsSync(testsDir)) {
+          return { success: true, locators: [] };
+        }
+        
+        const specFiles = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+        const locatorMap: Map<string, LocatorIndexEntry> = new Map();
+        
+        for (const specFile of specFiles) {
+          const testName = path.basename(specFile, '.spec.ts');
+          const specPath = path.join(testsDir, specFile);
+          const content = fs.readFileSync(specPath, 'utf-8');
+          const lines = content.split('\n');
+          
+          lines.forEach((line) => {
+            // Extract locator patterns (same as parseLocators)
+            const patterns = [
+              { regex: /page\.getByRole\(['"]([^'"]+)['"],\s*\{[^}]*name:\s*['"]([^'"]+)['"]/, type: 'role' as const },
+              { regex: /page\.getByLabel\(['"]([^'"]+)['"]/, type: 'label' as const },
+              { regex: /page\.locator\(['"]([^'"]+)['"]/, type: 'css' as const },
+              { regex: /page\.getByText\(['"]([^'"]+)['"]/, type: 'text' as const },
+              { regex: /page\.getByPlaceholder\(['"]([^'"]+)['"]/, type: 'placeholder' as const },
+            ];
+            
+            patterns.forEach(({ regex, type }) => {
+              const match = line.match(regex);
+              if (match) {
+                const selector = line.trim();
+                const key = `${type}:${selector}`;
+                
+                if (locatorMap.has(key)) {
+                  const entry = locatorMap.get(key)!;
+                  if (!entry.usedInTests.includes(testName)) {
+                    entry.usedInTests.push(testName);
+                    entry.testCount++;
+                  }
+                } else {
+                  locatorMap.set(key, {
+                    locator: selector,
+                    type,
+                    testCount: 1,
+                    usedInTests: [testName],
+                  });
+                }
+              }
+            });
+          });
+        }
+        
+        return { success: true, locators: Array.from(locatorMap.values()) };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to list locators' };
+      }
+    });
+
+    // BrowserStack Settings
+    ipcMain.handle('settings:getBrowserStack', async (_, request: SettingsGetBrowserStackRequest): Promise<SettingsGetBrowserStackResponse> => {
+      try {
+        const settingsPath = path.join(request.workspacePath, 'workspace-settings.json');
+        if (!fs.existsSync(settingsPath)) {
+          return { success: true, settings: { username: '', accessKey: '', project: '', buildPrefix: '' } };
+        }
+        const content = fs.readFileSync(settingsPath, 'utf-8');
+        const settings = JSON.parse(content);
+        return {
+          success: true,
+          settings: {
+            username: settings.browserstack?.username || '',
+            accessKey: settings.browserstack?.accessKey || '',
+            project: settings.browserstack?.project || '',
+            buildPrefix: settings.browserstack?.buildPrefix || '',
+          },
+        };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get BrowserStack settings' };
+      }
+    });
+
+    ipcMain.handle('settings:updateBrowserStack', async (_, request: SettingsUpdateBrowserStackRequest): Promise<SettingsUpdateBrowserStackResponse> => {
+      try {
+        const settingsPath = path.join(request.workspacePath, 'workspace-settings.json');
+        let settings: any = {};
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const content = fs.readFileSync(settingsPath, 'utf-8');
+            settings = JSON.parse(content);
+          } catch (e) {
+            // Ignore parse errors, start fresh
+          }
+        }
+        
+        settings.browserstack = {
+          username: request.settings.username,
+          accessKey: request.settings.accessKey,
+          project: request.settings.project || '',
+          buildPrefix: request.settings.buildPrefix || '',
+        };
+        settings.updatedAt = new Date().toISOString();
+        
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update BrowserStack settings' };
+      }
+    });
+
+    // Recording Engine Settings
+    ipcMain.handle('settings:getRecordingEngine', async (_, request: SettingsGetRecordingEngineRequest): Promise<SettingsGetRecordingEngineResponse> => {
+      try {
+        const settingsPath = path.join(request.workspacePath, 'workspace-settings.json');
+        if (!fs.existsSync(settingsPath)) {
+          // Default to 'playwright' for backward compatibility with existing workspaces
+          return { success: true, recordingEngine: 'playwright' };
+        }
+        const content = fs.readFileSync(settingsPath, 'utf-8');
+        const settings = JSON.parse(content);
+        const engine = settings.recordingEngine || 'playwright'; // Default to playwright for existing workspaces
+        return {
+          success: true,
+          recordingEngine: engine as RecordingEngine,
+        };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get recording engine setting' };
+      }
+    });
+
+    ipcMain.handle('settings:updateRecordingEngine', async (_, request: SettingsUpdateRecordingEngineRequest): Promise<SettingsUpdateRecordingEngineResponse> => {
+      try {
+        const settingsPath = path.join(request.workspacePath, 'workspace-settings.json');
+        let settings: any = {};
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const content = fs.readFileSync(settingsPath, 'utf-8');
+            settings = JSON.parse(content);
+          } catch (e) {
+            // Ignore parse errors, start fresh
+          }
+        }
+        
+        settings.recordingEngine = request.recordingEngine;
+        settings.updatedAt = new Date().toISOString();
+        
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update recording engine setting' };
+      }
+    });
+  }
+
+  /**
+   * Handle list runs request
+   */
+  private async handleListRuns(request: { workspacePath: string; testName?: string }): Promise<{ success: boolean; runs?: TestRunMeta[]; error?: string }> {
+    try {
+      const indexPath = path.join(request.workspacePath, 'runs', 'index.json');
+      
+      if (!fs.existsSync(indexPath)) {
+        return { success: true, runs: [] };
+      }
+
+      const content = fs.readFileSync(indexPath, 'utf-8');
+      const index: RunIndex = JSON.parse(content);
+
+      let runs = index.runs || [];
+
+      // Filter by testName if provided
+      if (request.testName) {
+        runs = runs.filter(r => r.testName === request.testName);
+      }
+
+      return { success: true, runs };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to list runs' };
+    }
+  }
+
+  /**
+   * Handle get run request
+   */
+  private async handleGetRun(request: { workspacePath: string; runId: string }): Promise<{ success: boolean; run?: TestRunMeta; error?: string }> {
+    try {
+      const indexPath = path.join(request.workspacePath, 'runs', 'index.json');
+      
+      if (!fs.existsSync(indexPath)) {
+        return { success: false, error: 'No runs found' };
+      }
+
+      const content = fs.readFileSync(indexPath, 'utf-8');
+      const index: RunIndex = JSON.parse(content);
+
+      const run = index.runs?.find((r: TestRunMeta) => r.runId === request.runId);
+
+      if (!run) {
+        return { success: false, error: `Run not found: ${request.runId}` };
+      }
+
+      return { success: true, run };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to get run' };
+    }
+  }
+
+  /**
+   * Handle test list request
+   */
+  private async handleTestList(request: TestListRequest): Promise<{ success: boolean; tests?: TestSummary[]; error?: string }> {
+    try {
+      const testsDir = path.join(request.workspacePath, 'tests');
+      if (!fs.existsSync(testsDir)) {
+        return { success: true, tests: [] };
+      }
+
+      const tests: TestSummary[] = [];
+      const specFiles = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+
+      for (const specFile of specFiles) {
+        const testName = path.basename(specFile, '.spec.ts');
+        const specPath = `tests/${specFile}`; // Workspace-relative path
+        const metaPath = path.join('tests', `${testName}.meta.json`);
+        const dataPath = path.join('data', `${testName}.json`);
+
+        // Read meta if exists
+        let meta: TestMeta | null = null;
+        const fullMetaPath = path.join(request.workspacePath, metaPath);
+        if (fs.existsSync(fullMetaPath)) {
+          try {
+            meta = JSON.parse(fs.readFileSync(fullMetaPath, 'utf-8'));
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+
+        // Read data if exists
+        let datasetCount = 0;
+        const fullDataPath = path.join(request.workspacePath, dataPath);
+        if (fs.existsSync(fullDataPath)) {
+          try {
+            const data = JSON.parse(fs.readFileSync(fullDataPath, 'utf-8'));
+            datasetCount = Array.isArray(data) ? data.length : 0;
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+
+        tests.push({
+          testName,
+          module: meta?.module,
+          specPath,
+          dataPath: fs.existsSync(fullDataPath) ? dataPath : undefined,
+          metaPath: fs.existsSync(fullMetaPath) ? metaPath : undefined,
+          datasetCount,
+          lastRunAt: meta?.lastRunAt,
+          lastStatus: meta?.lastStatus || 'never_run',
+          tags: meta?.tags,
+        });
+      }
+
+      return { success: true, tests };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to list tests' };
+    }
+  }
+
+  /**
+   * Handle login flow
+   */
+  private async handleLogin(credentials: { username: string; password: string; d365Url?: string }): Promise<{ success: boolean; error?: string }> {
+    try {
+      const d365Url = credentials.d365Url || process.env.D365_URL;
+      if (!d365Url) {
+        return { success: false, error: 'D365 URL not configured' };
+      }
+
+      const storageStatePath = this.getStorageStatePath();
+
+      // Launch browser if not already launched
+      if (!this.browserManager.isOpen()) {
+        await this.browserManager.launch({ headless: false });
+      }
+
+      // Perform login
+      await this.browserManager.performLogin(
+        d365Url,
+        credentials.username,
+        credentials.password,
+        storageStatePath,
+        (message) => {
+          // Could emit progress events here if needed
+          console.log('Login progress:', message);
+        }
+      );
+
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Handle start session
+   */
+  private async handleStartSession(config: SessionConfig): Promise<{ success: boolean; sessionId?: string; error?: string }> {
+    try {
+      console.log('[Bridge] Starting session:', config.flowName);
+      
+      // Get storage state path and D365 URL
+      const storageStatePath = config.storageStatePath || this.getStorageStatePath();
+      const d365Url = this.getD365Url(config);
+
+      console.log('[Bridge] Storage state path:', storageStatePath);
+      console.log('[Bridge] D365 URL:', d365Url);
+
+      // Check if we need authentication
+      const authCheck = this.checkAuthentication();
+      if (authCheck.needsLogin) {
+        console.log('[Bridge] Authentication required');
+        return { 
+          success: false, 
+          error: 'Authentication required. Please login first.' 
+        };
+      }
+
+      // Create session
+      console.log('[Bridge] Creating session...');
+      const session = this.sessionManager.startSession(config);
+      this.currentSessionId = session.id;
+      console.log('[Bridge] Session created:', session.id);
+
+      // Launch browser with storage state
+      console.log('[Bridge] Launching browser...');
+      const page = await this.browserManager.launch({
+        headless: false,
+        storageStatePath: storageStatePath,
+      });
+      console.log('[Bridge] Browser launched');
+
+      // Navigate to D365
+      if (d365Url) {
+        console.log('[Bridge] Navigating to D365...');
+        await this.browserManager.navigateToD365(d365Url);
+        console.log('[Bridge] Navigation complete');
+      }
+
+      // Create recorder engine with module
+      console.log('[Bridge] Creating recorder engine...');
+      this.recorderEngine = new RecorderEngine(config.module);
+      
+      // Start recording
+      console.log('[Bridge] Starting recording...');
+      await this.recorderEngine.startRecording(page, (step: RecordedStep) => {
+        this.sessionManager.addStep(session.id, step);
+      });
+      console.log('[Bridge] Recording started successfully');
+
+      return { success: true, sessionId: session.id };
+    } catch (error: any) {
+      console.error('[Bridge] Error starting session:', error);
+      return { success: false, error: error.message || 'Unknown error occurred' };
+    }
+  }
+
+  /**
+   * Handle stop session
+   */
+  private async handleStopSession(sessionId: string): Promise<{ success: boolean }> {
+    try {
+      this.recorderEngine.stopRecording();
+      this.sessionManager.stopSession(sessionId);
+      this.currentSessionId = null;
+      return { success: true };
+    } catch (error: any) {
+      return { success: false };
+    }
+  }
+
+  /**
+   * Handle get steps
+   */
+  private handleGetSteps(sessionId: string): RecordedStep[] {
+    return this.sessionManager.getSessionSteps(sessionId);
+  }
+
+  /**
+   * Handle update step description
+   */
+  private handleUpdateStep(sessionId: string, stepOrder: number, description: string): { success: boolean } {
+    const success = this.sessionManager.updateStepDescription(sessionId, stepOrder, description);
+    return { success };
+  }
+
+  /**
+   * Handle generate code
+   */
+  private handleGenerateCode(sessionId: string, outputConfig: OutputConfig): { success: boolean; files?: string[]; error?: string } {
+    try {
+      const session = this.sessionManager.getSession(sessionId);
+      if (!session) {
+        return { success: false, error: 'Session not found' };
+      }
+
+      const steps = session.steps;
+      if (steps.length === 0) {
+        return { success: false, error: 'No steps recorded' };
+      }
+
+      // Use recordings directory from config if not specified
+      const recordingsDir = this.configManager.getOrInitRecordingsDir();
+      const pagesDir = outputConfig.pagesDir || path.join(recordingsDir, 'pages');
+      const testsDir = outputConfig.testsDir || path.join(recordingsDir, 'tests');
+
+      // Generate POMs
+      const pomFiles = this.pomGenerator.generatePOMs(
+        steps,
+        pagesDir,
+        outputConfig.module || session.module
+      );
+
+      // Generate spec
+      const specFile = this.specGenerator.generateSpec(
+        session.flowName,
+        steps,
+        testsDir,
+        pagesDir,
+        outputConfig.module || session.module
+      );
+
+      // Create initial data file for data-driven tests
+      const parameters = this.specGenerator.detectParametersFromSteps(steps);
+      const modulePath = outputConfig.module || session.module ? path.join('d365', outputConfig.module || session.module) : 'd365';
+      const specDir = path.join(testsDir, modulePath);
+      const fileName = this.specGenerator.flowNameToFileName(session.flowName);
+      const dataDir = path.join(specDir, 'data');
+      const dataFilePath = path.join(dataDir, `${fileName}Data.json`);
+      
+      // Create data file if it doesn't exist
+      if (!fs.existsSync(dataFilePath)) {
+        const dataContent = this.specGenerator.generateInitialDataFile(parameters);
+        fs.mkdirSync(dataDir, { recursive: true });
+        fs.writeFileSync(dataFilePath, dataContent, 'utf-8');
+        console.log(`Generated: ${dataFilePath}`);
+      }
+
+      // Write all files
+      const allFiles = [...pomFiles, specFile];
+      this.codeFormatter.writeFiles(allFiles);
+
+      return {
+        success: true,
+        files: allFiles.map(f => f.path),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Handle close browser
+   */
+  private async handleCloseBrowser(): Promise<{ success: boolean }> {
+    try {
+      await this.browserManager.close();
+      return { success: true };
+    } catch (error: any) {
+      return { success: false };
+    }
+  }
+}
+

@@ -1,0 +1,204 @@
+/**
+ * Type-safe IPC wrapper for v1.5
+ */
+import {
+  CodegenStartRequest,
+  CodegenStartResponse,
+  CodegenStopResponse,
+  CodegenCodeUpdate,
+  LocatorCleanupRequest,
+  LocatorCleanupResponse,
+  ParamDetectRequest,
+  ParamDetectResponse,
+  SpecWriteRequest,
+  SpecWriteResponse,
+  DataWriteRequest,
+  DataWriteResponse,
+  TestListRequest,
+  TestListResponse,
+  TestRunRequest,
+  TestRunEvent,
+  TestRunMeta,
+  TraceOpenRequest,
+  TraceOpenResponse,
+  ReportOpenRequest,
+  ReportOpenResponse,
+  WorkspaceListResponse,
+  WorkspaceCreateRequest,
+  WorkspaceCreateResponse,
+  WorkspaceGetCurrentResponse,
+  WorkspaceSetCurrentRequest,
+  WorkspaceSetCurrentResponse,
+  WorkspaceMeta,
+  WorkspaceType,
+  SettingsGetRecordingEngineRequest,
+  SettingsGetRecordingEngineResponse,
+  SettingsUpdateRecordingEngineRequest,
+  SettingsUpdateRecordingEngineResponse,
+  RecordingEngine,
+  RecorderStartRequest,
+  RecorderStartResponse,
+  RecorderStopResponse,
+  RecorderCodeUpdate,
+} from '../../types/v1.5';
+
+export const ipc = {
+  // Codegen
+  codegen: {
+    start: (request: CodegenStartRequest): Promise<CodegenStartResponse> => {
+      return window.electronAPI?.codegenStart(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    stop: (): Promise<CodegenStopResponse> => {
+      return window.electronAPI?.codegenStop() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    onCodeUpdate: (callback: (update: CodegenCodeUpdate) => void): void => {
+      window.electronAPI?.onCodegenCodeUpdate(callback);
+    },
+    removeCodeUpdateListener: (): void => {
+      window.electronAPI?.removeCodegenCodeUpdateListener();
+    },
+  },
+
+  // Recorder (QA Studio Recorder)
+  recorder: {
+    start: (request: RecorderStartRequest): Promise<RecorderStartResponse> => {
+      return window.electronAPI?.recorderStart(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    stop: (): Promise<RecorderStopResponse> => {
+      return window.electronAPI?.recorderStop() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    onCodeUpdate: (callback: (update: RecorderCodeUpdate) => void): void => {
+      window.electronAPI?.onRecorderCodeUpdate(callback);
+    },
+    removeCodeUpdateListener: (): void => {
+      window.electronAPI?.removeRecorderCodeUpdateListener();
+    },
+  },
+
+  // Locator cleanup
+  locator: {
+    cleanup: (request: LocatorCleanupRequest): Promise<LocatorCleanupResponse> => {
+      return window.electronAPI?.locatorCleanup(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Parameter detection
+  params: {
+    detect: (request: ParamDetectRequest): Promise<ParamDetectResponse> => {
+      return window.electronAPI?.paramsDetect(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Spec writing
+  spec: {
+    write: (request: SpecWriteRequest): Promise<SpecWriteResponse> => {
+      return window.electronAPI?.specWrite(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Data writing
+  data: {
+    write: (request: DataWriteRequest): Promise<DataWriteResponse> => {
+      return window.electronAPI?.dataWrite(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    // v1.6: Data operations
+    read: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; rows?: any[]; error?: string }> => {
+      return window.electronAPI?.dataRead(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    importExcel: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.dataImportExcel(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Test library
+  workspace: {
+    testsList: (request: TestListRequest): Promise<TestListResponse> => {
+      return window.electronAPI?.workspaceTestsList(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    // v1.6: Workspace locators
+    locatorsList: (request: { workspacePath: string }): Promise<{ success: boolean; locators?: any[]; error?: string }> => {
+      return window.electronAPI?.workspaceLocatorsList(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Test execution
+  test: {
+    run: (request: TestRunRequest): Promise<{ runId: string }> => {
+      return window.electronAPI?.testRun(request) || Promise.resolve({ runId: '' });
+    },
+    stop: (): Promise<{ success: boolean }> => {
+      return window.electronAPI?.testStop() || Promise.resolve({ success: false });
+    },
+    onEvents: (callback: (event: TestRunEvent) => void): void => {
+      window.electronAPI?.onTestRunEvents(callback);
+    },
+    removeEventsListener: (): void => {
+      window.electronAPI?.removeTestRunEventsListener();
+    },
+    // v1.6: Test Details
+    getSpec: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; content?: string; error?: string }> => {
+      return window.electronAPI?.testGetSpec(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    parseLocators: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; locators?: any[]; error?: string }> => {
+      return window.electronAPI?.testParseLocators(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    exportBundle: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; bundlePath?: string; error?: string }> => {
+      return window.electronAPI?.testExportBundle(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Trace & Report
+  trace: {
+    open: (request: TraceOpenRequest): Promise<TraceOpenResponse> => {
+      return window.electronAPI?.traceOpen(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+  report: {
+    open: (request: ReportOpenRequest): Promise<ReportOpenResponse> => {
+      return window.electronAPI?.reportOpen(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Run metadata
+  runs: {
+    list: (request: { workspacePath: string; testName?: string }): Promise<{ success: boolean; runs?: TestRunMeta[]; error?: string }> => {
+      return window.electronAPI?.runsList(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    get: (request: { workspacePath: string; runId: string }): Promise<{ success: boolean; run?: TestRunMeta; error?: string }> => {
+      return window.electronAPI?.runGet(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Workspace management
+  workspaces: {
+    list: (): Promise<WorkspaceListResponse> => {
+      return window.electronAPI?.workspacesList() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    create: (name: string, type?: WorkspaceType): Promise<WorkspaceCreateResponse> => {
+      return window.electronAPI?.workspacesCreate({ name, type }) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getCurrent: (): Promise<WorkspaceGetCurrentResponse> => {
+      return window.electronAPI?.workspacesGetCurrent() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    setCurrent: (workspaceId: string): Promise<WorkspaceSetCurrentResponse> => {
+      return window.electronAPI?.workspacesSetCurrent({ workspaceId }) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // v1.6: Settings
+  settings: {
+    getBrowserStack: (request: { workspacePath: string }): Promise<{ success: boolean; settings?: any; error?: string }> => {
+      return window.electronAPI?.settingsGetBrowserStack(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateBrowserStack: (request: { workspacePath: string; settings: any }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.settingsUpdateBrowserStack(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getRecordingEngine: (request: SettingsGetRecordingEngineRequest): Promise<SettingsGetRecordingEngineResponse> => {
+      return window.electronAPI?.settingsGetRecordingEngine(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateRecordingEngine: (request: SettingsUpdateRecordingEngineRequest): Promise<SettingsUpdateRecordingEngineResponse> => {
+      return window.electronAPI?.settingsUpdateRecordingEngine(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+};
+
