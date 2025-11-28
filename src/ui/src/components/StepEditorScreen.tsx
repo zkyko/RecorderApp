@@ -1,0 +1,455 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Card, Text, Button, Group, Stack, TextInput, Badge, ScrollArea, ActionIcon, Checkbox, Alert, Menu } from '@mantine/core';
+import { ArrowRight, Trash2, Edit2, Check, X, Plus, Clock, MessageSquare } from 'lucide-react';
+import { ipc } from '../ipc';
+import './StepEditorScreen.css';
+
+interface RecordedStep {
+  pageId: string;
+  action: 'click' | 'fill' | 'select' | 'navigate' | 'wait' | 'custom' | 'comment';
+  description: string;
+  locator?: any;
+  value?: string;
+  order: number;
+  timestamp: Date;
+  fieldName?: string;
+  methodName?: string;
+  pageUrl?: string;
+  mi?: string;
+  cmp?: string;
+  pageType?: 'list' | 'details' | 'dialog' | 'workspace' | 'unknown';
+  customAction?: 'waitForD365'; // For custom action type
+}
+
+const StepEditorScreen: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [steps, setSteps] = useState<RecordedStep[]>([]);
+  const [rawCode, setRawCode] = useState<string>('');
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editedValue, setEditedValue] = useState<string>('');
+  const [showCleanupAlert, setShowCleanupAlert] = useState(false);
+
+  useEffect(() => {
+    const state = location.state as { rawCode?: string; steps?: RecordedStep[] };
+    if (state?.steps) {
+      setSteps(state.steps);
+    }
+    if (state?.rawCode) {
+      setRawCode(state.rawCode);
+    }
+  }, [location]);
+
+  const handleDelete = (index: number) => {
+    const newSteps = steps.filter((_, i) => i !== index);
+    setSteps(newSteps);
+    // Regenerate code after deletion
+    regenerateCode(newSteps);
+  };
+
+  const handleEditStart = (index: number) => {
+    setEditingIndex(index);
+    setEditedValue(steps[index].value || '');
+  };
+
+  const handleEditSave = (index: number) => {
+    const newSteps = [...steps];
+    newSteps[index] = { ...newSteps[index], value: editedValue };
+    setSteps(newSteps);
+    setEditingIndex(null);
+    setEditedValue('');
+    // Regenerate code after edit
+    regenerateCode(newSteps);
+  };
+
+  const handleEditCancel = () => {
+    setEditingIndex(null);
+    setEditedValue('');
+  };
+
+  const handleParameterize = (index: number) => {
+    const step = steps[index];
+    if (step.value) {
+      // Mark as parameterized by wrapping in {{ }} or similar
+      const newSteps = [...steps];
+      newSteps[index] = { 
+        ...newSteps[index], 
+        value: `{{${step.value}}}` // Simple parameterization marker
+      };
+      setSteps(newSteps);
+      regenerateCode(newSteps);
+    }
+  };
+
+  const regenerateCode = async (stepsToCompile: RecordedStep[]) => {
+    try {
+      const code = await ipc.recorder.compileSteps(stepsToCompile);
+      if (code) {
+        setRawCode(code);
+      }
+    } catch (error) {
+      console.error('Failed to regenerate code:', error);
+    }
+  };
+
+  const handleContinue = () => {
+    // Extract parameterized steps info and create ParamCandidate objects
+    const parameterizedSteps = steps
+      .filter(step => step.value && step.value.startsWith('{{') && step.value.endsWith('}}'))
+      .map((step, index) => {
+        const originalValue = step.value!.slice(2, -2); // Remove {{ }}
+        const label = extractFieldLabel(step.description) || step.description || 'Field';
+        const suggestedName = generateParameterName(step, label);
+        
+        return {
+          id: `param-${step.order}-${index}`, // Unique ID
+          label: label,
+          originalValue: originalValue,
+          suggestedName: suggestedName,
+        };
+      });
+
+    // Navigate to locator cleanup with the final code and parameterized steps
+    navigate('/record/locator-cleanup', { 
+      state: { 
+        rawCode: rawCode,
+        steps: steps,
+        parameterizedSteps: parameterizedSteps
+      } 
+    });
+  };
+
+  // Helper to generate parameter name from step (matches backend logic)
+  const generateParameterName = (step: RecordedStep, label: string): string => {
+    // Use label if available, otherwise use description
+    const source = label || step.description || step.fieldName || 'value';
+    
+    // Convert to camelCase (matches backend makeSafeIdentifier logic)
+    return source
+      .toLowerCase()
+      .replace(/[^a-z0-9]+(.)/g, (_, char) => char.toUpperCase())
+      .replace(/^[A-Z]/, (char) => char.toLowerCase())
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 50);
+  };
+
+  // Helper to extract field label from description
+  const extractFieldLabel = (description: string): string => {
+    // Pattern: "Fill 'Customer account' = '100001'" or "Select 'Item number' = 'A0001'"
+    const match = description.match(/['"]([^'"]+)['"]/);
+    return match ? match[1] : '';
+  };
+
+  /**
+   * Detect redundant navigation steps
+   * Heuristic: Multiple navigations in a row, or navigations immediately after clicks without user interaction
+   */
+  const detectRedundantNavigations = useMemo(() => {
+    const redundantIndices: number[] = [];
+    
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      
+      // Check if this is a navigation step
+      if (step.action === 'navigate') {
+        // Check if previous step was also navigation (multiple navigations in a row)
+        if (i > 0 && steps[i - 1].action === 'navigate') {
+          redundantIndices.push(i);
+          continue;
+        }
+        
+        // Check if next step is a click and previous step was a click (navigation between clicks without fill/select)
+        if (i > 0 && i < steps.length - 1) {
+          const prevStep = steps[i - 1];
+          const nextStep = steps[i + 1];
+          if (prevStep.action === 'click' && nextStep.action === 'click') {
+            redundantIndices.push(i);
+            continue;
+          }
+        }
+        
+        // Check if navigation appears right after a click without meaningful interaction
+        if (i > 0 && steps[i - 1].action === 'click' && i < steps.length - 1) {
+          const nextStep = steps[i + 1];
+          // If next step is also a click or navigate, this might be a redirect
+          if (nextStep.action === 'click' || nextStep.action === 'navigate') {
+            redundantIndices.push(i);
+          }
+        }
+      }
+    }
+    
+    return redundantIndices;
+  }, [steps]);
+
+  useEffect(() => {
+    setShowCleanupAlert(detectRedundantNavigations.length > 0);
+  }, [detectRedundantNavigations]);
+
+  const handleCleanup = () => {
+    const newSteps = steps.filter((_, index) => !detectRedundantNavigations.includes(index));
+    setSteps(newSteps);
+    setShowCleanupAlert(false);
+    regenerateCode(newSteps);
+  };
+
+  const handleInsertStep = (index: number, stepType: 'waitForD365' | 'wait' | 'comment') => {
+    const newStep: RecordedStep = {
+      pageId: steps[index]?.pageId || 'unknown',
+      action: stepType === 'comment' ? 'comment' : stepType === 'waitForD365' ? 'custom' : 'wait',
+      description: stepType === 'waitForD365' 
+        ? 'Wait for D365 to stabilize' 
+        : stepType === 'wait' 
+        ? 'Hard wait (1000ms)'
+        : 'Comment',
+      order: index + 1,
+      timestamp: new Date(),
+      value: stepType === 'wait' ? '1000' : stepType === 'comment' ? 'New Step' : undefined,
+      customAction: stepType === 'waitForD365' ? 'waitForD365' : undefined,
+    };
+
+    // Update order numbers for all subsequent steps
+    const newSteps = [...steps];
+    newSteps.splice(index, 0, newStep);
+    
+    // Re-number all steps
+    newSteps.forEach((step, idx) => {
+      step.order = idx + 1;
+    });
+    
+    setSteps(newSteps);
+    regenerateCode(newSteps);
+  };
+
+  const getActionBadgeColor = (action: string) => {
+    switch (action) {
+      case 'navigate': return 'blue';
+      case 'click': return 'green';
+      case 'fill': return 'orange';
+      case 'select': return 'purple';
+      case 'wait': return 'yellow';
+      case 'custom': return 'cyan';
+      case 'comment': return 'gray';
+      default: return 'gray';
+    }
+  };
+
+  return (
+    <div className="step-editor-screen">
+      <div className="step-editor-header">
+        <Text size="xl" fw={700}>Step Editor</Text>
+        <Text size="sm" c="dimmed">Review, edit, and delete recorded steps before generating code</Text>
+      </div>
+
+      {/* Smart Cleanup Alert */}
+      {showCleanupAlert && detectRedundantNavigations.length > 0 && (
+        <Alert
+          color="yellow"
+          title={`Detected ${detectRedundantNavigations.length} potential redirect step${detectRedundantNavigations.length !== 1 ? 's' : ''}`}
+          onClose={() => setShowCleanupAlert(false)}
+          withCloseButton
+          mb="md"
+        >
+          <Group justify="space-between" align="center">
+            <Text size="sm">
+              These navigation steps appear to be redundant and can be safely removed.
+            </Text>
+            <Button size="xs" onClick={handleCleanup}>
+              Clean Up
+            </Button>
+          </Group>
+        </Alert>
+      )}
+
+      <ScrollArea h={600} mb="md">
+        <Stack gap="md">
+          {steps.length === 0 ? (
+            <Card padding="lg" radius="md" withBorder>
+              <Text c="dimmed" ta="center">No steps to display</Text>
+            </Card>
+          ) : (
+            <>
+              {/* Step Injection button before first step */}
+              <Group justify="center">
+                <Menu shadow="md" width={200}>
+                  <Menu.Target>
+                    <ActionIcon variant="light" color="blue" size="lg">
+                      <Plus size={16} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<Clock size={14} />}
+                      onClick={() => handleInsertStep(0, 'waitForD365')}
+                    >
+                      Wait for D365
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<Clock size={14} />}
+                      onClick={() => handleInsertStep(0, 'wait')}
+                    >
+                      Hard Wait (Time)
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<MessageSquare size={14} />}
+                      onClick={() => handleInsertStep(0, 'comment')}
+                    >
+                      Add Comment
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
+
+              {steps.map((step, index) => (
+                <React.Fragment key={index}>
+                  <Card padding="lg" radius="md" withBorder>
+                <Group justify="space-between" align="flex-start">
+                  <Group gap="md" style={{ flex: 1 }}>
+                    <Badge color={getActionBadgeColor(step.action)} size="lg">
+                      {step.action.toUpperCase()}
+                    </Badge>
+                    <div style={{ flex: 1 }}>
+                      <Text fw={500} mb={4}>{step.description}</Text>
+                      {step.action === 'navigate' && step.pageUrl && (
+                        <Text size="sm" c="dimmed" style={{ wordBreak: 'break-all' }}>
+                          {step.pageUrl}
+                        </Text>
+                      )}
+                      {(step.action === 'fill' || step.action === 'select') && (
+                        <div style={{ marginTop: 8 }}>
+                          {editingIndex === index ? (
+                            <Group gap="xs">
+                              <TextInput
+                                value={editedValue}
+                                onChange={(e) => setEditedValue(e.target.value)}
+                                placeholder="Enter value"
+                                style={{ flex: 1 }}
+                              />
+                              <ActionIcon
+                                color="green"
+                                onClick={() => handleEditSave(index)}
+                                variant="filled"
+                              >
+                                <Check size={16} />
+                              </ActionIcon>
+                              <ActionIcon
+                                color="red"
+                                onClick={handleEditCancel}
+                                variant="filled"
+                              >
+                                <X size={16} />
+                              </ActionIcon>
+                            </Group>
+                          ) : (
+                            <Group gap="xs">
+                              <Text size="sm">
+                                <strong>Value:</strong> {step.value || '(empty)'}
+                              </Text>
+                              <ActionIcon
+                                size="sm"
+                                variant="subtle"
+                                onClick={() => handleEditStart(index)}
+                              >
+                                <Edit2 size={14} />
+                              </ActionIcon>
+                              {step.value && (
+                                <Button
+                                  size="xs"
+                                  variant="light"
+                                  onClick={() => handleParameterize(index)}
+                                >
+                                  Parameterize
+                                </Button>
+                              )}
+                            </Group>
+                          )}
+                        </div>
+                      )}
+                      {step.pageId && (
+                        <Text size="xs" c="dimmed" mt={4}>
+                          Page: {step.pageId}
+                        </Text>
+                      )}
+                      {step.action === 'custom' && step.customAction === 'waitForD365' && (
+                        <Text size="sm" c="dimmed" mt={4}>
+                          Custom: Wait for D365 to stabilize
+                        </Text>
+                      )}
+                      {step.action === 'wait' && step.value && (
+                        <Text size="sm" c="dimmed" mt={4}>
+                          Wait: {step.value}ms
+                        </Text>
+                      )}
+                      {step.action === 'comment' && step.value && (
+                        <Text size="sm" c="dimmed" mt={4} style={{ fontStyle: 'italic' }}>
+                          // {step.value}
+                        </Text>
+                      )}
+                    </div>
+                  </Group>
+                  <ActionIcon
+                    color="red"
+                    variant="light"
+                    onClick={() => handleDelete(index)}
+                  >
+                    <Trash2 size={18} />
+                  </ActionIcon>
+                </Group>
+                  </Card>
+                  
+                  {/* Step Injection button after each step */}
+                  <Group justify="center">
+                <Menu shadow="md" width={200}>
+                  <Menu.Target>
+                    <ActionIcon variant="light" color="blue" size="lg">
+                      <Plus size={16} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<Clock size={14} />}
+                      onClick={() => handleInsertStep(index + 1, 'waitForD365')}
+                    >
+                      Wait for D365
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<Clock size={14} />}
+                      onClick={() => handleInsertStep(index + 1, 'wait')}
+                    >
+                      Hard Wait (Time)
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<MessageSquare size={14} />}
+                      onClick={() => handleInsertStep(index + 1, 'comment')}
+                    >
+                      Add Comment
+                    </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                  </Group>
+                </React.Fragment>
+              ))}
+            </>
+          )}
+        </Stack>
+      </ScrollArea>
+
+      <Group justify="space-between" mt="md">
+        <Text size="sm" c="dimmed">
+          {steps.length} step{steps.length !== 1 ? 's' : ''} total
+        </Text>
+        <Button
+          leftSection={<ArrowRight size={16} />}
+          onClick={handleContinue}
+          disabled={steps.length === 0}
+        >
+          Continue to Locator Cleanup
+        </Button>
+      </Group>
+    </div>
+  );
+};
+
+export default StepEditorScreen;
+

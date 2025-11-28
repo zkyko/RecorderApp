@@ -4,6 +4,7 @@ import { MantineProvider, createTheme } from '@mantine/core';
 import '@mantine/core/styles.css';
 import Sidebar from './Sidebar';
 import TopToolbar from './TopToolbar';
+import HintPanel from './HintPanel';
 import './AppLayout.css';
 
 const darkTheme = createTheme({
@@ -40,6 +41,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         <div className="app-main">
           <TopToolbar />
           <div className="app-content">
+            <HintPanel />
             {children || <Outlet />}
           </div>
         </div>

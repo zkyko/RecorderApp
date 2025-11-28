@@ -125,12 +125,18 @@ export interface ElectronAPI {
   testStop: () => Promise<{ success: boolean }>;
   onTestRunEvents: (callback: (event: { type: 'log' | 'error' | 'status' | 'finished'; runId: string; message?: string; status?: 'started' | 'running' | 'passed' | 'failed'; exitCode?: number; timestamp: string }) => void) => void;
   removeTestRunEventsListener: () => void;
+  onTestUpdate: (callback: (data: { workspacePath: string; testName: string; status: 'passed' | 'failed'; lastRunAt: string; lastRunId: string }) => void) => void;
+  removeTestUpdateListener: () => void;
 
   // Trace & Report
   traceOpen: (request: { workspacePath: string; traceZipPath: string }) => 
     Promise<{ success: boolean; url?: string; error?: string }>;
+  traceOpenWindow: (request: { workspacePath: string; traceZipPath: string }) => 
+    Promise<{ success: boolean; error?: string }>;
   reportOpen: (request: { workspacePath: string; reportPath?: string; runId?: string }) => 
     Promise<{ success: boolean; url?: string; error?: string }>;
+  reportOpenWindow: (request: { workspacePath: string; reportPath?: string; runId?: string }) => 
+    Promise<{ success: boolean; error?: string }>;
 
   // Run metadata
   runsList: (request: { workspacePath: string; testName?: string }) => 
@@ -154,11 +160,18 @@ export interface ElectronAPI {
   dataImportExcel: (request: { workspacePath: string; testName: string }) => Promise<{ success: boolean; error?: string }>;
 
   // v1.6: Workspace locators
-  workspaceLocatorsList: (request: { workspacePath: string }) => Promise<{ success: boolean; locators?: Array<{ locator: string; type: string; testCount: number; usedInTests: string[] }>; error?: string }>;
+  workspaceLocatorsList: (request: { workspacePath: string }) => Promise<{ success: boolean; locators?: Array<{ locator: string; type: string; testCount: number; usedInTests: string[]; status?: { state: string; note?: string; updatedAt: string; lastTest?: string } }>; error?: string }>;
+  workspaceLocatorsUpdate: (request: { workspacePath: string; originalLocator: string; updatedLocator: string; type: string; tests: string[] }) => Promise<{ success: boolean; updatedTests?: string[]; error?: string }>;
+  workspaceLocatorsSetStatus: (request: { workspacePath: string; locatorKey: string; status: string; note?: string; testName?: string }) => Promise<{ success: boolean; status?: { state: string; note?: string; updatedAt: string; lastTest?: string }; error?: string }>;
 
   // v1.6: Settings
   settingsGetBrowserStack: (request: { workspacePath: string }) => Promise<{ success: boolean; settings?: { username: string; accessKey: string; project?: string; buildPrefix?: string }; error?: string }>;
   settingsUpdateBrowserStack: (request: { workspacePath: string; settings: { username: string; accessKey: string; project?: string; buildPrefix?: string } }) => Promise<{ success: boolean; error?: string }>;
+  settingsGetAIConfig: () => Promise<{ success: boolean; config?: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }; error?: string }>;
+  settingsUpdateAIConfig: (request: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }) => Promise<{ success: boolean; error?: string }>;
+
+  // RAG Chat
+  ragChat: (request: { workspacePath: string; testName: string; messages: Array<{ role: string; content: string }> }) => Promise<{ success: boolean; response?: string; error?: string }>;
 }
 
 declare global {

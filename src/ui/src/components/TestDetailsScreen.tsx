@@ -17,16 +17,14 @@ import {
   Timeline,
   TextInput,
   Checkbox,
-  Select,
   Stack,
   ActionIcon,
   Tooltip,
   Alert,
-  Accordion,
+  Drawer,
 } from '@mantine/core';
 import {
   Play,
-  Cloud,
   FileText,
   Eye,
   ArrowLeft,
@@ -35,13 +33,15 @@ import {
   Plus,
   Copy,
   Trash2,
-  Search,
-  Filter,
+  Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { TestSummary, TestMeta, TestRunMeta, DataRow, LocatorInfo } from '../../../types/v1.5';
 import RunModal from './RunModal';
+import TestDetailsLocatorsTab from './TestDetailsLocatorsTab';
+import DebugChatPanel from './DebugChatPanel';
 import './TestDetailsScreen.css';
 
 const TestDetailsScreen: React.FC = () => {
@@ -57,11 +57,33 @@ const TestDetailsScreen: React.FC = () => {
   const [locators, setLocators] = useState<LocatorInfo[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>('overview');
   const [runModalOpened, setRunModalOpened] = useState(false);
+  const [chatDrawerOpened, setChatDrawerOpened] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     if (testName && workspacePath) {
       loadTestData();
     }
+  }, [testName, workspacePath]);
+
+  // Listen for test status updates
+  useEffect(() => {
+    if (!window.electronAPI?.onTestUpdate || !testName || !workspacePath) return;
+
+    const handleTestUpdate = (data: { workspacePath: string; testName: string; status: 'passed' | 'failed'; lastRunAt: string; lastRunId: string }) => {
+      // Only refresh if the update is for the current test and workspace
+      if (data.workspacePath === workspacePath && data.testName === testName) {
+        loadTestData();
+      }
+    };
+
+    window.electronAPI.onTestUpdate(handleTestUpdate);
+
+    return () => {
+      if (window.electronAPI?.removeTestUpdateListener) {
+        window.electronAPI.removeTestUpdateListener();
+      }
+    };
   }, [testName, workspacePath]);
 
   const loadTestData = async () => {
@@ -157,14 +179,24 @@ const TestDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleRun = async (mode: 'local' | 'browserstack', target?: string) => {
+  const handleRun = async (mode: 'local' | 'browserstack', target?: string, selectedDataIndices?: number[]) => {
     if (!testName || !workspacePath) return;
     try {
+      // Load data rows to get IDs for selected indices
+      let datasetFilterIds: string[] | undefined;
+      if (selectedDataIndices && selectedDataIndices.length > 0 && dataRows.length > 0) {
+        const enabledRows = dataRows.filter((row: any) => row.enabled !== false);
+        datasetFilterIds = selectedDataIndices
+          .map(index => enabledRows[index]?.id)
+          .filter((id): id is string => !!id);
+      }
+
       await ipc.test.run({
         workspacePath,
         specPath: `tests/${testName}.spec.ts`,
         runMode: mode,
         target,
+        datasetFilterIds, // Pass selected data row IDs
       });
       // Reload runs
       setTimeout(() => {
@@ -180,9 +212,62 @@ const TestDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleOpenTrace = () => {
-    if (runs.length > 0 && runs[0].tracePaths && runs[0].tracePaths.length > 0) {
-      navigate(`/trace/${testName}/${runs[0].runId}`);
+  const handleOpenTrace = async () => {
+    if (!workspacePath || runs.length === 0 || !runs[0].tracePaths || runs[0].tracePaths.length === 0) return;
+    await ipc.trace.openWindow({
+      workspacePath,
+      traceZipPath: runs[0].tracePaths[0],
+    });
+  };
+
+  const handleRegenerate = async () => {
+    if (!testName || !workspacePath || !specContent) {
+      alert('Cannot regenerate: Spec content not loaded.');
+      return;
+    }
+
+    setRegenerating(true);
+    try {
+      // Extract parameters from dataRows (all keys except id, enabled, name)
+      const parameterKeys = new Set<string>();
+      dataRows.forEach(row => {
+        Object.keys(row).forEach(key => {
+          if (key !== 'id' && key !== 'enabled' && key !== 'name') {
+            parameterKeys.add(key);
+          }
+        });
+      });
+
+      // Convert parameter keys to SelectedParam format
+      // Use the key as both id and variableName (since we don't have the original detection IDs)
+      const selectedParams = Array.from(parameterKeys).map(key => ({
+        id: key, // Use key as ID since we don't have original detection IDs
+        variableName: key,
+      }));
+
+      // Regenerate the spec using current content and parameters
+      const response = await ipc.spec.write({
+        workspacePath,
+        testName,
+        module: testMeta?.module,
+        cleanedCode: specContent,
+        selectedParams,
+      });
+
+      if (response.success) {
+        // Reload the spec content to show the updated version
+        const specResponse = await ipc.test.getSpec({ workspacePath, testName });
+        if (specResponse.success && specResponse.content) {
+          setSpecContent(specResponse.content);
+        }
+        alert('Spec file regenerated successfully.');
+      } else {
+        alert(`Failed to regenerate spec: ${response.error}`);
+      }
+    } catch (error: any) {
+      alert(`Error regenerating spec: ${error.message}`);
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -254,6 +339,27 @@ const TestDetailsScreen: React.FC = () => {
             )}
           </div>
           <Group gap="xs">
+            {testSummary.lastStatus === 'failed' && (
+              <Button
+                leftSection={<Sparkles size={16} />}
+                onClick={() => setChatDrawerOpened(true)}
+                variant="light"
+                color="blue"
+              >
+                ✨ Diagnose with AI
+              </Button>
+            )}
+            <Tooltip label="Re-generate the spec file using the latest generator logic.">
+              <Button
+                leftSection={<RefreshCw size={16} />}
+                onClick={handleRegenerate}
+                variant="light"
+                loading={regenerating}
+                disabled={!specContent || regenerating}
+              >
+                Regenerate
+              </Button>
+            </Tooltip>
             <Button
               leftSection={<Play size={16} />}
               onClick={() => setRunModalOpened(true)}
@@ -349,6 +455,16 @@ const TestDetailsScreen: React.FC = () => {
               <div>
                 <Text fw={600} mb="xs">Quick Actions</Text>
                 <Group gap="xs">
+                  {testSummary.lastStatus === 'failed' && (
+                    <Button
+                      leftSection={<Sparkles size={16} />}
+                      onClick={() => setChatDrawerOpened(true)}
+                      variant="light"
+                      color="blue"
+                    >
+                      ✨ Diagnose with AI
+                    </Button>
+                  )}
                   <Button leftSection={<Play size={16} />} onClick={() => setRunModalOpened(true)}>
                     Run Test
                   </Button>
@@ -365,49 +481,12 @@ const TestDetailsScreen: React.FC = () => {
 
         {/* Locators Tab */}
         <Tabs.Panel value="locators" pt="md">
-          <Card padding="lg" radius="md" withBorder>
-            {locators.length === 0 ? (
-              <Center py="xl">
-                <Text c="dimmed">No locators found in this test.</Text>
-              </Center>
-            ) : (
-              <Table>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Selector / API</Table.Th>
-                    <Table.Th>Type</Table.Th>
-                    <Table.Th>Used Lines</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {locators.map((locator, index) => (
-                    <Table.Tr key={index}>
-                      <Table.Td>
-                        <Code block style={{ maxWidth: 400, fontSize: '0.75rem' }}>
-                          {locator.selector}
-                        </Code>
-                      </Table.Td>
-                      <Table.Td>
-                        <Badge variant="light">{locator.type}</Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm">{locator.lines.join(', ')}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Button size="xs" variant="subtle" onClick={() => {
-                          // TODO: Highlight line in code view
-                          console.log('Highlight line:', locator.lines[0]);
-                        }}>
-                          View
-                        </Button>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            )}
-          </Card>
+          <TestDetailsLocatorsTab
+            locators={locators}
+            testName={testName!}
+            workspacePath={workspacePath!}
+            onLocatorUpdate={loadTestData}
+          />
         </Tabs.Panel>
 
         {/* Data Tab */}
@@ -442,7 +521,27 @@ const TestDetailsScreen: React.FC = () => {
         onClose={() => setRunModalOpened(false)}
         onRun={handleRun}
         testName={testName || undefined}
+        workspacePath={workspacePath || undefined}
+        dataRows={dataRows}
       />
+
+      <Drawer
+        opened={chatDrawerOpened}
+        onClose={() => setChatDrawerOpened(false)}
+        title="AI Debug Assistant"
+        size="xl"
+        position="right"
+      >
+        {testName && workspacePath && (
+          <div style={{ height: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column' }}>
+            <DebugChatPanel
+              testName={testName}
+              workspacePath={workspacePath}
+              onClose={() => setChatDrawerOpened(false)}
+            />
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 };
@@ -458,11 +557,38 @@ const DataTab: React.FC<{
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const columns = dataRows.length > 0
-    ? Object.keys(dataRows[0]).filter(k => k !== 'id' && k !== 'enabled' && k !== 'name')
-    : [];
+  // Get all unique keys from all rows, excluding 'id' (internal use only)
+  const getAllKeys = () => {
+    const keys = new Set<string>();
+    dataRows.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (key !== 'id') { // Always exclude 'id' from visible columns
+          keys.add(key);
+        }
+      });
+    });
+    return Array.from(keys);
+  };
 
-  const allColumns = ['enabled', 'name', ...columns];
+  const allKeys = getAllKeys();
+  
+  // Separate special columns from dynamic parameter columns
+  const specialColumns = ['enabled', 'name'];
+  const dynamicColumns = allKeys.filter(k => !specialColumns.includes(k));
+  
+  // Order: enabled (checkbox), name (Scenario Name), then dynamic columns
+  const visibleColumns = ['enabled', 'name', ...dynamicColumns];
+  
+  // Helper to format column header
+  const formatColumnHeader = (col: string): string => {
+    if (col === 'name') return 'Scenario Name';
+    if (col === 'enabled') return ''; // Empty header for checkbox column
+    // Format dynamic columns: vendorAccount -> Vendor Account
+    return col
+      .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+      .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+      .trim();
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -482,10 +608,22 @@ const DataTab: React.FC<{
   };
 
   const handleAddRow = () => {
+    // Get all parameter keys from existing rows (excluding id, enabled, name)
+    const parameterKeys = new Set<string>();
+    dataRows.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (key !== 'id' && key !== 'enabled' && key !== 'name') {
+          parameterKeys.add(key);
+        }
+      });
+    });
+    
     const newRow: DataRow = {
       id: Date.now().toString(),
       enabled: true,
-      name: `Row ${dataRows.length + 1}`,
+      name: `Scenario ${dataRows.length + 1}`,
+      // Initialize all parameter columns with empty strings
+      ...Array.from(parameterKeys).reduce((acc, key) => ({ ...acc, [key]: '' }), {}),
     };
     onDataChange([...dataRows, newRow]);
   };
@@ -566,8 +704,8 @@ const DataTab: React.FC<{
           <Table>
             <Table.Thead>
               <Table.Tr>
-                {allColumns.map(col => (
-                  <Table.Th key={col}>{col}</Table.Th>
+                {visibleColumns.map(col => (
+                  <Table.Th key={col}>{formatColumnHeader(col)}</Table.Th>
                 ))}
                 <Table.Th>Actions</Table.Th>
               </Table.Tr>
@@ -575,11 +713,11 @@ const DataTab: React.FC<{
             <Table.Tbody>
               {dataRows.map((row) => (
                 <Table.Tr key={row.id}>
-                  {allColumns.map(col => (
+                  {visibleColumns.map(col => (
                     <Table.Td key={col}>
                       {col === 'enabled' ? (
                         <Checkbox
-                          checked={row.enabled}
+                          checked={row.enabled ?? true}
                           onChange={(e) => handleCellChange(row.id, col, e.currentTarget.checked)}
                         />
                       ) : (
@@ -587,6 +725,7 @@ const DataTab: React.FC<{
                           value={row[col] || ''}
                           onChange={(e) => handleCellChange(row.id, col, e.target.value)}
                           size="xs"
+                          placeholder={col === 'name' ? 'Enter scenario name' : `Enter ${formatColumnHeader(col).toLowerCase()}`}
                         />
                       )}
                     </Table.Td>
@@ -648,39 +787,49 @@ const StepsTab: React.FC<{ specContent: string | null }> = ({ specContent }) => 
 
   return (
     <Card padding="lg" radius="md" withBorder>
-      <Group gap="xl" align="flex-start">
-        <div style={{ flex: 1 }}>
+      <Group gap="md" align="flex-start" wrap="nowrap">
+        <div style={{ flex: '0 0 400px', maxHeight: 'calc(100vh - 300px)' }}>
           <Text fw={600} mb="md">Test Steps</Text>
           {steps.length === 0 ? (
             <Text c="dimmed">No steps found in spec file.</Text>
           ) : (
-            <Timeline active={selectedLine || -1} bulletSize={24} lineWidth={2}>
-              {steps.map((step) => (
-                <Timeline.Item
-                  key={step.index}
-                  bullet={step.index}
-                  title={`Step ${step.index}`}
-                  onClick={() => setSelectedLine(step.line)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <Text size="sm" c="dimmed">{step.description}</Text>
-                  <Text size="xs" c="dimmed">Line {step.line}</Text>
-                </Timeline.Item>
-              ))}
-            </Timeline>
+            <ScrollArea h="calc(100vh - 350px)">
+              <Timeline active={selectedLine || -1} bulletSize={24} lineWidth={2}>
+                {steps.map((step) => (
+                  <Timeline.Item
+                    key={step.index}
+                    bullet={step.index}
+                    title={`Step ${step.index}`}
+                    onClick={() => setSelectedLine(step.line)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <Text size="sm" c="dimmed">{step.description}</Text>
+                    <Text size="xs" c="dimmed">Line {step.line}</Text>
+                  </Timeline.Item>
+                ))}
+              </Timeline>
+            </ScrollArea>
           )}
         </div>
         {specContent && (
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <Text fw={600} mb="md">Code Preview</Text>
-            <ScrollArea h={500}>
-              <Code block style={{ fontSize: '0.75rem' }}>
+            <ScrollArea h="calc(100vh - 350px)">
+              <Code block style={{ 
+                fontSize: '0.75rem',
+                background: '#1e1e1e',
+                padding: '16px',
+                borderRadius: '8px',
+              }}>
                 {specContent.split('\n').map((line, index) => (
                   <div
                     key={index}
                     style={{
-                      backgroundColor: selectedLine === index + 1 ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                      padding: '2px 0',
+                      backgroundColor: selectedLine === index + 1 ? 'rgba(59, 130, 246, 0.3)' : 'transparent',
+                      padding: '2px 4px',
+                      margin: selectedLine === index + 1 ? '2px 0' : '0',
+                      borderRadius: selectedLine === index + 1 ? '4px' : '0',
+                      transition: 'background-color 0.2s',
                     }}
                   >
                     {line || ' '}

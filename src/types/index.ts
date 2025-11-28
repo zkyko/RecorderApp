@@ -15,10 +15,10 @@ export interface RecordingSession {
 
 export interface RecordedStep {
   pageId: string; // e.g. "SalesOrderPage"
-  action: 'click' | 'fill' | 'select' | 'navigate' | 'wait';
+  action: 'click' | 'fill' | 'select' | 'navigate' | 'wait' | 'custom' | 'comment';
   description: string; // human-readable
-  locator: LocatorDefinition;
-  value?: string; // for fills/selects
+  locator?: LocatorDefinition; // Optional for custom/comment steps
+  value?: string; // for fills/selects, wait time, or comment text
   order: number;
   timestamp: Date;
   // Sanitized identifiers for code generation
@@ -29,6 +29,8 @@ export interface RecordedStep {
   mi?: string;             // Menu item parameter
   cmp?: string;            // Company parameter
   pageType?: 'list' | 'details' | 'dialog' | 'workspace' | 'unknown';
+  // Custom action type (for action === 'custom')
+  customAction?: 'waitForD365';
 }
 
 export type LocatorDefinition =

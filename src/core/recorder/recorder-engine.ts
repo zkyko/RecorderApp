@@ -41,6 +41,16 @@ export class RecorderEngine {
     // Extract initial page identity
     await this.updatePageIdentity(page);
 
+    // Set up console message forwarding so debug logs are visible in terminal
+    page.on('console', (msg) => {
+      const text = msg.text();
+      // Forward console messages from the page to terminal for debugging
+      // This includes messages from our injected spatial heuristic safety net
+      if (text.includes('[Recorder') || text.includes('[Recorder Safety Net]')) {
+        console.log('[Browser Console]', text);
+      }
+    });
+
     // Inject event listeners
     await EventListeners.injectListeners(page, (event) => this.handleEvent(event));
     await EventListeners.setupPlaywrightListeners(page, (event) => this.handleEvent(event));
@@ -327,8 +337,13 @@ export class RecorderEngine {
         const title = (el as HTMLElement).title || el.getAttribute('title') || '';
         const id = el.id || '';
         
-        // Only get text content for interactive elements to avoid getting entire page
-        let text = '';
+        // SPATIAL HEURISTIC: Calculate element's position to check if it's in the left side
+        // The Navigation Pane is always on the left side of the screen
+        const rect = el.getBoundingClientRect();
+        const clickX = rect.left + (rect.width / 2); // Use center of element as approximate click position
+        const LEFT_SIDE_THRESHOLD = 350;
+        const isInLeftSide = clickX <= LEFT_SIDE_THRESHOLD;
+        
         // Check if element is interactive - include links and treeitems (common in D365 navigation)
         let isInteractive = ['button', 'link', 'menuitem', 'treeitem', 'tab', 'checkbox', 'radio'].includes(role) ||
                              tag === 'button' || tag === 'a' || 
@@ -361,6 +376,29 @@ export class RecorderEngine {
           depth++;
         }
         
+        // SPATIAL HEURISTIC SAFETY NET: If element is in left 350px and has text, treat as navigation
+        // This catches elements that don't have navigation pane class names
+        // This is the "Left-Side Rule": If a user clicks non-interactive text in the left 350px,
+        // we assume it's a navigation click and capture it
+        if (isInLeftSide && !isInteractive) {
+          // Get text content
+          let text = '';
+          for (const node of Array.from(el.childNodes)) {
+            if (node.nodeType === Node.TEXT_NODE) {
+              text += node.textContent || '';
+            }
+          }
+          text = text.trim();
+          const fullText = text || ariaLabel || title;
+          
+          // If it has meaningful text in the left side, treat it as navigation
+          if (fullText.length > 0 && fullText.length <= 100) {
+            console.log('[Recorder Engine] Spatial heuristic: Found non-interactive text in left side: "' + fullText + '"');
+            isInNavPane = true; // Mark as navigation pane element
+            isInteractive = true; // Force interactive so it gets processed
+          }
+        }
+        
         // RELAXED INTERACTION CHECK FOR NAVIGATION PANE:
         // If inside navigation pane, record clicks on generic divs/spans IF they have text
         // This mimics Playwright Codegen behavior for D365 navigation links
@@ -372,10 +410,6 @@ export class RecorderEngine {
           // This captures "All sales orders" and similar navigation leaf nodes
           if ((tag === 'div' || tag === 'span') && textContent.length > 0 && textContent.length <= 100) {
             isInteractive = true; // Force interactive - navigation pane divs/spans with text are clickable
-            // Ensure text is captured for these elements
-            if (!text || text.length === 0) {
-              text = textContent;
-            }
           }
         }
         
@@ -390,6 +424,8 @@ export class RecorderEngine {
           isInteractive = true; // Force interactive flag - this ensures the element is processed
         }
         
+        let text = '';
+        
         if (isInteractive) {
           // For interactive elements, get direct text only (not nested children)
           let directText = '';
@@ -399,18 +435,19 @@ export class RecorderEngine {
             }
           }
           text = directText.trim();
-          
-          // If no direct text, try textContent but limit it
-          if (!text) {
-            const fullText = el.textContent?.trim() || '';
-            // Only use if reasonably short (not entire page)
-            if (fullText.length > 0 && fullText.length < 100) {
-              text = fullText;
-            }
+        }
+        
+        // FALLBACK: If no direct text (or not interactive), try textContent but limit it
+        // This is CRITICAL for capturing clicks on text labels (like "All sales orders") that might not be marked as interactive
+        if (!text) {
+          const fullText = el.textContent?.trim() || '';
+          // Only use if reasonably short (not entire page)
+          if (fullText.length > 0 && fullText.length < 100) {
+            text = fullText;
           }
         }
         
-        return { tag, role, ariaLabel, title, text, id, isInteractive };
+        return { tag, role, ariaLabel, title, text, id, isInteractive, isInNavPane, isInLeftSide };
       });
 
       // FIX #2: Explicitly block garbage steps
@@ -428,9 +465,11 @@ export class RecorderEngine {
       }
       
       // Relax filter: allow buttons with title/aria-label even if no text
+      // ALSO: Allow left-side elements with text (spatial heuristic safety net)
       const isButtonLike = elementMeta.role === 'button' || elementMeta.tag === 'button';
-      if (!fullLabelText && !isButtonLike) {
-        return null; // Skip generic elements without any label
+      const isLeftSideWithText = elementMeta.isInLeftSide && elementMeta.text && elementMeta.text.length > 0;
+      if (!fullLabelText && !isButtonLike && !isLeftSideWithText) {
+        return null; // Skip generic elements without any label (unless left-side with text)
       }
       
       // Use fullLabelText for identifier generation
@@ -475,8 +514,16 @@ export class RecorderEngine {
    * RELAXED: Trust that if user clicked it, we should record it (especially navigation items)
    * This mimics Playwright Codegen behavior - it trusts user interactions
    */
-  private shouldSkipElement(elementMeta: { tag: string; role: string; ariaLabel: string; title: string; text: string; id: string; isInteractive: boolean }): boolean {
-    const { tag, role, ariaLabel, title, text, isInteractive } = elementMeta;
+  private shouldSkipElement(elementMeta: { tag: string; role: string; ariaLabel: string; title: string; text: string; id: string; isInteractive: boolean; isInNavPane?: boolean; isInLeftSide?: boolean }): boolean {
+    const { tag, role, ariaLabel, title, text, isInteractive, isInLeftSide } = elementMeta;
+    
+    // SPECIAL CASE: Never skip left-side elements with text (spatial heuristic safety net)
+    // The "Left-Side Rule": If a user clicks non-interactive text in the left 350px,
+    // we assume it's a navigation click and capture it
+    if (isInLeftSide && text && text.length > 0 && text.length <= 100) {
+      console.log('[Recorder Engine] Spatial heuristic: Not skipping left-side element with text: "' + text + '"');
+      return false;
+    }
     
     // SPECIAL CASE 1: Always record D365 Navigation Pane button (hamburger menu)
     // This button is critical for D365 flows and may be clicked via SVG icon

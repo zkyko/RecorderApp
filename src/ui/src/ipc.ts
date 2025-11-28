@@ -67,6 +67,9 @@ export const ipc = {
     stop: (): Promise<RecorderStopResponse> => {
       return window.electronAPI?.recorderStop() || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    compileSteps: (steps: any[]): Promise<string> => {
+      return window.electronAPI?.recorderCompileSteps(steps) || Promise.resolve('');
+    },
     onCodeUpdate: (callback: (update: RecorderCodeUpdate) => void): void => {
       window.electronAPI?.onRecorderCodeUpdate(callback);
     },
@@ -119,6 +122,12 @@ export const ipc = {
     locatorsList: (request: { workspacePath: string }): Promise<{ success: boolean; locators?: any[]; error?: string }> => {
       return window.electronAPI?.workspaceLocatorsList(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    locatorsUpdate: (request: any): Promise<{ success: boolean; updatedTests?: string[]; error?: string }> => {
+      return window.electronAPI?.workspaceLocatorsUpdate(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    locatorsSetStatus: (request: any): Promise<{ success: boolean; status?: any; error?: string }> => {
+      return window.electronAPI?.workspaceLocatorsSetStatus(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
   },
 
   // Test execution
@@ -152,10 +161,16 @@ export const ipc = {
     open: (request: TraceOpenRequest): Promise<TraceOpenResponse> => {
       return window.electronAPI?.traceOpen(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    openWindow: (request: TraceOpenRequest): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.traceOpenWindow(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
   },
   report: {
     open: (request: ReportOpenRequest): Promise<ReportOpenResponse> => {
       return window.electronAPI?.reportOpen(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    openWindow: (request: ReportOpenRequest): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.reportOpenWindow(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
   },
 
@@ -198,6 +213,19 @@ export const ipc = {
     },
     updateRecordingEngine: (request: SettingsUpdateRecordingEngineRequest): Promise<SettingsUpdateRecordingEngineResponse> => {
       return window.electronAPI?.settingsUpdateRecordingEngine(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getAIConfig: (): Promise<{ success: boolean; config?: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }; error?: string }> => {
+      return window.electronAPI?.settingsGetAIConfig() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateAIConfig: (request: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.settingsUpdateAIConfig(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // RAG Chat
+  rag: {
+    chat: (request: { workspacePath: string; testName: string; messages: Array<{ role: string; content: string }> }): Promise<{ success: boolean; response?: string; error?: string }> => {
+      return window.electronAPI?.ragChat(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
   },
 };

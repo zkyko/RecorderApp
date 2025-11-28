@@ -23,6 +23,26 @@ const TestLibrary: React.FC = () => {
     loadTests();
   }, [workspacePath]);
 
+  // Listen for test status updates
+  useEffect(() => {
+    if (!window.electronAPI?.onTestUpdate) return;
+
+    const handleTestUpdate = (data: { workspacePath: string; testName: string; status: 'passed' | 'failed'; lastRunAt: string; lastRunId: string }) => {
+      // Only refresh if the update is for the current workspace
+      if (data.workspacePath === workspacePath) {
+        loadTests();
+      }
+    };
+
+    window.electronAPI.onTestUpdate(handleTestUpdate);
+
+    return () => {
+      if (window.electronAPI?.removeTestUpdateListener) {
+        window.electronAPI.removeTestUpdateListener();
+      }
+    };
+  }, [workspacePath]);
+
   const loadTests = async () => {
     if (!workspacePath) {
       setLoading(false);
@@ -47,14 +67,27 @@ const TestLibrary: React.FC = () => {
     setRunModalOpened(true);
   };
 
-  const handleRun = async (mode: 'local' | 'browserstack', target?: string) => {
+  const handleRun = async (mode: 'local' | 'browserstack', target?: string, selectedDataIndices?: number[]) => {
     if (!selectedTest || !workspacePath) return;
     try {
+      // Load data rows to get IDs for selected indices
+      let datasetFilterIds: string[] | undefined;
+      if (selectedDataIndices && selectedDataIndices.length > 0) {
+        const dataResponse = await ipc.data.read({ workspacePath, testName: selectedTest.testName });
+        if (dataResponse.success && dataResponse.rows) {
+          const enabledRows = dataResponse.rows.filter((row: any) => row.enabled !== false);
+          datasetFilterIds = selectedDataIndices
+            .map(index => enabledRows[index]?.id)
+            .filter((id): id is string => !!id);
+        }
+      }
+
       await ipc.test.run({
         workspacePath,
         specPath: selectedTest.specPath,
         runMode: mode,
         target,
+        datasetFilterIds, // Pass selected data row IDs
       });
       navigate(`/runs/${selectedTest.testName}`);
     } catch (error) {
@@ -161,7 +194,14 @@ const TestLibrary: React.FC = () => {
         <Grid gutter="md">
           {filteredTests.map((test) => (
             <Grid.Col key={test.testName} span={{ base: 12, sm: 6, md: 4, lg: 3 }}>
-              <Card padding="lg" radius="md" withBorder className="test-card">
+              <Card 
+                padding="lg" 
+                radius="md" 
+                withBorder 
+                className="test-card"
+                onClick={() => handleViewTest(test)}
+                style={{ cursor: 'pointer' }}
+              >
                 <Group justify="space-between" mb="md">
                   <div style={{ flex: 1 }}>
                     <Text fw={600} size="lg" mb={4}>{test.testName}</Text>
@@ -186,7 +226,10 @@ const TestLibrary: React.FC = () => {
                 <Group gap="xs">
                   <Button
                     leftSection={<Play size={16} />}
-                    onClick={() => handleRunClick(test)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRunClick(test);
+                    }}
                     size="xs"
                     variant="filled"
                     style={{ flex: 1 }}
@@ -195,7 +238,10 @@ const TestLibrary: React.FC = () => {
                   </Button>
                   <Button
                     leftSection={<Edit size={16} />}
-                    onClick={() => handleEditData(test)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditData(test);
+                    }}
                     size="xs"
                     variant="light"
                     style={{ flex: 1 }}
@@ -204,7 +250,10 @@ const TestLibrary: React.FC = () => {
                   </Button>
                   <Button
                     leftSection={<FileText size={16} />}
-                    onClick={() => handleViewTest(test)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewTest(test);
+                    }}
                     size="xs"
                     variant="subtle"
                     style={{ flex: 1 }}
@@ -226,6 +275,7 @@ const TestLibrary: React.FC = () => {
         }}
         onRun={handleRun}
         testName={selectedTest?.testName}
+        workspacePath={workspacePath}
       />
     </div>
   );

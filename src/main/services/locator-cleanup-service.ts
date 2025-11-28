@@ -33,6 +33,30 @@ export class LocatorCleanupService {
       const project = new Project();
       const sourceFile = project.createSourceFile('temp.ts', code, { overwrite: true });
 
+      // Remove test.use() calls (storage state is configured in playwright.config.ts)
+      const statementsToRemove: any[] = [];
+      sourceFile.forEachDescendant((node) => {
+        if (Node.isCallExpression(node)) {
+          const expr = node.getExpression().getText();
+          if (expr === 'test.use' || expr.includes('test.use')) {
+            // Find the parent statement and mark it for removal
+            let parent = node.getParent();
+            while (parent && !Node.isStatement(parent)) {
+              parent = parent.getParent();
+            }
+            if (parent && Node.isStatement(parent)) {
+              statementsToRemove.push(parent);
+            }
+          }
+        }
+      });
+      // Remove statements
+      statementsToRemove.forEach(stmt => {
+        if (Node.isStatement(stmt)) {
+          stmt.remove();
+        }
+      });
+
       const mappings: LocatorMapping[] = [];
       
       // Walk AST to find locator calls

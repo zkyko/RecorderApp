@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Table, Button, Group, Text, TextInput, Checkbox, Loader, Center, Alert } from '@mantine/core';
-import { Save, Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowLeft, Play } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { DataRow } from '../../../types/v1.5';
@@ -15,6 +15,7 @@ const DataEditorScreen: React.FC = () => {
   const [columns, setColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     if (testName && workspacePath) {
@@ -27,23 +28,83 @@ const DataEditorScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      const dataPath = `data/${testName}.json`;
-      const response = await window.electronAPI?.loadTestData(dataPath);
-      const data = response?.success && response.data ? response.data : [];
+      // Use ipc.data.read which correctly resolves workspace-relative data path
+      const response = await ipc.data.read({ workspacePath, testName });
+      const data = response.success && response.rows ? response.rows : [];
+      
       if (data.length > 0) {
         setRows(data);
-        setColumns(Object.keys(data[0]).filter(k => k !== 'id' && k !== 'enabled' && k !== 'name'));
+        // Extract parameter columns (exclude id, enabled, name)
+        const paramColumns = Object.keys(data[0]).filter(k => k !== 'id' && k !== 'enabled' && k !== 'name');
+        setColumns(paramColumns);
       } else {
-        const defaultRow: DataRow = {
-          id: '1',
-          enabled: true,
-          name: 'Default',
-        };
-        setRows([defaultRow]);
-        setColumns([]);
+        // No data file exists - create default row
+        // Try to detect parameters from spec file to pre-populate columns
+        try {
+          const specResponse = await ipc.test.getSpec({ workspacePath, testName });
+          if (specResponse.success && specResponse.content) {
+            // Extract parameter names from spec (look for row.parameterName patterns)
+            const paramPattern = /row\.([a-zA-Z_][a-zA-Z0-9_]*)/g;
+            const matches = specResponse.content.matchAll(paramPattern);
+            const detectedParams = new Set<string>();
+            for (const match of matches) {
+              detectedParams.add(match[1]);
+            }
+            
+            if (detectedParams.size > 0) {
+              // Create initial row with parameter columns
+              const defaultRow: DataRow = {
+                id: '1',
+                enabled: true,
+                name: 'Default',
+              };
+              // Add empty values for each parameter
+              Array.from(detectedParams).forEach(param => {
+                defaultRow[param] = '';
+              });
+              setRows([defaultRow]);
+              setColumns(Array.from(detectedParams));
+            } else {
+              // No parameters detected
+              const defaultRow: DataRow = {
+                id: '1',
+                enabled: true,
+                name: 'Default',
+              };
+              setRows([defaultRow]);
+              setColumns([]);
+            }
+          } else {
+            // Can't load spec, just create default
+            const defaultRow: DataRow = {
+              id: '1',
+              enabled: true,
+              name: 'Default',
+            };
+            setRows([defaultRow]);
+            setColumns([]);
+          }
+        } catch (specError) {
+          // Fallback: just create default row
+          const defaultRow: DataRow = {
+            id: '1',
+            enabled: true,
+            name: 'Default',
+          };
+          setRows([defaultRow]);
+          setColumns([]);
+        }
       }
     } catch (error) {
       console.error('Failed to load data:', error);
+      // Fallback: create default row
+      const defaultRow: DataRow = {
+        id: '1',
+        enabled: true,
+        name: 'Default',
+      };
+      setRows([defaultRow]);
+      setColumns([]);
     } finally {
       setLoading(false);
     }
@@ -92,6 +153,47 @@ const DataEditorScreen: React.FC = () => {
     ));
   };
 
+  const handleRunTest = async () => {
+    if (!testName || !workspacePath) return;
+
+    setRunning(true);
+    try {
+      // First, save the data with current values
+      const saveResponse = await ipc.data.write({
+        workspacePath,
+        testName,
+        rows,
+      });
+
+      if (!saveResponse.success) {
+        alert(`Failed to save data: ${saveResponse.error}`);
+        return;
+      }
+
+      // Get the spec file path for this test
+      const specPath = `tests/${testName}.spec.ts`;
+      
+      // Run the test
+      const runResponse = await ipc.test.run({
+        workspacePath,
+        specPath,
+        runMode: 'local',
+      });
+
+      if (runResponse.runId) {
+        // Navigate to run screen to see output
+        navigate(`/runs/${runResponse.runId}`);
+      } else {
+        // Fallback: navigate to test details page
+        navigate(`/tests/${testName}`, { state: { initialTab: 'runs' } });
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
   if (loading) {
     return (
       <Center h="100%">
@@ -129,8 +231,18 @@ const DataEditorScreen: React.FC = () => {
               leftSection={<Save size={16} />}
               onClick={handleSave}
               loading={saving}
+              variant="light"
             >
               Save Changes
+            </Button>
+            <Button
+              leftSection={<Play size={16} />}
+              onClick={handleRunTest}
+              loading={running}
+              disabled={running || rows.length === 0}
+              color="green"
+            >
+              Run Test
             </Button>
           </Group>
         </Group>

@@ -7,6 +7,7 @@ import TestDetailsScreen from './components/TestDetailsScreen';
 import LocatorsScreen from './components/LocatorsScreen';
 import RecordScreen from './components/RecordScreen';
 import LocatorCleanupScreen from './components/LocatorCleanupScreen';
+import StepEditorScreen from './components/StepEditorScreen';
 import ParameterMappingScreen from './components/ParameterMappingScreen';
 import DataEditorScreen from './components/DataEditorScreen';
 import RunScreen from './components/RunScreen';
@@ -158,6 +159,7 @@ function AppContent() {
           <Route path="/tests/:testName" element={<TestDetailsScreen />} />
           <Route path="/locators" element={<LocatorsScreen />} />
           <Route path="/record" element={<RecordScreen />} />
+          <Route path="/record/step-editor" element={<StepEditorScreen />} />
           <Route path="/record/locator-cleanup" element={<LocatorCleanupScreen />} />
           <Route path="/record/params" element={<ParameterMappingScreen />} />
           <Route path="/test/:testName/data" element={<DataEditorScreen />} />

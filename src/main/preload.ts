@@ -85,6 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Recorder control (QA Studio Recorder)
   recorderStart: (request: any) => ipcRenderer.invoke('recorder:start', request),
   recorderStop: () => ipcRenderer.invoke('recorder:stop'),
+  recorderCompileSteps: (steps: RecordedStep[]) => ipcRenderer.invoke('recorder:compileSteps', steps),
   onRecorderCodeUpdate: (callback: (update: any) => void) => {
     ipcRenderer.on('recorder:code-update', (_event, update) => callback(update));
   },
@@ -116,10 +117,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeTestRunEventsListener: () => {
     ipcRenderer.removeAllListeners('test:run:events');
   },
+  onTestUpdate: (callback: (data: { workspacePath: string; testName: string; status: 'passed' | 'failed'; lastRunAt: string; lastRunId: string }) => void) => {
+    ipcRenderer.on('test:update', (_event, data) => callback(data));
+  },
+  removeTestUpdateListener: () => {
+    ipcRenderer.removeAllListeners('test:update');
+  },
 
   // Trace & Report
   traceOpen: (request: any) => ipcRenderer.invoke('trace:open', request),
+  traceOpenWindow: (request: any) => ipcRenderer.invoke('trace:openWindow', request),
   reportOpen: (request: any) => ipcRenderer.invoke('report:open', request),
+  reportOpenWindow: (request: any) => ipcRenderer.invoke('report:openWindow', request),
 
   // Run metadata
   runsList: (request: { workspacePath: string; testName?: string }) => ipcRenderer.invoke('runs:list', request),
@@ -146,11 +155,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Workspace locators
   workspaceLocatorsList: (request: { workspacePath: string }) => ipcRenderer.invoke('workspace:locators:list', request),
+  workspaceLocatorsUpdate: (request: any) => ipcRenderer.invoke('workspace:locators:update', request),
+  workspaceLocatorsSetStatus: (request: any) => ipcRenderer.invoke('workspace:locators:setStatus', request),
 
   // Settings
   settingsGetBrowserStack: (request: { workspacePath: string }) => ipcRenderer.invoke('settings:getBrowserStack', request),
   settingsUpdateBrowserStack: (request: { workspacePath: string; settings: any }) => ipcRenderer.invoke('settings:updateBrowserStack', request),
   settingsGetRecordingEngine: (request: { workspacePath: string }) => ipcRenderer.invoke('settings:getRecordingEngine', request),
   settingsUpdateRecordingEngine: (request: { workspacePath: string; recordingEngine: string }) => ipcRenderer.invoke('settings:updateRecordingEngine', request),
+  settingsGetAIConfig: () => ipcRenderer.invoke('settings:getAIConfig'),
+  settingsUpdateAIConfig: (request: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }) => ipcRenderer.invoke('settings:updateAIConfig', request),
+
+  // RAG Chat
+  ragChat: (request: { workspacePath: string; testName: string; messages: Array<{ role: string; content: string }> }) => ipcRenderer.invoke('rag:chat', request),
 });
 

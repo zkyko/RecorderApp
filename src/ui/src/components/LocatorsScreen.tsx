@@ -14,8 +14,14 @@ import {
   Chip,
   Breadcrumbs,
   Anchor,
+  Modal,
+  Textarea,
+  MultiSelect,
+  Stack,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core';
-import { Crosshair, Search, Eye } from 'lucide-react';
+import { Crosshair, Search, Eye, Pencil } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { LocatorIndexEntry } from '../../../types/v1.5';
@@ -28,6 +34,11 @@ const LocatorsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingLocator, setEditingLocator] = useState<LocatorIndexEntry | null>(null);
+  const [editedSnippet, setEditedSnippet] = useState('');
+  const [editedTests, setEditedTests] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (workspacePath) {
@@ -67,6 +78,38 @@ const LocatorsScreen: React.FC = () => {
     }
   };
 
+  const openEditModal = (locator: LocatorIndexEntry) => {
+    setEditingLocator(locator);
+    setEditedSnippet(locator.locator);
+    setEditedTests(locator.usedInTests);
+    setEditModalOpen(true);
+  };
+
+  const saveLocatorEdit = async () => {
+    if (!workspacePath || !editingLocator) return;
+    setSaving(true);
+    try {
+      const response = await ipc.workspace.locatorsUpdate({
+        workspacePath,
+        originalLocator: editingLocator.locator,
+        updatedLocator: editedSnippet,
+        type: editingLocator.type,
+        tests: editedTests,
+      });
+      if (response.success) {
+        setEditModalOpen(false);
+        await loadLocators();
+      } else {
+        console.error('Failed to update locator:', response.error);
+      }
+    } catch (error) {
+      console.error('Failed to update locator:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
   if (loading) {
     return (
       <Center h="100%">
@@ -98,9 +141,9 @@ const LocatorsScreen: React.FC = () => {
       <Card padding="lg" radius="md" withBorder mb="md">
         <Group justify="space-between" mb="md">
           <div>
-            <Text size="xl" fw={700} mb="xs">Global Locators</Text>
+            <Text size="xl" fw={700} mb="xs">Locator Library</Text>
             <Text size="sm" c="dimmed">
-              View all locators used across all tests in your workspace
+              Review, edit, and track the health of every locator across your tests.
             </Text>
           </div>
         </Group>
@@ -133,14 +176,14 @@ const LocatorsScreen: React.FC = () => {
               <Text c="dimmed">
                 {searchQuery || typeFilter
                   ? 'Try adjusting your filters'
-                  : 'Record tests to see locators here'}
+                  : 'Record tests to populate this list'}
               </Text>
             </div>
           </Center>
         </Card>
       ) : (
         <Card padding="lg" radius="md" withBorder>
-          <Table>
+          <Table highlightOnHover>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Locator Snippet</Table.Th>
@@ -151,10 +194,10 @@ const LocatorsScreen: React.FC = () => {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filteredLocators.map((locator, index) => (
-                <Table.Tr key={index}>
+              {filteredLocators.map((locator) => (
+                <Table.Tr key={`${locator.type}-${locator.locator}`}>
                   <Table.Td>
-                    <Text size="sm" ff="monospace" style={{ maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <Text size="sm" ff="monospace" style={{ maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {locator.locator}
                     </Text>
                   </Table.Td>
@@ -179,14 +222,18 @@ const LocatorsScreen: React.FC = () => {
                     </Group>
                   </Table.Td>
                   <Table.Td>
-                    <Button
-                      size="xs"
-                      variant="light"
-                      leftSection={<Eye size={14} />}
-                      onClick={() => handleViewInTest(locator)}
-                    >
-                      View in Test
-                    </Button>
+                    <Group gap="xs">
+                      <Tooltip label="View in test">
+                        <ActionIcon variant="light" onClick={() => handleViewInTest(locator)}>
+                          <Eye size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Edit locator">
+                        <ActionIcon variant="light" onClick={() => openEditModal(locator)}>
+                          <Pencil size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -194,6 +241,46 @@ const LocatorsScreen: React.FC = () => {
           </Table>
         </Card>
       )}
+
+      <Modal
+        opened={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Edit Locator"
+        size="lg"
+        radius="md"
+      >
+        {editingLocator && (
+          <Stack gap="md">
+            <Textarea
+              label="Locator snippet"
+              description="Update the Playwright locator snippet. This will replace all occurrences in the selected tests."
+              value={editedSnippet}
+              onChange={(e) => setEditedSnippet(e.target.value)}
+              minRows={3}
+            />
+            <MultiSelect
+              label="Apply to tests"
+              data={editingLocator.usedInTests.map(test => ({ value: test, label: test }))}
+              value={editedTests}
+              onChange={setEditedTests}
+              description="Choose which tests should be updated."
+            />
+            <Group justify="flex-end">
+              <Button variant="light" onClick={() => setEditModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={saveLocatorEdit}
+                loading={saving}
+                disabled={!editedSnippet.trim() || editedTests.length === 0}
+              >
+                Save Changes
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
+
     </div>
   );
 };

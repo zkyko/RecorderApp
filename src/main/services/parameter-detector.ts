@@ -17,9 +17,23 @@ export class ParameterDetector {
       const candidates: ParamCandidate[] = [];
       
       // Walk AST to find fill/select calls
+      // We need to check all call expressions, including chained calls
       sourceFile.forEachDescendant((node) => {
         if (Node.isCallExpression(node)) {
-          this.processInputCall(node, candidates);
+          // Check if this call is part of a chain (e.g., page.getByRole(...).fill(...))
+          // For chained calls, we need to check the method name
+          const expression = node.getExpression();
+          
+          // Check if expression is a property access (e.g., .fill or .selectOption)
+          if (Node.isPropertyAccessExpression(expression)) {
+            const methodName = expression.getName();
+            if (methodName === 'fill' || methodName === 'selectOption') {
+              this.processInputCall(node, candidates);
+            }
+          } else {
+            // For non-chained calls, check the expression text
+            this.processInputCall(node, candidates);
+          }
         }
       });
 
@@ -41,10 +55,12 @@ export class ParameterDetector {
   private processInputCall(node: CallExpression, candidates: ParamCandidate[]): void {
     const expression = node.getExpression();
     const expressionText = expression.getText();
+    const nodeText = node.getText(); // Full call text including arguments
 
     // Check if this is a fill or selectOption call
-    const isFill = expressionText.includes('.fill(');
-    const isSelect = expressionText.includes('.selectOption(');
+    // For chained calls like page.getByRole(...).fill(...), check both expression and full text
+    const isFill = expressionText.includes('.fill') || nodeText.includes('.fill(');
+    const isSelect = expressionText.includes('.selectOption') || nodeText.includes('.selectOption(');
 
     if (!isFill && !isSelect) {
       return;

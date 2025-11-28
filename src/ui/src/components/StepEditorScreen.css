@@ -1,0 +1,14 @@
+.step-editor-screen {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.step-editor-header {
+  margin-bottom: 2rem;
+}
+
+.step-editor-header h1 {
+  margin-bottom: 0.5rem;
+}
+

@@ -11,6 +11,10 @@ interface ConfigSchema {
   isSetupComplete: boolean;
   browserstackUsername?: string;
   browserstackAccessKey?: string;
+  aiProvider?: 'openai' | 'deepseek' | 'custom';
+  aiApiKey?: string;
+  aiModel?: string;
+  aiBaseUrl?: string;
 }
 
 /**
@@ -206,5 +210,45 @@ export class ConfigManager {
   setBrowserStackCredentials(username: string, accessKey: string): void {
     this.storeAccess.set('browserstackUsername', username);
     this.storeAccess.set('browserstackAccessKey', accessKey);
+  }
+
+  /**
+   * Get AI configuration
+   */
+  getAIConfig(): {
+    provider: 'openai' | 'deepseek' | 'custom' | undefined;
+    apiKey: string | undefined;
+    model: string | undefined;
+    baseUrl: string | undefined;
+  } {
+    return {
+      provider: this.storeAccess.get('aiProvider') || undefined,
+      apiKey: this.storeAccess.get('aiApiKey') || undefined,
+      model: this.storeAccess.get('aiModel') || undefined,
+      baseUrl: this.storeAccess.get('aiBaseUrl') || undefined,
+    };
+  }
+
+  /**
+   * Set AI configuration
+   */
+  setAIConfig(config: {
+    provider?: 'openai' | 'deepseek' | 'custom';
+    apiKey?: string;
+    model?: string;
+    baseUrl?: string;
+  }): void {
+    if (config.provider !== undefined) {
+      this.storeAccess.set('aiProvider', config.provider);
+    }
+    if (config.apiKey !== undefined) {
+      this.storeAccess.set('aiApiKey', config.apiKey);
+    }
+    if (config.model !== undefined) {
+      this.storeAccess.set('aiModel', config.model);
+    }
+    if (config.baseUrl !== undefined) {
+      this.storeAccess.set('aiBaseUrl', config.baseUrl);
+    }
   }
 }

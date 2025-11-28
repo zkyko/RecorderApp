@@ -2,6 +2,8 @@
  * Type definitions for D365 QA Studio v1.5 IPC communication
  */
 
+import { RecordedStep } from './index';
+
 // ============================================================================
 // Codegen Control
 // ============================================================================
@@ -22,6 +24,7 @@ export interface CodegenStopResponse {
   success: boolean;
   error?: string;
   rawCode?: string;            // contents of codegen-output.ts if available
+  steps?: RecordedStep[];      // Parsed steps for Step Editor UI
 }
 
 export interface CodegenCodeUpdate {
@@ -362,11 +365,21 @@ export interface DataImportExcelResponse {
   error?: string;
 }
 
+export type LocatorStatusState = 'healthy' | 'warning' | 'failing';
+
+export interface LocatorStatusRecord {
+  state: LocatorStatusState;
+  note?: string;
+  updatedAt: string;
+  lastTest?: string;
+}
+
 export interface LocatorIndexEntry {
   locator: string;           // locator snippet
   type: 'role' | 'label' | 'text' | 'css' | 'xpath' | 'd365-controlname' | 'placeholder' | 'testid';
   testCount: number;         // number of tests using this locator
   usedInTests: string[];     // test names
+  status?: LocatorStatusRecord;
 }
 
 export interface WorkspaceLocatorsListRequest {
@@ -376,6 +389,34 @@ export interface WorkspaceLocatorsListRequest {
 export interface WorkspaceLocatorsListResponse {
   success: boolean;
   locators?: LocatorIndexEntry[];
+  error?: string;
+}
+
+export interface LocatorUpdateRequest {
+  workspacePath: string;
+  originalLocator: string;
+  updatedLocator: string;
+  type: LocatorIndexEntry['type'];
+  tests: string[];
+}
+
+export interface LocatorUpdateResponse {
+  success: boolean;
+  updatedTests?: string[];
+  error?: string;
+}
+
+export interface LocatorStatusUpdateRequest {
+  workspacePath: string;
+  locatorKey: string; // `${type}:${locatorSnippet}`
+  status: LocatorStatusState;
+  note?: string;
+  testName?: string;
+}
+
+export interface LocatorStatusUpdateResponse {
+  success: boolean;
+  status?: LocatorStatusRecord;
   error?: string;
 }
 
@@ -455,6 +496,7 @@ export interface RecorderStopResponse {
   success: boolean;
   error?: string;
   rawCode?: string;            // Playwright code generated from recorded steps
+  steps?: RecordedStep[];      // Cleaned, filtered list of steps for Step Editor UI
 }
 
 export interface RecorderCodeUpdate {

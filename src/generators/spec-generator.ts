@@ -13,6 +13,7 @@ export class SpecGenerator {
   }
   /**
    * Generate a test spec file from recorded steps
+   * Returns spec file with new bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
    */
   generateSpec(
     flowName: string,
@@ -29,39 +30,41 @@ export class SpecGenerator {
       }
       // Skip steps with only body locator (no real interaction)
       // These are typically navigation or placeholder steps
-      if (step.locator.strategy === 'css' && 
+      if (step.locator && step.locator.strategy === 'css' && 
           (step.locator as any).selector === 'body') {
         return false;
       }
       return true;
     });
 
+    const fileName = this.flowNameToFileName(flowName);
+    const testName = this.formatTestName(flowName);
+    
+    // New bundle structure: tests/d365/specs/<TestName>/
+    const modulePath = module ? path.join('d365', 'specs', fileName) : path.join('d365', 'specs', fileName);
+    const bundleDir = path.join(outputDir, modulePath);
+    const specFilePath = path.join(bundleDir, `${fileName}.spec.ts`);
+
     if (validSteps.length === 0) {
       // Return empty spec if no valid steps
-      const fileName = this.flowNameToFileName(flowName);
-      const modulePath = module ? path.join('d365', module) : 'd365';
-      const filePath = path.join(outputDir, modulePath, `${fileName}.generated.spec.js`);
+      const content = `import { test } from '@playwright/test';\n\ntest('${testName} - auto generated', async ({ page }) => {\n  // No valid steps recorded\n});\n`;
       return {
-        path: filePath,
-        content: `import { test } from '@playwright/test';\n\ntest('${this.formatTestName(flowName)} - auto generated', async ({ page }) => {\n  // No valid steps recorded\n});\n`,
+        path: specFilePath,
+        content,
         type: 'spec',
       };
     }
 
-      const fileName = this.flowNameToFileName(flowName);
-      const modulePath = module ? path.join('d365', module) : 'd365';
-      const specDir = path.join(outputDir, modulePath);
-      const filePath = path.join(specDir, `${fileName}.generated.spec.ts`);
-
     // Always generate data-driven tests with a data file path
     // The data file will be created/edited in the Test Runner UI
-    const dataDir = path.join(specDir, 'data');
+    // Data file is at tests/d365/data/<TestName>Data.json (two levels up from bundle: specs/<TestName>/ -> d365/ -> data/)
+    const dataDir = path.join(outputDir, module ? path.join('d365', module) : 'd365', 'data');
     const dataFilePath = path.join(dataDir, `${fileName}Data.json`);
     
-    const content = this.generateSpecContent(flowName, validSteps, filePath, pagesDir, module, dataFilePath);
+    const content = this.generateSpecContent(flowName, validSteps, specFilePath, pagesDir, module, dataFilePath);
 
     return {
-      path: filePath,
+      path: specFilePath,
       content,
       type: 'spec',
     };
@@ -126,8 +129,11 @@ export class SpecGenerator {
     let content = `import { test, expect } from '@playwright/test';\n`;
     
     // Always import data file for data-driven tests
-    // If dataFilePath is provided, use it; otherwise create a default path
-    const finalDataFilePath = dataFilePath || path.join(path.dirname(specFilePath), 'data', `${this.flowNameToFileName(flowName)}Data.json`);
+    // Data file is at tests/d365/data/<TestName>Data.json (two levels up from bundle)
+    // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+    // Data structure: tests/d365/data/<TestName>Data.json
+    // Relative path from bundle: ../../data/<TestName>Data.json
+    const finalDataFilePath = dataFilePath || path.join(path.dirname(path.dirname(path.dirname(specFilePath))), 'data', `${this.flowNameToFileName(flowName)}Data.json`);
     const relativeDataPath = this.buildRelativeImportPath(specFilePath, finalDataFilePath);
     content += `import dataSet from '${relativeDataPath}';\n`;
     
@@ -239,6 +245,26 @@ export class SpecGenerator {
         continue;
       }
 
+      // Handle custom actions
+      if (step.action === 'custom' && (step as any).customAction === 'waitForD365') {
+        content += `      await waitForD365(page);\n`;
+        continue;
+      }
+
+      // Handle wait steps
+      if (step.action === 'wait') {
+        const waitTime = step.value || '1000';
+        content += `      await page.waitForTimeout(${waitTime});\n`;
+        continue;
+      }
+
+      // Handle comment steps
+      if (step.action === 'comment') {
+        const commentText = step.value || 'New Step';
+        content += `      // ${commentText}\n`;
+        continue;
+      }
+
       // Handle page transitions with POM.goto() if available
       if (step.pageId !== currentPageId) {
         const pageEntry = this.pageRegistry.getPage(step.pageId);
@@ -272,6 +298,9 @@ export class SpecGenerator {
     content += `  }\n`;
     content += `});\n`;
 
+    // Clean up double semicolons (e.g., "import ...';;" or "await ...();;")
+    content = content.replace(/;;+/g, ';');
+
     return content;
   }
 
@@ -283,6 +312,11 @@ export class SpecGenerator {
     // Don't generate goto() calls - navigation is handled at the start
     if (step.action === 'navigate') {
       return `// Navigation to ${step.pageId} (handled by initial page.goto())`;
+    }
+
+    // Custom, wait, and comment steps are handled in the main loop, not here
+    if (step.action === 'custom' || step.action === 'wait' || step.action === 'comment') {
+      return ''; // Should not reach here, but return empty string as fallback
     }
 
     // Use methodName from step if available, otherwise infer it
@@ -447,8 +481,9 @@ export class SpecGenerator {
 
   /**
    * Format test name from flow name
+   * Public for use in bridge
    */
-  private formatTestName(flowName: string): string {
+  formatTestName(flowName: string): string {
     return flowName
       .split(/\s+/)
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -543,6 +578,229 @@ export class SpecGenerator {
    */
   private escapeString(str: string): string {
     return str.replace(/'/g, "\\'").replace(/\n/g, '\\n');
+  }
+
+  /**
+   * Extract locators, fixtures, and runtime helpers from spec content
+   * Returns structured information for .meta.md generation
+   */
+  extractLocatorsFromContent(content: string): {
+    locators: Array<{ selector: string; type: string; line?: number }>;
+    fixtures: string[];
+    runtimeHelpers: string[];
+  } {
+    const lines = content.split('\n');
+    const locators: Array<{ selector: string; type: string; line?: number }> = [];
+    const fixtures = new Set<string>();
+    const runtimeHelpers = new Set<string>();
+
+    // Extract fixtures from test function parameters
+    // Match: async ({ page, browserStackWorker, request, ... }) => {
+    const fixtureMatch = content.match(/async\s*\(\s*\{([^}]+)\}/);
+    if (fixtureMatch) {
+      const fixtureParams = fixtureMatch[1].split(',').map(p => p.trim());
+      fixtureParams.forEach(param => {
+        const cleanParam = param.replace(/[:\s].*$/, '').trim();
+        if (cleanParam) {
+          fixtures.add(cleanParam);
+        }
+      });
+    }
+
+    // Extract runtime helpers from import statements
+    // Match: import { waitForD365, ... } from '...'
+    const importMatches = content.matchAll(/import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/g);
+    for (const match of importMatches) {
+      const importPath = match[2];
+      // Check if it's a runtime helper (not from @playwright/test)
+      if (!importPath.includes('@playwright/test') && !importPath.includes('.json')) {
+        const helpers = match[1].split(',').map(h => h.trim());
+        helpers.forEach(helper => {
+          runtimeHelpers.add(helper);
+        });
+      }
+    }
+
+    // Extract locators using regex patterns (similar to bridge.ts)
+    lines.forEach((line, index) => {
+      const lineNum = index + 1;
+
+      // Match page.getByRole(...)
+      const roleMatch = line.match(/page\.getByRole\(['"]([^'"]+)['"],\s*\{[^}]*name:\s*['"]([^'"]+)['"]/);
+      if (roleMatch) {
+        locators.push({
+          selector: line.trim(),
+          type: 'role',
+          line: lineNum,
+        });
+      }
+
+      // Match page.getByLabel(...)
+      const labelMatch = line.match(/page\.getByLabel\(['"]([^'"]+)['"]/);
+      if (labelMatch) {
+        locators.push({
+          selector: line.trim(),
+          type: 'label',
+          line: lineNum,
+        });
+      }
+
+      // Match page.locator(...)
+      const locatorMatch = line.match(/page\.locator\(['"]([^'"]+)['"]/);
+      if (locatorMatch) {
+        const selector = locatorMatch[1];
+        let type: string = 'css';
+        if (selector.includes('data-dyn-controlname')) {
+          type = 'd365-controlname';
+        } else if (selector.includes('data-test-id')) {
+          type = 'testid';
+        } else if (selector.startsWith('//') || selector.startsWith('/')) {
+          type = 'xpath';
+        }
+        locators.push({
+          selector: line.trim(),
+          type,
+          line: lineNum,
+        });
+      }
+
+      // Match page.getByText(...)
+      const textMatch = line.match(/page\.getByText\(['"]([^'"]+)['"]/);
+      if (textMatch) {
+        locators.push({
+          selector: line.trim(),
+          type: 'text',
+          line: lineNum,
+        });
+      }
+
+      // Match page.getByPlaceholder(...)
+      const placeholderMatch = line.match(/page\.getByPlaceholder\(['"]([^'"]+)['"]/);
+      if (placeholderMatch) {
+        locators.push({
+          selector: line.trim(),
+          type: 'placeholder',
+          line: lineNum,
+        });
+      }
+
+      // Match POM instance methods (e.g., dashboardPage.fillCustomerAccount(...))
+      const pomMethodMatch = line.match(/(\w+Page)\.(\w+)\(/);
+      if (pomMethodMatch) {
+        const pageInstance = pomMethodMatch[1];
+        const methodName = pomMethodMatch[2];
+        locators.push({
+          selector: `${pageInstance}.${methodName}()`,
+          type: 'pom-method',
+          line: lineNum,
+        });
+      }
+    });
+
+    // Merge duplicate locators
+    const mergedLocators = new Map<string, { selector: string; type: string; line?: number }>();
+    locators.forEach(loc => {
+      const key = loc.selector;
+      if (mergedLocators.has(key)) {
+        const existing = mergedLocators.get(key)!;
+        if (loc.line && existing.line !== loc.line) {
+          // Keep the first line number
+        }
+      } else {
+        mergedLocators.set(key, loc);
+      }
+    });
+
+    return {
+      locators: Array.from(mergedLocators.values()),
+      fixtures: Array.from(fixtures),
+      runtimeHelpers: Array.from(runtimeHelpers),
+    };
+  }
+
+  /**
+   * Generate meta.json file content
+   */
+  generateMetaJson(
+    testName: string,
+    module: string | undefined,
+    dataFilePath: string,
+    specFilePath: string
+  ): string {
+    const relativeDataPath = this.buildRelativeImportPath(specFilePath, dataFilePath);
+    const meta = {
+      name: testName,
+      module: module || undefined,
+      createdAt: new Date().toISOString(),
+      dataPath: relativeDataPath,
+    };
+    return JSON.stringify(meta, null, 2);
+  }
+
+  /**
+   * Generate meta.md file content
+   */
+  generateMetaMd(
+    testName: string,
+    flowName: string,
+    specContent: string,
+    module: string | undefined
+  ): string {
+    const extracted = this.extractLocatorsFromContent(specContent);
+    
+    let md = `# ${testName}\n\n`;
+    md += `## Test Intent\n\n`;
+    md += `${flowName}\n\n`;
+    if (module) {
+      md += `**Module:** ${module}\n\n`;
+    }
+    
+    md += `## Key Locators & Strategy\n\n`;
+    
+    if (extracted.fixtures.length > 0) {
+      md += `### Fixtures Used\n\n`;
+      extracted.fixtures.forEach(fixture => {
+        md += `- \`${fixture}\`\n`;
+      });
+      md += `\n`;
+    }
+    
+    if (extracted.runtimeHelpers.length > 0) {
+      md += `### Runtime Helpers\n\n`;
+      extracted.runtimeHelpers.forEach(helper => {
+        md += `- \`${helper}\`\n`;
+      });
+      md += `\n`;
+    }
+    
+    if (extracted.locators.length > 0) {
+      md += `### Locators\n\n`;
+      // Group by type
+      const byType = new Map<string, Array<{ selector: string; type: string; line?: number }>>();
+      extracted.locators.forEach(loc => {
+        if (!byType.has(loc.type)) {
+          byType.set(loc.type, []);
+        }
+        byType.get(loc.type)!.push(loc);
+      });
+      
+      byType.forEach((locs, type) => {
+        md += `#### ${type}\n\n`;
+        locs.forEach(loc => {
+          md += `- \`${loc.selector}\`${loc.line ? ` (line ${loc.line})` : ''}\n`;
+        });
+        md += `\n`;
+      });
+    } else {
+      md += `No locators detected in test.\n\n`;
+    }
+    
+    md += `## Code Preview\n\n`;
+    md += `\`\`\`typescript\n`;
+    md += specContent;
+    md += `\n\`\`\`\n`;
+    
+    return md;
   }
 }
 

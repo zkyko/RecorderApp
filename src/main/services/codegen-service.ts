@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { BrowserWindow } from 'electron';
 import { CodegenStartRequest, CodegenStartResponse, CodegenStopResponse, CodegenCodeUpdate } from '../../types/v1.5';
+import { CodegenParser } from './codegen-parser';
+import { RecordedStep } from '../../types';
 
 /**
  * Service for launching and managing Playwright Codegen
@@ -14,6 +16,11 @@ export class CodegenService {
   private mainWindow: BrowserWindow | null = null;
   private workspacePath: string | null = null;
   private pollInterval: NodeJS.Timeout | null = null;
+  private codegenParser: CodegenParser;
+
+  constructor() {
+    this.codegenParser = new CodegenParser();
+  }
 
   /**
    * Start Playwright codegen
@@ -82,7 +89,7 @@ export class CodegenService {
   }
 
   /**
-   * Stop codegen and return raw code
+   * Stop codegen and return raw code and parsed steps
    */
   async stop(): Promise<CodegenStopResponse> {
     try {
@@ -102,13 +109,21 @@ export class CodegenService {
 
       // Read output file if it exists
       let rawCode: string | undefined;
+      let steps: RecordedStep[] = [];
+      
       if (this.outputPath && fs.existsSync(this.outputPath)) {
         rawCode = fs.readFileSync(this.outputPath, 'utf-8');
+        
+        // Parse codegen output into steps for Step Editor
+        if (rawCode) {
+          steps = this.codegenParser.parseCodegenToSteps(rawCode);
+        }
       }
 
       return {
         success: true,
         rawCode,
+        steps,
       };
     } catch (error: any) {
       return {

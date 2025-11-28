@@ -19,10 +19,23 @@ const ParameterMappingScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const state = location.state as { cleanedCode?: string };
+    const state = location.state as { cleanedCode?: string; parameterizedSteps?: ParamCandidate[] };
     if (state?.cleanedCode) {
       setCleanedCode(state.cleanedCode);
-      handleDetectParams(state.cleanedCode);
+      
+      // If parameterized steps were passed from Step Editor, use those
+      if (state.parameterizedSteps && state.parameterizedSteps.length > 0) {
+        setCandidates(state.parameterizedSteps);
+        // Pre-select all parameterized steps
+        const initial = new Map<string, string>();
+        state.parameterizedSteps.forEach(c => {
+          initial.set(c.id, c.suggestedName);
+        });
+        setSelectedParams(initial);
+      } else {
+        // Otherwise, detect from code
+        handleDetectParams(state.cleanedCode);
+      }
     }
   }, [location]);
 

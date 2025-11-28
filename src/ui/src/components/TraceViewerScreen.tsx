@@ -234,7 +234,7 @@ const TraceViewerScreen: React.FC = () => {
         </Card>
       )}
 
-      {traceUrl ? (
+      {traceUrl && (
         <Card padding={0} radius="md" withBorder style={{ height: 'calc(100vh - 300px)', overflow: 'hidden' }}>
           <iframe
             src={traceUrl}
@@ -250,17 +250,7 @@ const TraceViewerScreen: React.FC = () => {
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
           />
         </Card>
-      ) : selectedRun && (!selectedRun.tracePaths || selectedRun.tracePaths.length === 0) ? (
-        <Card padding="xl" radius="md" withBorder>
-          <Center>
-            <div style={{ textAlign: 'center' }}>
-              <Text size="4rem" mb="md">📭</Text>
-              <Text size="xl" fw={600} mb="xs">No trace generated</Text>
-              <Text c="dimmed">This run did not generate a trace file.</Text>
-            </div>
-          </Center>
-        </Card>
-      ) : null}
+      )}
     </div>
   );
 };

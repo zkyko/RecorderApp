@@ -14,3 +14,9 @@ release.zip
 .electron-builder-cache/
 *.zip
 
+# Generated runtime files (created during prebuild)
+runtime/
+
+# Build artifacts (optional - uncomment if build/ contains only generated files)
+# build/
+

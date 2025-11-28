@@ -40,7 +40,13 @@ const LocatorCleanupScreen: React.FC = () => {
   };
 
   const handleApprove = () => {
-    navigate('/record/params', { state: { cleanedCode } });
+    const state = location.state as { cleanedCode?: string; parameterizedSteps?: any[] };
+    navigate('/record/params', { 
+      state: { 
+        cleanedCode,
+        parameterizedSteps: state?.parameterizedSteps || []
+      } 
+    });
   };
 
   return (

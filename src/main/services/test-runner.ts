@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
 import { BrowserWindow } from 'electron';
-import { TestRunRequest, TestRunEvent, TestRunMeta, RunIndex } from '../../types/v1.5';
+import { TestRunRequest, TestRunEvent, TestRunMeta, RunIndex, TestMeta } from '../../types/v1.5';
+import { getReporterPath, getReporterSourcePath } from '../utils/path-resolver';
 
 /**
  * Service for running Playwright tests with streaming output
@@ -16,6 +17,68 @@ export class TestRunner {
 
   constructor(mainWindow: BrowserWindow | null) {
     this.mainWindow = mainWindow;
+  }
+
+
+  /**
+   * Resolve spec path from test name or spec path
+   * Handles both old structure (tests/<TestName>.spec.ts) and new bundle structure (tests/d365/specs/<TestName>/<TestName>.spec.ts)
+   */
+  private resolveSpecPath(workspacePath: string, specPathOrTestName: string): string | null {
+    // If it's already an absolute path, use it
+    if (path.isAbsolute(specPathOrTestName)) {
+      return fs.existsSync(specPathOrTestName) ? specPathOrTestName : null;
+    }
+
+    // Try to extract test name from spec path (e.g., "tests/CreateSalesOrder.spec.ts" -> "CreateSalesOrder")
+    let testName: string;
+    if (specPathOrTestName.includes('/') || specPathOrTestName.includes('\\')) {
+      // It's a path, extract the test name
+      const fileName = path.basename(specPathOrTestName, '.spec.ts');
+      testName = fileName;
+    } else {
+      // It's just a test name
+      testName = specPathOrTestName;
+    }
+
+    // Convert test name to file name - try multiple variations
+    const fileNameVariations = [
+      // All lowercase, no dashes (for camelCase like "CreateSalesOrder" -> "createsalesorder")
+      testName.toLowerCase().replace(/[^a-z0-9]/g, ''),
+      // All lowercase with dashes (for names with spaces like "Create Sales Order" -> "create-sales-order")
+      testName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+      // Original test name (in case it's already in the right format)
+      testName,
+    ];
+
+    // Try each variation in the new bundle structure first
+    for (const fileName of fileNameVariations) {
+      // New bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+      const bundleSpecPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
+      if (fs.existsSync(bundleSpecPath)) {
+        return bundleSpecPath;
+      }
+
+      // Old module structure: tests/d365/<TestName>/<TestName>.spec.ts
+      const oldModuleSpecPath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.spec.ts`);
+      if (fs.existsSync(oldModuleSpecPath)) {
+        return oldModuleSpecPath;
+      }
+
+      // Even older structure: tests/<TestName>.spec.ts
+      const oldFlatSpecPath = path.join(workspacePath, 'tests', `${fileName}.spec.ts`);
+      if (fs.existsSync(oldFlatSpecPath)) {
+        return oldFlatSpecPath;
+      }
+    }
+
+    // If specPathOrTestName was a path, try it as-is
+    const directPath = path.join(workspacePath, specPathOrTestName);
+    if (fs.existsSync(directPath)) {
+      return directPath;
+    }
+
+    return null;
   }
 
   /**
@@ -33,16 +96,14 @@ export class TestRunner {
     }
 
     try {
-      // Resolve spec path in workspace
-      const workspaceSpecPath = path.isAbsolute(request.specPath)
-        ? request.specPath
-        : path.join(request.workspacePath, request.specPath);
+      // Resolve spec path intelligently (handles both old and new structures)
+      const workspaceSpecPath = this.resolveSpecPath(request.workspacePath, request.specPath);
 
-      if (!fs.existsSync(workspaceSpecPath)) {
+      if (!workspaceSpecPath) {
         this.emitEvent(runId, {
           type: 'error',
           runId,
-          message: `Test file not found: ${workspaceSpecPath}`,
+          message: `Test file not found. Tried to resolve: ${request.specPath}. Please ensure the test exists in the workspace.`,
           timestamp: new Date().toISOString(),
         });
         return { runId };
@@ -156,6 +217,9 @@ export class TestRunner {
         };
         this.saveRunMeta(request.workspacePath, updatedRunMeta);
         
+        // Update TestMeta with last run status and timestamp
+        this.updateTestMeta(request.workspacePath, testName, status, finishedAt, runId);
+        
         console.log('[TestRunner] Run completed:', {
           runId,
           testName,
@@ -183,6 +247,9 @@ export class TestRunner {
           finishedAt,
         };
         this.saveRunMeta(request.workspacePath, updatedRunMeta);
+        
+        // Update TestMeta with failed status
+        this.updateTestMeta(request.workspacePath, testName, 'failed', finishedAt, runId);
 
         this.emitEvent(runId, {
           type: 'error',
@@ -216,6 +283,44 @@ export class TestRunner {
         timestamp: new Date().toISOString(),
       });
       return { runId };
+    }
+  }
+
+  /**
+   * Copy ErrorGrabber reporter to workspace runtime directory
+   * Uses path resolver to find the reporter source in both dev and production modes
+   */
+  private copyReporterToWorkspace(workspacePath: string): void {
+    try {
+      const runtimeDir = path.join(workspacePath, 'runtime', 'reporters');
+      fs.mkdirSync(runtimeDir, { recursive: true });
+      
+      // Use path resolver to get the correct source paths for both dev and production
+      const sourceReporterJs = getReporterPath();
+      const sourceReporterTs = getReporterSourcePath();
+      
+      const destReporterJs = path.join(runtimeDir, 'ErrorGrabber.js');
+      const destReporterTs = path.join(runtimeDir, 'ErrorGrabber.ts');
+      
+      // Try compiled JavaScript version first
+      if (fs.existsSync(sourceReporterJs)) {
+        fs.copyFileSync(sourceReporterJs, destReporterJs);
+        console.log(`[TestRunner] Copied ErrorGrabber reporter (JS) to workspace from: ${sourceReporterJs}`);
+      } 
+      // Fallback to TypeScript source (for development or if not compiled)
+      else if (fs.existsSync(sourceReporterTs)) {
+        fs.copyFileSync(sourceReporterTs, destReporterTs);
+        // Also update config to use .ts extension
+        console.log(`[TestRunner] Copied ErrorGrabber reporter (TS) to workspace from: ${sourceReporterTs}`);
+        // Note: Config will need to reference .ts if source is used
+      } else {
+        console.warn('[TestRunner] ErrorGrabber reporter not found at expected paths, skipping copy');
+        console.warn(`[TestRunner] Checked JS: ${sourceReporterJs}`);
+        console.warn(`[TestRunner] Checked TS: ${sourceReporterTs}`);
+      }
+    } catch (error: any) {
+      console.warn(`[TestRunner] Failed to copy ErrorGrabber reporter: ${error.message}`);
+      // Don't fail config generation if reporter copy fails
     }
   }
 
@@ -433,6 +538,9 @@ export class TestRunner {
    * v1.5: Uses Allure reporter instead of HTML
    */
   private generateWorkspaceConfig(workspacePath: string, runId: string): string {
+    // Copy ErrorGrabber reporter to workspace runtime directory
+    this.copyReporterToWorkspace(workspacePath);
+    
     return `import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
 
@@ -453,6 +561,7 @@ export default defineConfig({
       detail: true,
       suiteTitle: false,
     }],
+    ['./runtime/reporters/ErrorGrabber.js'],
   ],
   
   use: {
@@ -721,6 +830,90 @@ export default defineConfig({
   private emitEvent(runId: string, event: TestRunEvent): void {
     if (this.mainWindow) {
       this.mainWindow.webContents.send('test:run:events', event);
+    }
+  }
+
+  /**
+   * Update TestMeta with last run status and timestamp
+   * Updates the .meta.json file in the test bundle: tests/d365/specs/<TestName>/<TestName>.meta.json
+   */
+  private updateTestMeta(workspacePath: string, testName: string, status: 'passed' | 'failed', finishedAt: string, runId: string): void {
+    try {
+      // Convert test name to file name (kebab-case, lowercase)
+      const fileName = testName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      
+      // Try new bundle structure first: tests/d365/specs/<TestName>/<TestName>.meta.json
+      let metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+      
+      // Fallback to old structures if bundle doesn't exist
+      if (!fs.existsSync(metaPath)) {
+        // Old module structure: tests/d365/<TestName>/<TestName>.meta.json
+        const oldModulePath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.meta.json`);
+        if (fs.existsSync(oldModulePath)) {
+          metaPath = oldModulePath;
+        } else {
+          // Even older structure: tests/<TestName>.meta.json
+          const oldFlatPath = path.join(workspacePath, 'tests', `${fileName}.meta.json`);
+          if (fs.existsSync(oldFlatPath)) {
+            metaPath = oldFlatPath;
+          } else {
+            // If no meta file exists, use bundle structure (will be created)
+            metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+          }
+        }
+      }
+      
+      let meta: any = {
+        name: testName,
+        createdAt: new Date().toISOString(),
+        lastRunAt: finishedAt,
+        lastStatus: status,
+        lastRunId: runId,
+      };
+
+      // Load existing meta if it exists
+      if (fs.existsSync(metaPath)) {
+        try {
+          const existingMeta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+          meta = {
+            ...existingMeta,
+            lastRunAt: finishedAt,
+            lastStatus: status,
+            lastRunId: runId,
+            updatedAt: finishedAt,
+          };
+        } catch (e) {
+          console.warn(`[TestRunner] Failed to parse existing meta for ${testName}, creating new one`);
+        }
+      }
+
+      // Ensure directory exists
+      const metaDir = path.dirname(metaPath);
+      fs.mkdirSync(metaDir, { recursive: true });
+
+      // Save updated meta
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+      console.log(`[TestRunner] Updated test meta: ${path.relative(workspacePath, metaPath)}`);
+      
+      // Emit IPC event to notify frontend
+      this.emitTestUpdate(workspacePath, testName, status, finishedAt, runId);
+    } catch (error: any) {
+      console.error(`[TestRunner] Failed to update TestMeta for ${testName}:`, error.message);
+    }
+  }
+
+  /**
+   * Emit IPC event to notify frontend that test status has been updated
+   */
+  private emitTestUpdate(workspacePath: string, testName: string, status: 'passed' | 'failed', finishedAt: string, runId: string): void {
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('test:update', {
+        workspacePath,
+        testName,
+        status,
+        lastRunAt: finishedAt,
+        lastRunId: runId,
+      });
     }
   }
 }

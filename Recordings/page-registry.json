@@ -7,7 +7,7 @@
     "routePath": "/?cmp=FH",
     "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH",
     "className": "ActionCenterPage",
-    "filePath": "Recordings\\pages\\d365\\unknown.page.js"
+    "filePath": "Recordings/pages/d365/unknown.page.js"
   },
   "Dashboard--Page": {
     "pageId": "Dashboard--Page",
@@ -18,7 +18,7 @@
     "routePath": "/?cmp=FH&mi=DefaultDashboard",
     "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH&mi=DefaultDashboard",
     "className": "ActionCenterPage",
-    "filePath": "Recordings\\pages\\d365\\dashboard--.page.js"
+    "filePath": "Recordings/pages/d365/dashboard--.page.js"
   },
   "mi:DefaultDashboard": {
     "pageId": "Dashboard--Page",
@@ -29,7 +29,7 @@
     "routePath": "/?cmp=FH&mi=DefaultDashboard",
     "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH&mi=DefaultDashboard",
     "className": "ActionCenterPage",
-    "filePath": "Recordings\\pages\\d365\\dashboard--.page.js"
+    "filePath": "Recordings/pages/d365/dashboard--.page.js"
   },
   "SalesOrderDetailsPage": {
     "pageId": "SalesOrderDetailsPage",
@@ -40,7 +40,7 @@
     "routePath": "/?cmp=FH&mi=SalesTableListPage",
     "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH&mi=SalesTableListPage",
     "className": "ActionCenterPage",
-    "filePath": "Recordings\\pages\\d365\\sales-order-details.page.js"
+    "filePath": "Recordings/pages/d365/sales-order-details.page.js"
   },
   "mi:SalesTableListPage": {
     "pageId": "SalesOrderDetailsPage",
@@ -51,7 +51,7 @@
     "routePath": "/?cmp=FH&mi=SalesTableListPage",
     "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH&mi=SalesTableListPage",
     "className": "ActionCenterPage",
-    "filePath": "Recordings\\pages\\d365\\sales-order-details.page.js"
+    "filePath": "Recordings/pages/d365/sales-order-details.page.js"
   },
   "CustomerPage": {
     "pageId": "CustomerPage",
@@ -74,5 +74,27 @@
     "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH&mi=CustTableListPage",
     "className": "ActionCenterPage",
     "filePath": "Recordings\\pages\\d365\\customer.page.js"
+  },
+  "FailedSoftReservationCenter--Page": {
+    "pageId": "FailedSoftReservationCenter--Page",
+    "mi": "InventoryServiceFailedSoftReservationCenter",
+    "cmp": "FH",
+    "caption": "Action center",
+    "type": "details",
+    "routePath": "/?cmp=FH&mi=InventoryServiceFailedSoftReservationCenter",
+    "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH&mi=InventoryServiceFailedSoftReservationCenter",
+    "className": "ActionCenterPage",
+    "filePath": "Recordings/pages/d365/failed-soft-reservation-center--.page.js"
+  },
+  "mi:InventoryServiceFailedSoftReservationCenter": {
+    "pageId": "FailedSoftReservationCenter--Page",
+    "mi": "InventoryServiceFailedSoftReservationCenter",
+    "cmp": "FH",
+    "caption": "Action center",
+    "type": "details",
+    "routePath": "/?cmp=FH&mi=InventoryServiceFailedSoftReservationCenter",
+    "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH&mi=InventoryServiceFailedSoftReservationCenter",
+    "className": "ActionCenterPage",
+    "filePath": "Recordings/pages/d365/failed-soft-reservation-center--.page.js"
   }
 }

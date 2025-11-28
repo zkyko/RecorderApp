@@ -180,15 +180,146 @@ export class EventListeners {
         return null;
       };
 
+      // SAFETY NET: Spatial Heuristic for Navigation Pane Detection
+      // The Navigation Pane is always on the left side of the screen
+      // If a user clicks non-interactive text in the left 350px, assume it's navigation
+      const findNavigationBySpatialHeuristic = (element: HTMLElement, clickX: number): HTMLElement | null => {
+        const LEFT_SIDE_THRESHOLD = 350; // pixels from left edge
+        
+        // Only apply heuristic if click is in the left 350px
+        if (clickX > LEFT_SIDE_THRESHOLD) {
+          console.log('[Recorder Safety Net] Click is outside left 350px zone (x=' + clickX + '), skipping spatial heuristic');
+          return null;
+        }
+
+        console.log('[Recorder Safety Net] Click detected in left-side zone (x=' + clickX + '), checking for navigation...');
+
+        // Helper to check if element is interactive
+        const isInteractive = (el: HTMLElement): boolean => {
+          const tag = el.tagName.toLowerCase();
+          const role = el.getAttribute('role') || '';
+          
+          // Check if it's an interactive element
+          const interactiveRoles = ['button', 'link', 'menuitem', 'treeitem', 'tab', 'checkbox', 'radio'];
+          if (interactiveRoles.includes(role)) return true;
+          if (tag === 'button' || tag === 'a') return true;
+          if (el.matches('button, a, [role=button], [role=link], [role=menuitem], [role=treeitem], input, select, textarea')) return true;
+          
+          // Check if element has click handlers (approximate check)
+          if ((el as any).onclick) return true;
+          
+          return false;
+        };
+
+        // Deep text search: Check the clicked element and its parents for text
+        // ALWAYS walk up to find treeitems/links, even if the clicked element is interactive
+        const findTextInElementOrParents = (el: HTMLElement): { element: HTMLElement, text: string } | null => {
+          let current: HTMLElement | null = el;
+          let depth = 0;
+          const maxDepth = 10;
+
+          while (current && depth < maxDepth) {
+            // Get text content
+            let text = '';
+            for (const node of Array.from(current.childNodes)) {
+              if (node.nodeType === Node.TEXT_NODE) {
+                text += node.textContent || '';
+              }
+            }
+            text = text.trim();
+
+            // Also check aria-label and title
+            const ariaLabel = current.getAttribute('aria-label') || '';
+            const title = current.getAttribute('title') || '';
+            const fullText = text || ariaLabel || title;
+
+            // PRIORITY: If it's a treeitem, link, or has data-dyn-controlname, return it immediately
+            const tag = current.tagName.toLowerCase();
+            const role = current.getAttribute('role') || '';
+            const hasDataDynControlName = current.getAttribute('data-dyn-controlname');
+            
+            if (fullText.length > 0 && fullText.length <= 100) {
+              if (role === 'treeitem' || role === 'link' || tag === 'a' || hasDataDynControlName) {
+                console.log('[Recorder Safety Net] Found navigation element with text: "' + fullText + '" (role: ' + role + ', tag: ' + tag + ') at depth ' + depth);
+                return { element: current, text: fullText };
+              }
+              
+              // If element is not interactive but has text, it might be navigation
+              if (!isInteractive(current)) {
+                console.log('[Recorder Safety Net] Found non-interactive text element: "' + fullText + '" at depth ' + depth);
+                return { element: current, text: fullText };
+              }
+            }
+
+            // Move to parent
+            current = current.parentElement;
+            depth++;
+          }
+
+          return null;
+        };
+
+        // AGGRESSIVE: For ANY click in left side, walk up to find treeitems/links
+        // This catches cases where you click on a child element inside a treeitem
+        let current: HTMLElement | null = element;
+        let depth = 0;
+        const maxDepth = 10;
+        
+        while (current && depth < maxDepth) {
+          const tag = current.tagName.toLowerCase();
+          const role = current.getAttribute('role') || '';
+          const hasDataDynControlName = current.getAttribute('data-dyn-controlname');
+          
+          // Get text to verify it's meaningful
+          let text = '';
+          for (const node of Array.from(current.childNodes)) {
+            if (node.nodeType === Node.TEXT_NODE) {
+              text += node.textContent || '';
+            }
+          }
+          text = text.trim();
+          const ariaLabel = current.getAttribute('aria-label') || '';
+          const title = current.getAttribute('title') || '';
+          const fullText = text || ariaLabel || title;
+          
+          // PRIORITY: If it's a treeitem, link, or has data-dyn-controlname with text, return it
+          if (fullText.length > 0 && fullText.length <= 100) {
+            if (role === 'treeitem' || role === 'link' || tag === 'a' || hasDataDynControlName) {
+              console.log('[Recorder Safety Net] ✓ SAFETY NET TRIGGERED: Found navigation element in left side: "' + fullText + '" (role: ' + role + ', tag: ' + tag + ')');
+              return current;
+            }
+          }
+          
+          // Move to parent
+          current = current.parentElement;
+          depth++;
+        }
+        
+        // FALLBACK: Try to find any element with text in the left side
+        const textResult = findTextInElementOrParents(element);
+        if (textResult && textResult.text.length > 0) {
+          console.log('[Recorder Safety Net] ✓ SAFETY NET TRIGGERED: Capturing left-side element with text: "' + textResult.text + '"');
+          return textResult.element;
+        }
+        
+        console.log('[Recorder Safety Net] Left-side click but no meaningful navigation element found');
+
+        console.log('[Recorder Safety Net] Spatial heuristic did not find navigation element');
+        return null;
+      };
+
       // Intercept click events with CAPTURE PHASE enabled
       // This ensures we intercept events BEFORE D365's internal scripts can stop propagation
       document.addEventListener('click', async (event: MouseEvent) => {
         const target = event.target as HTMLElement;
         if (target && (window as any).recorderOnClick) {
           try {
+            const clickX = event.clientX || 0; // Get click X coordinate for spatial heuristic
+
             // Priority 1: Check if this click should target the navigation pane button
             const navPaneButton = findNavigationPaneButton(target);
             if (navPaneButton) {
+              console.log('[Recorder] Priority 1: Navigation pane button detected');
               const elementId = getElementId(navPaneButton);
               await (window as any).recorderOnClick({
                 selector: elementId,
@@ -200,6 +331,7 @@ export class EventListeners {
             // Priority 2: Check if this click should target a navigation pane link
             const navPaneLink = findNavigationPaneLink(target);
             if (navPaneLink) {
+              console.log('[Recorder] Priority 2: Navigation pane link detected');
               const elementId = getElementId(navPaneLink);
               await (window as any).recorderOnClick({
                 selector: elementId,
@@ -208,13 +340,32 @@ export class EventListeners {
               return;
             }
 
+            // Priority 3: SAFETY NET - Spatial Heuristic for left-side clicks
+            // This catches navigation clicks that the class-name-based detection missed
+            const spatialNavElement = findNavigationBySpatialHeuristic(target, clickX);
+            if (spatialNavElement) {
+              console.log('[Recorder] Priority 3: Spatial heuristic safety net triggered');
+              console.log('[Recorder] Spatial element tag: ' + spatialNavElement.tagName + ', role: ' + (spatialNavElement.getAttribute('role') || 'none') + ', text: "' + (spatialNavElement.textContent?.trim().substring(0, 50) || '') + '"');
+              const elementId = getElementId(spatialNavElement);
+              await (window as any).recorderOnClick({
+                selector: elementId,
+                timestamp: Date.now(),
+              });
+              return;
+            }
+            
+            // Debug: Log what we're about to record as default
+            console.log('[Recorder] Default element tag: ' + target.tagName + ', role: ' + (target.getAttribute('role') || 'none') + ', text: "' + (target.textContent?.trim().substring(0, 50) || '') + '", clickX: ' + clickX);
+
             // Default: Record the clicked element as-is
+            console.log('[Recorder] Default: Recording clicked element as-is');
             const elementId = getElementId(target);
             await (window as any).recorderOnClick({
               selector: elementId,
               timestamp: Date.now(),
             });
           } catch (error) {
+            console.error('[Recorder] Error in click handler:', error);
             // Silently ignore if function not available yet
           }
         }
@@ -385,9 +536,14 @@ export class EventListeners {
       route.continue();
     });
 
-    // Monitor console for D365-specific events (optional)
+    // Monitor console for D365-specific events and forward recorder debug logs
     page.on('console', (msg) => {
-      // Could be used to detect D365-specific UI changes
+      const text = msg.text();
+      // Forward console messages from the page to terminal for debugging
+      // This includes messages from our injected spatial heuristic safety net
+      if (text.includes('[Recorder') || text.includes('[Recorder Safety Net]')) {
+        console.log('[Browser Console]', text);
+      }
     });
   }
 }

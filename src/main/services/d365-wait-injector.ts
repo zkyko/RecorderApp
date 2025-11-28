@@ -40,6 +40,8 @@ export class D365WaitInjector {
     injections.sort((a, b) => b.position - a.position);
     
     for (const injection of injections) {
+      // Insert wait statement - semicolon is included
+      // The AST insertion handles statement boundaries correctly
       sourceFile.insertText(injection.position, `\n${injection.indent}await waitForD365(page);`);
     }
   }
@@ -234,8 +236,8 @@ export class D365WaitInjector {
     const nextSibling = statement.getNextSibling();
     if (nextSibling !== undefined) {
       const nextText = nextSibling.getText();
-      // If waitForD365 is already there, skip
-      if (nextText.includes('waitForD365')) {
+      // If waitForD365 or waitForTimeout is already there, skip injection
+      if (nextText.includes('waitForD365') || nextText.includes('waitForTimeout')) {
         return null;
       }
     }

@@ -292,7 +292,13 @@ const RunsScreen: React.FC = () => {
                             leftSection={<Eye size={14} />}
                             variant="light"
                             size="xs"
-                            onClick={() => navigate(`/trace/${run.testName}/${run.runId}`)}
+                            onClick={async () => {
+                              if (!workspacePath) return;
+                              await ipc.trace.openWindow({
+                                workspacePath,
+                                traceZipPath: run.tracePaths![0],
+                              });
+                            }}
                           >
                             Trace
                           </Button>
@@ -302,7 +308,13 @@ const RunsScreen: React.FC = () => {
                             leftSection={<FileText size={14} />}
                             variant="light"
                             size="xs"
-                            onClick={() => navigate(`/report/${run.testName}/${run.runId}`)}
+                            onClick={async () => {
+                              if (!workspacePath) return;
+                              await ipc.report.openWindow({
+                                workspacePath,
+                                runId: run.runId,
+                              });
+                            }}
                           >
                             Report
                           </Button>

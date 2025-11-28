@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Text, Button, Group, Alert, Badge, ScrollArea, Code, Grid, Stack, List, Divider } from '@mantine/core';
-import { CircleDot, Square, Play, Info, Clock, CheckCircle2, AlertTriangle, XCircle, Settings } from 'lucide-react';
+import { Card, Text, Button, Group, Alert, Badge, ScrollArea, Code, Grid, Stack, List, Select } from '@mantine/core';
+import { CircleDot, Square, Play, Info, Clock, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { CodegenCodeUpdate, RecorderCodeUpdate, RecordingEngine } from '../../../types/v1.5';
@@ -41,6 +41,26 @@ const RecordScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load recording engine setting:', error);
+    }
+  };
+
+  const handleRecordingEngineChange = async (value: string | null) => {
+    if (!workspacePath || !value || isRecording) return;
+    
+    const newEngine = value as RecordingEngine;
+    try {
+      const response = await ipc.settings.updateRecordingEngine({
+        workspacePath,
+        recordingEngine: newEngine,
+      });
+      
+      if (response.success) {
+        setRecordingEngine(newEngine);
+      } else {
+        alert(`Failed to update recording engine: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to update recording engine'}`);
     }
   };
 
@@ -87,7 +107,7 @@ const RecordScreen: React.FC = () => {
     setLastCodeUpdateAt(null);
 
     try {
-      const config = await window.electronAPI?.getConfig();
+      const config = await (window as any).electronAPI?.getConfig();
       if (!config?.d365Url) {
         setError('D365 URL not configured');
         return;
@@ -99,7 +119,7 @@ const RecordScreen: React.FC = () => {
       let storageStatePath = config.storageStatePath;
       if (!storageStatePath) {
         // Try to get from config manager's default location
-        const fullConfig = await window.electronAPI?.getConfig();
+        const fullConfig = await (window as any).electronAPI?.getConfig();
         storageStatePath = fullConfig?.storageStatePath;
       }
 
@@ -229,8 +249,17 @@ const RecordScreen: React.FC = () => {
         if (response.rawCode) {
           setLiveCodeContent(response.rawCode);
         }
-        // Navigate to locator cleanup with the final code
-        if (response.rawCode) {
+        // Navigate to step editor first (if steps available), then to locator cleanup
+        if (response.steps && response.steps.length > 0) {
+          // Navigate to step editor with both steps and rawCode
+          navigate('/record/step-editor', { 
+            state: { 
+              rawCode: response.rawCode,
+              steps: response.steps 
+            } 
+          });
+        } else if (response.rawCode) {
+          // Fallback: if no steps, go directly to locator cleanup
           navigate('/record/locator-cleanup', { state: { rawCode: response.rawCode } });
         } else {
           setError('No code was generated. Please try recording again.');
@@ -257,171 +286,149 @@ const RecordScreen: React.FC = () => {
 
   return (
     <div className="record-screen">
-      <Grid gutter="md">
-        {/* Left: Status and Controls */}
-        <Grid.Col span={{ base: 12, md: 3 }}>
-          <Card padding="lg" radius="md" withBorder>
-            <div style={{ textAlign: 'center', marginBottom: 24 }}>
-              <Text size="3rem" mb="md">🎬</Text>
-              <Text size="xl" fw={600} mb="xs">Ready to Record</Text>
-              <Text c="dimmed" size="sm">
-                Click the button below to start recording. A browser window will open where you can perform your D365 flow.
-              </Text>
-            </div>
-
-            {/* Status Section */}
-            <Card padding="md" radius="md" withBorder mb="md" style={{ background: '#1f2937' }}>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm" fw={500}>Status</Text>
-                <Badge 
-                  color={isRecording ? 'blue' : 'gray'} 
-                  variant="light"
-                  leftSection={isRecording ? <Play size={12} /> : <Square size={12} />}
-                >
-                  {isRecording ? 'Recording' : 'Idle'}
-                </Badge>
-              </Group>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Recording Engine</Text>
-                <Group gap={4}>
-                  <Badge 
-                    variant="light" 
-                    color="indigo"
-                    size="sm"
-                  >
-                    {recordingEngine === 'qaStudio' ? 'QA Studio Recorder' : 'Playwright Codegen'}
-                  </Badge>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    leftSection={<Settings size={12} />}
-                    onClick={() => navigate('/settings')}
-                    style={{ padding: '2px 8px' }}
-                  >
-                    Change
-                  </Button>
-                </Group>
-              </Group>
-              {envUrl && (
-                <Group justify="space-between" mb="xs">
-                  <Text size="sm" c="dimmed">Environment</Text>
-                  <Text size="xs" ff="monospace" c="dimmed" style={{ maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {envUrl}
-                  </Text>
-                </Group>
-              )}
-              {lastCodeUpdateAt && (
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Last Updated</Text>
-                  <Group gap={4}>
-                    <Clock size={12} />
-                    <Text size="xs" c="dimmed">{formatTimestamp(lastCodeUpdateAt)}</Text>
-                  </Group>
-                </Group>
-              )}
-            </Card>
-
-            {/* Control Buttons */}
-            <Group justify="center" mb="lg">
-              {!isRecording ? (
-                <Button
-                  leftSection={<CircleDot size={18} />}
-                  onClick={handleStartRecording}
-                  size="lg"
-                  color="green"
-                  loading={loading}
-                  disabled={loading}
-                  fullWidth
-                >
-                  Start Recording
-                </Button>
-              ) : (
-                <Button
-                  leftSection={<Square size={18} />}
-                  onClick={handleStopRecording}
-                  size="lg"
-                  color="red"
-                  loading={loading}
-                  disabled={loading}
-                  fullWidth
-                >
-                  Stop Recording
-                </Button>
-              )}
+      <Card padding="lg" radius="lg" withBorder className="record-hero">
+        <Group justify="space-between" align="flex-start" wrap="nowrap">
+          <div>
+            <Group gap="xs" mb="xs">
+              <Badge
+                color={isRecording ? 'blue' : 'gray'}
+                variant="filled"
+                leftSection={isRecording ? <Play size={12} /> : <Square size={12} />}
+              >
+                {isRecording ? 'Recording' : 'Idle'}
+              </Badge>
+              <Select
+                value={recordingEngine}
+                onChange={handleRecordingEngineChange}
+                data={[
+                  { value: 'qaStudio', label: 'QA Studio Recorder' },
+                  { value: 'playwright', label: 'Playwright Codegen' },
+                ]}
+                disabled={isRecording}
+                size="xs"
+                style={{ width: 200 }}
+                variant="default"
+              />
             </Group>
-
-            {/* Error Display */}
-            {error && (
-              <Alert icon={<Info size={16} />} title="Error" color="red" mb="md">
-                {error}
-              </Alert>
-            )}
-
-            {/* Recording Status */}
-            {isRecording && (
-              <Alert icon={<Play size={16} />} title="Recording" color="blue" mb="md">
-                <Group gap="xs">
-                  <div className="recording-dot"></div>
-                  <Text size="sm">Recording in progress... Perform your actions in the browser window. Click "Stop Recording" when done.</Text>
-                </Group>
-              </Alert>
-            )}
-
-            {/* Instructions */}
-            <Card padding="md" radius="md" withBorder style={{ background: '#1f2937' }}>
-              <Text fw={600} mb="md" size="sm">How it works:</Text>
-              <ol style={{ paddingLeft: 20, color: '#9ca3af', fontSize: '0.875rem', lineHeight: 1.8 }}>
-                <li>Click "Start Recording" to launch Playwright Codegen</li>
-                <li>Perform your D365 flow in the browser window</li>
-                <li>Watch the code preview update in real-time</li>
-                <li>Click "Stop Recording" when finished</li>
-                <li>Review and clean up locators</li>
-                <li>Parameterize input fields</li>
-                <li>Generate your test files</li>
-              </ol>
-            </Card>
-          </Card>
-        </Grid.Col>
-
-        {/* Middle: Step Timeline */}
-        {steps.length > 0 && (
-          <Grid.Col span={{ base: 12, md: 3 }}>
-            <Card padding="lg" radius="md" withBorder style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Text fw={600} size="lg" mb="md">Step Timeline</Text>
-              <ScrollArea h="calc(100vh - 300px)" style={{ flex: 1 }}>
-                <List spacing="xs" size="sm">
-                  {steps.map((step) => (
-                    <List.Item
-                      key={step.index}
-                      onClick={() => setSelectedStepLine(step.line)}
-                      style={{
-                        cursor: 'pointer',
-                        padding: '8px',
-                        borderRadius: '4px',
-                        backgroundColor: selectedStepLine === step.line ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                      }}
-                    >
-                      <Group gap="xs">
-                        <Badge size="sm" variant="light">#{step.index}</Badge>
-                        <Text size="sm">{step.description}</Text>
-                      </Group>
-                    </List.Item>
-                  ))}
-                </List>
-              </ScrollArea>
-            </Card>
-          </Grid.Col>
-        )}
-
-        {/* Right: Code Preview */}
-        <Grid.Col span={{ base: 12, md: steps.length > 0 ? 6 : 9 }}>
-          <Card padding="lg" radius="md" withBorder style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Group justify="space-between" mb="md">
-              <Text fw={600} size="lg">Code Preview</Text>
+            <Text fw={600} size="xl">Record Flow</Text>
+            <Text c="dimmed" size="sm" mb="sm">
+              Launch a browser, capture your D365 flow, then move into cleanup and parameterization.
+            </Text>
+            <Group gap="md">
+              {envUrl && (
+                <Text size="sm" c="dimmed">
+                  Environment: <Text span fw={600}>{envUrl}</Text>
+                </Text>
+              )}
               {lastCodeUpdateAt && (
                 <Group gap={4}>
                   <Clock size={14} />
-                  <Text size="xs" c="dimmed">Updated: {formatTimestamp(lastCodeUpdateAt)}</Text>
+                  <Text size="sm" c="dimmed">
+                    Updated {formatTimestamp(lastCodeUpdateAt)}
+                  </Text>
+                </Group>
+              )}
+            </Group>
+          </div>
+          <div>
+            {!isRecording ? (
+              <Button
+                leftSection={<CircleDot size={18} />}
+                size="md"
+                color="green"
+                onClick={handleStartRecording}
+                loading={loading}
+                disabled={loading}
+              >
+                Start Recording
+              </Button>
+            ) : (
+              <Button
+                leftSection={<Square size={18} />}
+                size="md"
+                color="red"
+                onClick={handleStopRecording}
+                loading={loading}
+                disabled={loading}
+              >
+                Stop Recording
+              </Button>
+            )}
+          </div>
+        </Group>
+        {error && (
+          <Alert icon={<Info size={16} />} title="Error" color="red" mt="md">
+            {error}
+          </Alert>
+        )}
+      </Card>
+
+      <Grid gutter="md" mt="md">
+        <Grid.Col span={{ base: 12, md: 4 }}>
+          <Stack gap="md">
+            {isRecording && (
+              <Alert icon={<Play size={16} />} title="Recording" color="blue">
+                <Group gap="xs">
+                  <div className="recording-dot"></div>
+                  <Text size="sm">
+                    Recording in progress. Execute your steps in the opened browser, then click “Stop Recording”.
+                  </Text>
+                </Group>
+              </Alert>
+            )}
+
+            <Card padding="lg" radius="md" withBorder>
+              <Text fw={600} mb="sm">Workflow</Text>
+              <List spacing="xs" size="sm" c="dimmed">
+                <List.Item>Launch the recorder and run through your D365 scenario.</List.Item>
+                <List.Item>Stop recording to review steps and cleanup locators.</List.Item>
+                <List.Item>Parameterize inputs and generate the final Playwright test.</List.Item>
+              </List>
+            </Card>
+
+            {steps.length > 0 && (
+              <Card padding="lg" radius="md" withBorder style={{ flex: 1 }}>
+                <Text fw={600} mb="sm">Captured Steps</Text>
+                <ScrollArea h={260}>
+                  <List spacing="xs" size="sm">
+                    {steps.map((step) => (
+                      <List.Item
+                        key={step.index}
+                        onClick={() => setSelectedStepLine(step.line)}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          backgroundColor:
+                            selectedStepLine === step.line ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                        }}
+                      >
+                        <Group gap="xs">
+                          <Badge size="sm" variant="light">#{step.index}</Badge>
+                          <Text size="sm">{step.description}</Text>
+                        </Group>
+                      </List.Item>
+                    ))}
+                  </List>
+                </ScrollArea>
+              </Card>
+            )}
+          </Stack>
+        </Grid.Col>
+
+        <Grid.Col span={{ base: 12, md: 8 }}>
+          <Card padding="lg" radius="md" withBorder style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Group justify="space-between" mb="md">
+              <div>
+                <Text fw={600} size="lg">Code Preview</Text>
+                <Text size="sm" c="dimmed">
+                  Generated Playwright script updates in real time while you record.
+                </Text>
+              </div>
+              {lastCodeUpdateAt && (
+                <Group gap={4}>
+                  <Clock size={14} />
+                  <Text size="xs" c="dimmed">Updated {formatTimestamp(lastCodeUpdateAt)}</Text>
                 </Group>
               )}
             </Group>
@@ -431,15 +438,7 @@ const RecordScreen: React.FC = () => {
                 <div>
                   <Text size="4rem" mb="md">📝</Text>
                   <Text size="lg" fw={600} mb="xs">No recording yet</Text>
-                  <Text c="dimmed" mb="lg">Start recording to see the generated Playwright code appear here in real-time</Text>
-                  <Button
-                    leftSection={<CircleDot size={18} />}
-                    onClick={handleStartRecording}
-                    size="md"
-                    color="green"
-                  >
-                    Start Recording
-                  </Button>
+                  <Text c="dimmed">Start recording to stream code into this panel.</Text>
                 </div>
               </div>
             ) : (

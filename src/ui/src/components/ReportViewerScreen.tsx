@@ -220,7 +220,7 @@ const ReportViewerScreen: React.FC = () => {
         )}
       </Card>
 
-      {error && !reportUrl && (
+      {error && (
         <Card padding="lg" radius="md" withBorder mb="md">
           <Alert color="red" title="Error">
             {error}
@@ -228,33 +228,6 @@ const ReportViewerScreen: React.FC = () => {
         </Card>
       )}
 
-      {reportUrl ? (
-        <Card padding={0} radius="md" withBorder style={{ height: 'calc(100vh - 300px)', overflow: 'hidden' }}>
-          <iframe
-            src={reportUrl}
-            className="report-iframe"
-            title="Allure Report"
-            style={{ 
-              width: '100%', 
-              height: '100%', 
-              border: 'none',
-              display: 'block'
-            }}
-            allow="fullscreen"
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
-          />
-        </Card>
-      ) : selectedRun && !selectedRun.allureReportPath && !selectedRun.reportPath ? (
-        <Card padding="xl" radius="md" withBorder>
-          <Center>
-            <div style={{ textAlign: 'center' }}>
-              <Text size="4rem" mb="md">📭</Text>
-              <Text size="xl" fw={600} mb="xs">No Allure report available</Text>
-              <Text c="dimmed">This run did not generate an Allure report. Run a test from QA Studio to generate one.</Text>
-            </div>
-          </Center>
-        </Card>
-      ) : null}
     </div>
   );
 };

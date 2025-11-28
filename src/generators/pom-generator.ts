@@ -27,7 +27,7 @@ export class POMGenerator {
     const validSteps = steps.filter(step => {
       // Skip steps with only body locator (no real interaction captured)
       // These are typically navigation or placeholder steps
-      if (step.locator.strategy === 'css' && 
+      if (step.locator && step.locator.strategy === 'css' && 
           (step.locator as any).selector === 'body') {
         return false;
       }
@@ -120,6 +120,8 @@ export class POMGenerator {
       // Use contentFrame for frame-aware locators
       const locatorFields = new Map<string, string>();
       for (const step of steps) {
+        // Skip steps without locators (custom/comment steps)
+        if (!step.locator) continue;
         const fieldName = step.fieldName || this.generateFieldName(step);
         if (!existingFields.has(fieldName) && !locatorFields.has(fieldName)) {
           // Use contentFrame for D365 frame-aware locators

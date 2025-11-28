@@ -19,6 +19,8 @@ import { DataWriter } from './services/data-writer';
 import { TestRunner } from './services/test-runner';
 import { TraceServer } from './services/trace-server';
 import { WorkspaceManager } from './services/workspace-manager';
+import { LocatorMaintenanceService } from './services/locator-maintenance';
+import { RAGService } from './services/rag-service';
 import {
   CodegenStartRequest,
   LocatorCleanupRequest,
@@ -54,6 +56,10 @@ import {
   WorkspaceLocatorsListRequest,
   WorkspaceLocatorsListResponse,
   LocatorIndexEntry,
+  LocatorUpdateRequest,
+  LocatorUpdateResponse,
+  LocatorStatusUpdateRequest,
+  LocatorStatusUpdateResponse,
   SettingsGetBrowserStackRequest,
   SettingsGetBrowserStackResponse,
   SettingsUpdateBrowserStackRequest,
@@ -92,6 +98,8 @@ export class IPCBridge {
   private traceServer: TraceServer;
   private mainWindow: BrowserWindow | null = null;
   private workspaceManager: WorkspaceManager;
+  private locatorMaintenance: LocatorMaintenanceService;
+  private ragService: RAGService;
 
   constructor(configManager: ConfigManager, workspaceManager: WorkspaceManager, mainWindow: BrowserWindow | null = null) {
     this.configManager = configManager;
@@ -114,6 +122,8 @@ export class IPCBridge {
     this.specWriter = new SpecWriter(workspaceManager);
     this.dataWriter = new DataWriter();
     this.traceServer = new TraceServer();
+    this.locatorMaintenance = new LocatorMaintenanceService();
+    this.ragService = new RAGService(configManager);
   }
 
   /**
@@ -308,6 +318,10 @@ export class IPCBridge {
       return await this.recorderService.stop();
     });
 
+    ipcMain.handle('recorder:compileSteps', async (_, steps: RecordedStep[]) => {
+      return this.recorderService.compileSteps(steps);
+    });
+
     // Locator cleanup
     ipcMain.handle('locator:cleanup', async (_, request: LocatorCleanupRequest) => {
       return await this.locatorCleanupService.cleanup(request);
@@ -353,8 +367,46 @@ export class IPCBridge {
       return await this.traceServer.openTrace(request);
     });
 
+    ipcMain.handle('trace:openWindow', async (_, request: TraceOpenRequest) => {
+      const response = await this.traceServer.openTrace(request);
+      if (response.success && response.url) {
+        // Open in new BrowserWindow
+        const traceWindow = new BrowserWindow({
+          width: 1400,
+          height: 900,
+          title: 'Playwright Trace Viewer',
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+          },
+        });
+        traceWindow.loadURL(response.url);
+        return { success: true };
+      }
+      return { success: false, error: response.error || 'Failed to open trace' };
+    });
+
     ipcMain.handle('report:open', async (_, request: ReportOpenRequest) => {
       return await this.traceServer.openReport(request);
+    });
+
+    ipcMain.handle('report:openWindow', async (_, request: ReportOpenRequest) => {
+      const response = await this.traceServer.openReport(request);
+      if (response.success && response.url) {
+        // Open in new BrowserWindow
+        const reportWindow = new BrowserWindow({
+          width: 1400,
+          height: 900,
+          title: 'Allure Test Report',
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+          },
+        });
+        reportWindow.loadURL(response.url);
+        return { success: true };
+      }
+      return { success: false, error: response.error || 'Failed to open report' };
     });
 
     // Run metadata
@@ -446,7 +498,9 @@ export class IPCBridge {
     // Get spec file content
     ipcMain.handle('test:getSpec', async (_, request: TestGetSpecRequest): Promise<TestGetSpecResponse> => {
       try {
-        const specPath = path.join(request.workspacePath, 'tests', `${request.testName}.spec.ts`);
+        // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+        const fileName = this.specGenerator.flowNameToFileName(request.testName);
+        const specPath = path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
         if (!fs.existsSync(specPath)) {
           return { success: false, error: `Spec file not found: ${request.testName}` };
         }
@@ -460,7 +514,9 @@ export class IPCBridge {
     // Parse locators from spec file
     ipcMain.handle('test:parseLocators', async (_, request: TestParseLocatorsRequest): Promise<TestParseLocatorsResponse> => {
       try {
-        const specPath = path.join(request.workspacePath, 'tests', `${request.testName}.spec.ts`);
+        // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+        const fileName = this.specGenerator.flowNameToFileName(request.testName);
+        const specPath = path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
         if (!fs.existsSync(specPath)) {
           return { success: false, error: `Spec file not found: ${request.testName}` };
         }
@@ -598,12 +654,29 @@ export class IPCBridge {
           return { success: true, locators: [] };
         }
         
-        const specFiles = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+        // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+        // Recursively find all .spec.ts files in bundle structure
+        const specFiles: string[] = [];
+        const findSpecFiles = (dir: string) => {
+          if (!fs.existsSync(dir)) return;
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              findSpecFiles(fullPath);
+            } else if (entry.isFile() && entry.name.endsWith('.spec.ts')) {
+              specFiles.push(fullPath);
+            }
+          }
+        };
+        findSpecFiles(testsDir);
+        
         const locatorMap: Map<string, LocatorIndexEntry> = new Map();
         
-        for (const specFile of specFiles) {
-          const testName = path.basename(specFile, '.spec.ts');
-          const specPath = path.join(testsDir, specFile);
+        for (const specPath of specFiles) {
+          // Extract test name from bundle path: tests/d365/specs/<TestName>/<TestName>.spec.ts
+          const bundleMatch = specPath.match(/tests\/d365\/specs\/([^\/]+)\/[^\/]+\.spec\.ts$/);
+          const testName = bundleMatch ? bundleMatch[1] : path.basename(specPath, '.spec.ts');
           const content = fs.readFileSync(specPath, 'utf-8');
           const lines = content.split('\n');
           
@@ -642,10 +715,18 @@ export class IPCBridge {
           });
         }
         
-        return { success: true, locators: Array.from(locatorMap.values()) };
+        const locators = Array.from(locatorMap.values());
+        const enriched = this.locatorMaintenance.attachStatuses(locators, request.workspacePath);
+        return { success: true, locators: enriched };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to list locators' };
       }
+    });
+    ipcMain.handle('workspace:locators:update', async (_, request: LocatorUpdateRequest): Promise<LocatorUpdateResponse> => {
+      return await this.locatorMaintenance.updateLocator(request);
+    });
+    ipcMain.handle('workspace:locators:setStatus', async (_, request: LocatorStatusUpdateRequest): Promise<LocatorStatusUpdateResponse> => {
+      return await this.locatorMaintenance.setLocatorStatus(request);
     });
 
     // BrowserStack Settings
@@ -696,6 +777,39 @@ export class IPCBridge {
         return { success: true };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to update BrowserStack settings' };
+      }
+    });
+
+    // AI Configuration handlers (stored in electron-store via ConfigManager)
+    ipcMain.handle('settings:getAIConfig', async (): Promise<{ success: boolean; config?: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }; error?: string }> => {
+      try {
+        const config = this.configManager.getAIConfig();
+        return { success: true, config };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get AI config' };
+      }
+    });
+
+    ipcMain.handle('settings:updateAIConfig', async (_, request: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }): Promise<{ success: boolean; error?: string }> => {
+      try {
+        this.configManager.setAIConfig(request);
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update AI config' };
+      }
+    });
+
+    // RAG Chat
+    ipcMain.handle('rag:chat', async (_, request: { workspacePath: string; testName: string; messages: Array<{ role: string; content: string }> }): Promise<{ success: boolean; response?: string; error?: string }> => {
+      try {
+        const response = await this.ragService.chatWithTest(
+          request.workspacePath,
+          request.testName,
+          request.messages
+        );
+        return { success: true, response };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to chat with AI' };
       }
     });
 
@@ -807,17 +921,43 @@ export class IPCBridge {
       }
 
       const tests: TestSummary[] = [];
-      const specFiles = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.ts'));
+      
+      // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+      // Recursively find all .spec.ts files in bundle structure
+      const specFiles: string[] = [];
+      const findSpecFiles = (dir: string, baseDir: string = '') => {
+        if (!fs.existsSync(dir)) return;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          const relativePath = path.join(baseDir, entry.name);
+          if (entry.isDirectory()) {
+            findSpecFiles(fullPath, relativePath);
+          } else if (entry.isFile() && entry.name.endsWith('.spec.ts')) {
+            specFiles.push(fullPath);
+          }
+        }
+      };
+      findSpecFiles(testsDir);
 
-      for (const specFile of specFiles) {
-        const testName = path.basename(specFile, '.spec.ts');
-        const specPath = `tests/${specFile}`; // Workspace-relative path
-        const metaPath = path.join('tests', `${testName}.meta.json`);
-        const dataPath = path.join('data', `${testName}.json`);
+      for (const specPath of specFiles) {
+        // Extract test name from bundle path: tests/d365/specs/<TestName>/<TestName>.spec.ts
+        const bundleMatch = specPath.match(/tests[\/\\]d365[\/\\]specs[\/\\]([^\/\\]+)[\/\\][^\/\\]+\.spec\.ts$/);
+        const fileName = bundleMatch ? bundleMatch[1] : path.basename(specPath, '.spec.ts');
+        const testName = fileName; // Use fileName as testName (already kebab-case)
+        
+        const specRelPath = path.relative(request.workspacePath, specPath).replace(/\\/g, '/');
+        const bundleDir = path.dirname(specPath);
+        const metaPath = path.join(bundleDir, `${fileName}.meta.json`);
+        const metaRelPath = path.relative(request.workspacePath, metaPath).replace(/\\/g, '/');
+        
+        // Data file is at tests/d365/data/<TestName>Data.json
+        const dataPath = path.join(request.workspacePath, 'tests', 'd365', 'data', `${fileName}Data.json`);
+        const dataRelPath = path.relative(request.workspacePath, dataPath).replace(/\\/g, '/');
 
         // Read meta if exists
         let meta: TestMeta | null = null;
-        const fullMetaPath = path.join(request.workspacePath, metaPath);
+        const fullMetaPath = path.join(request.workspacePath, metaRelPath);
         if (fs.existsSync(fullMetaPath)) {
           try {
             meta = JSON.parse(fs.readFileSync(fullMetaPath, 'utf-8'));
@@ -828,7 +968,7 @@ export class IPCBridge {
 
         // Read data if exists
         let datasetCount = 0;
-        const fullDataPath = path.join(request.workspacePath, dataPath);
+        const fullDataPath = path.join(request.workspacePath, dataRelPath);
         if (fs.existsSync(fullDataPath)) {
           try {
             const data = JSON.parse(fs.readFileSync(fullDataPath, 'utf-8'));
@@ -841,9 +981,9 @@ export class IPCBridge {
         tests.push({
           testName,
           module: meta?.module,
-          specPath,
-          dataPath: fs.existsSync(fullDataPath) ? dataPath : undefined,
-          metaPath: fs.existsSync(fullMetaPath) ? metaPath : undefined,
+          specPath: specRelPath,
+          dataPath: fs.existsSync(fullDataPath) ? dataRelPath : undefined,
+          metaPath: fs.existsSync(fullMetaPath) ? metaRelPath : undefined,
           datasetCount,
           lastRunAt: meta?.lastRunAt,
           lastStatus: meta?.lastStatus || 'never_run',
@@ -1011,7 +1151,7 @@ export class IPCBridge {
         outputConfig.module || session.module
       );
 
-      // Generate spec
+      // Generate spec (now returns path in bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts)
       const specFile = this.specGenerator.generateSpec(
         session.flowName,
         steps,
@@ -1021,11 +1161,11 @@ export class IPCBridge {
       );
 
       // Create initial data file for data-driven tests
+      // Data file is at tests/d365/data/<TestName>Data.json (not in bundle)
       const parameters = this.specGenerator.detectParametersFromSteps(steps);
       const modulePath = outputConfig.module || session.module ? path.join('d365', outputConfig.module || session.module) : 'd365';
-      const specDir = path.join(testsDir, modulePath);
+      const dataDir = path.join(testsDir, modulePath, 'data');
       const fileName = this.specGenerator.flowNameToFileName(session.flowName);
-      const dataDir = path.join(specDir, 'data');
       const dataFilePath = path.join(dataDir, `${fileName}Data.json`);
       
       // Create data file if it doesn't exist
@@ -1036,13 +1176,49 @@ export class IPCBridge {
         console.log(`Generated: ${dataFilePath}`);
       }
 
-      // Write all files
-      const allFiles = [...pomFiles, specFile];
-      this.codeFormatter.writeFiles(allFiles);
+      // Write POM files
+      this.codeFormatter.writeFiles(pomFiles);
+
+      // Create bundle directory and write spec file
+      const bundleDir = path.dirname(specFile.path);
+      fs.mkdirSync(bundleDir, { recursive: true });
+      fs.writeFileSync(specFile.path, specFile.content, 'utf-8');
+      console.log(`Generated: ${specFile.path}`);
+
+      // Generate and write meta.json
+      const testName = this.specGenerator.formatTestName(session.flowName);
+      const metaJsonContent = this.specGenerator.generateMetaJson(
+        testName,
+        outputConfig.module || session.module,
+        dataFilePath,
+        specFile.path
+      );
+      const metaJsonPath = path.join(bundleDir, `${fileName}.meta.json`);
+      fs.writeFileSync(metaJsonPath, metaJsonContent, 'utf-8');
+      console.log(`Generated: ${metaJsonPath}`);
+
+      // Generate and write meta.md
+      const metaMdContent = this.specGenerator.generateMetaMd(
+        testName,
+        session.flowName,
+        specFile.content,
+        outputConfig.module || session.module
+      );
+      const metaMdPath = path.join(bundleDir, `${fileName}.meta.md`);
+      fs.writeFileSync(metaMdPath, metaMdContent, 'utf-8');
+      console.log(`Generated: ${metaMdPath}`);
+
+      // Return all generated files
+      const allFiles = [
+        ...pomFiles.map(f => f.path),
+        specFile.path,
+        metaJsonPath,
+        metaMdPath,
+      ];
 
       return {
         success: true,
-        files: allFiles.map(f => f.path),
+        files: allFiles,
       };
     } catch (error: any) {
       return { success: false, error: error.message };
