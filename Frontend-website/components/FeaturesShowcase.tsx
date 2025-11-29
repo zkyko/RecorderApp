@@ -36,7 +36,7 @@ interface Feature {
 const features: Feature[] = [
   {
     title: "Smart Recorder Engine",
-    description: "Platform-aware recorder that automatically handles async loading states, dynamic iframes, and navigation patterns. Pluggable locator logic adapts to any platform—currently optimized for D365, with Koerber and Salesforce support coming soon.",
+    description: "Platform-aware recorder that automatically handles async loading states, dynamic iframes, and navigation patterns. Pluggable locator intelligence with priority-based selection adapts to any platform—currently optimized for D365 (data-dyn-controlname, roles, labels), with Koerber and Salesforce support coming soon.",
     icon: Video,
     gradient: "from-violet-500 to-purple-500",
     iconColor: "text-violet-400",
@@ -45,8 +45,9 @@ const features: Feature[] = [
     unique: true,
     highlights: [
       "Pluggable locator algorithms",
-      "Platform-specific heuristics",
+      "Platform-specific priority rules",
       "Automatic async state handling",
+      "Accessibility-based selectors",
       "Extensible to any enterprise app"
     ]
   },
@@ -190,22 +191,6 @@ const features: Feature[] = [
       "Workspace structure rebuild"
     ]
   },
-  {
-    title: "Pluggable Locator Intelligence",
-    description: "Platform-specific locator extraction with priority-based selection. Currently optimized for D365 (data-dyn-controlname, roles, labels), with pluggable algorithms for Koerber, Salesforce, and custom platforms.",
-    icon: Shield,
-    gradient: "from-green-500 to-emerald-500",
-    iconColor: "text-green-400",
-    iconBg: "bg-green-500/20",
-    category: "intelligence",
-    unique: true,
-    highlights: [
-      "Pluggable locator algorithms",
-      "Platform-specific priority rules",
-      "Accessibility-based selectors",
-      "Easy to extend for new platforms"
-    ]
-  }
 ];
 
 const categories = {
