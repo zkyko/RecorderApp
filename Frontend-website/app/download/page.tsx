@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const versions = [
   {
     version: "v1.5.0",
-    date: "2025-11-28",
+    date: "November 28, 2025",
     windows: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Windows-x64-v1.5.0.zip",
     windowsArm64: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Windows-ARM64-v1.5.0.zip",
     mac: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Mac-ARM64-v1.5.0.zip",

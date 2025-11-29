@@ -103,8 +103,7 @@
       "category": "public.app-category.developer-tools"
     },
     "dmg": {
-      "title": "QA Studio ${version}",
-      "icon": "build/icon.icns"
+      "title": "QA Studio ${version}"
     },
     "nsis": {
       "oneClick": false,

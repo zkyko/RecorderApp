@@ -16,10 +16,10 @@ interface ChangelogEntry {
 const changelog: ChangelogEntry[] = [
   {
     version: "1.5.0",
-    date: "November 28, 2025 (Upcoming)",
+    date: "November 28, 2025",
     type: "feature",
     title: "Visual Test Builder & Enhanced Workflow",
-    description: "Major update introducing visual test building capabilities and improved locator management. This version is currently in development and will be released soon.",
+    description: "Major update introducing visual test building capabilities and improved locator management.",
     items: [
       "Visual Test Builder (BETA) - Build test steps visually by selecting locators and actions",
       "Complete workflow integration - Visual Builder now follows same flow as manual recording (Step Editor → Locator Cleanup → Parameter Mapping → Save Test)",
