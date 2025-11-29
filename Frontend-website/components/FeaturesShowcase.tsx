@@ -393,6 +393,45 @@ export function FeaturesShowcase() {
         })}
       </div>
 
+      {/* Pluggable Architecture Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.35 }}
+        className="mb-12 p-8 rounded-2xl bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-indigo-500/10 border border-violet-500/20"
+      >
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-lg bg-violet-500/20 text-violet-400">
+            <GitBranch className="w-6 h-6" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xl font-bold text-white mb-2">
+              Pluggable Architecture
+            </h3>
+            <p className="text-zinc-300 mb-4 leading-relaxed">
+              QA Studio uses a workspace-based architecture that makes it easy to extend to new platforms. Currently optimized for <strong className="text-white">Microsoft Dynamics 365</strong>, but the system is designed to support multiple workspaces.
+            </p>
+            <p className="text-zinc-400 text-sm mb-4 leading-relaxed">
+              To add support for a new platform (like Koerber or Salesforce), simply build the platform-specific locator extraction algorithm and plug it into the workspace system. The recorder, code generation, and execution layers remain the same.
+            </p>
+            <ul className="space-y-2 text-sm text-zinc-300">
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                <span><strong className="text-white">Current:</strong> D365 workspace with optimized locator logic</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                <span><strong className="text-white">Coming Soon:</strong> Koerber and Salesforce workspaces</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-violet-400 mt-0.5 flex-shrink-0" />
+                <span><strong className="text-white">Future:</strong> Custom workspace support for any enterprise application</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </motion.div>
+
       {/* CTA Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
