@@ -36,6 +36,12 @@ export function Navbar() {
               Docs
             </Link>
             <Link
+              href="/updates"
+              className="text-zinc-400 hover:text-blue-400 transition-colors"
+            >
+              Updates
+            </Link>
+            <Link
               href="/download"
               className="text-zinc-400 hover:text-blue-400 transition-colors"
             >

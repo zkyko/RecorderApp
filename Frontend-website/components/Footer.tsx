@@ -14,6 +14,12 @@ export function Footer() {
           </p>
           <div className="flex gap-6">
             <Link
+              href="/updates"
+              className="text-zinc-400 hover:text-blue-400 transition-colors"
+            >
+              Updates
+            </Link>
+            <Link
               href="https://github.com/zkyko/RecorderApp"
               target="_blank"
               rel="noopener noreferrer"
