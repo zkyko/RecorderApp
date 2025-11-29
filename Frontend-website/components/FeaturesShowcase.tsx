@@ -256,7 +256,7 @@ export function FeaturesShowcase() {
           className="mb-12"
         >
           <h2 className="text-3xl font-bold mb-4 text-white">
-            What Makes Us Different
+            What Makes This Tool Different
           </h2>
           <p className="text-zinc-400 text-lg">
             A pluggable architecture that grows with your needs. Build custom locator logic for any platform and plug it in seamlessly.
