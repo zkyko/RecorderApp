@@ -1,10 +1,22 @@
 "use client";
 
+"use client";
+
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export function Hero() {
+  const [basePath, setBasePath] = useState('');
+  
+  useEffect(() => {
+    // Determine basePath on client side
+    if (window.location.pathname.startsWith('/RecorderApp')) {
+      setBasePath('/RecorderApp');
+    }
+  }, []);
+
   return (
     <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden pt-16">
       {/* Background layers */}
@@ -95,7 +107,7 @@ export function Hero() {
               
               <div className="relative rounded-xl overflow-hidden">
                 <img
-                  src="/RecorderApp/qa-studio-dashboard.png"
+                  src={`${basePath}/qa-studio-dashboard.png`}
                   alt="QA Studio Dashboard"
                   className="object-contain w-full h-auto"
                 />
