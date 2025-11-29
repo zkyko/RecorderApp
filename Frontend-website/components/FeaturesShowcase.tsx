@@ -37,7 +37,7 @@ interface Feature {
 const features: Feature[] = [
   {
     title: "Smart Recorder Engine",
-    description: "D365-aware recorder that automatically handles async loading states, dynamic iframes, and navigation patterns. No more hard-coded sleeps or brittle selectors.",
+    description: "Platform-aware recorder that automatically handles async loading states, dynamic iframes, and navigation patterns. Pluggable locator logic adapts to any platform—currently optimized for D365, with Koerber and Salesforce support coming soon.",
     icon: Video,
     gradient: "from-violet-500 to-purple-500",
     iconColor: "text-violet-400",
@@ -45,10 +45,10 @@ const features: Feature[] = [
     category: "recording",
     unique: true,
     highlights: [
-      "Automatic waitForGridReady detection",
-      "Spatial heuristics for D365 navigation",
-      "MI-based page classification",
-      "Handles dynamic iframes seamlessly"
+      "Pluggable locator algorithms",
+      "Platform-specific heuristics",
+      "Automatic async state handling",
+      "Extensible to any enterprise app"
     ]
   },
   {
@@ -333,7 +333,7 @@ export function FeaturesShowcase() {
             Complete Feature Set
           </h2>
           <p className="text-zinc-400 text-lg">
-            Everything you need for enterprise D365 test automation.
+            Everything you need for enterprise test automation across multiple platforms.
           </p>
         </motion.div>
 
@@ -405,7 +405,7 @@ export function FeaturesShowcase() {
           Ready to Get Started?
         </h3>
         <p className="text-zinc-400 mb-6 max-w-2xl mx-auto">
-          Download QA Studio and experience the difference. Built specifically for D365, designed for your team.
+          Download QA Studio and experience the difference. Currently optimized for D365, with support for Koerber, Salesforce, and more coming soon.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a
