@@ -16,10 +16,10 @@ interface ChangelogEntry {
 const changelog: ChangelogEntry[] = [
   {
     version: "1.5.0",
-    date: "December 2024",
+    date: "November 28, 2025 (Upcoming)",
     type: "feature",
     title: "Visual Test Builder & Enhanced Workflow",
-    description: "Major update introducing visual test building capabilities and improved locator management.",
+    description: "Major update introducing visual test building capabilities and improved locator management. This version is currently in development and will be released soon.",
     items: [
       "Visual Test Builder (BETA) - Build test steps visually by selecting locators and actions",
       "Complete workflow integration - Visual Builder now follows same flow as manual recording (Step Editor → Locator Cleanup → Parameter Mapping → Save Test)",
@@ -81,6 +81,11 @@ export function Changelog() {
                     <span>v{entry.version}</span>
                     <span>•</span>
                     <span>{entry.date}</span>
+                    {entry.date.includes("Upcoming") && (
+                      <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs">
+                        Coming Soon
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
