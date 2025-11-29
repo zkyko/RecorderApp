@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
-import Image from "next/image";
 
 export function Hero() {
   return (
@@ -95,14 +94,10 @@ export function Hero() {
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 via-transparent to-transparent pointer-events-none z-10"></div>
               
               <div className="relative rounded-xl overflow-hidden">
-                <Image
-                  src="/qa-studio-dashboard.png"
+                <img
+                  src="/RecorderApp/qa-studio-dashboard.png"
                   alt="QA Studio Dashboard"
-                  width={1200}
-                  height={800}
                   className="object-contain w-full h-auto"
-                  priority
-                  quality={90}
                 />
               </div>
             </div>
