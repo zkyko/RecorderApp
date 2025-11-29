@@ -17,7 +17,6 @@ import {
   Zap,
   Shield,
   GitBranch,
-  FileCode,
   CheckCircle2,
   PlayCircle,
 } from "lucide-react";
@@ -144,21 +143,6 @@ const features: Feature[] = [
       "Automatic parameter detection",
       "Batch test execution",
       "Data validation and preview"
-    ]
-  },
-  {
-    title: "Page Object Model Generation",
-    description: "Automatically generates enterprise-grade POMs with consistent taxonomy. Share reusable page objects across teams and projects.",
-    icon: FileCode,
-    gradient: "from-purple-500 to-violet-500",
-    iconColor: "text-purple-400",
-    iconBg: "bg-purple-500/20",
-    category: "development",
-    highlights: [
-      "Platform-specific module taxonomy",
-      "Type-safe page objects",
-      "Automatic code formatting",
-      "Safe merge with ts-morph"
     ]
   },
   {
