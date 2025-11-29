@@ -76,16 +76,16 @@ export function Changelog() {
                     <Badge className={config.color}>
                       {config.label}
                     </Badge>
+                    {entry.date.includes("Upcoming") && (
+                      <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs animate-pulse">
+                        Coming Soon
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-sm text-zinc-400">
                     <span>v{entry.version}</span>
                     <span>•</span>
                     <span>{entry.date}</span>
-                    {entry.date.includes("Upcoming") && (
-                      <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs">
-                        Coming Soon
-                      </Badge>
-                    )}
                   </div>
                 </div>
               </div>
