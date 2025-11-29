@@ -13,6 +13,9 @@ release.zip
 *.cache
 .electron-builder-cache/
 *.zip
+Frontend-website/.next/
+Frontend-website/out/
+Frontend-website/node_modules/
 
 # Generated runtime files (created during prebuild)
 runtime/
