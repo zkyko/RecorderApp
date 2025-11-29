@@ -4,6 +4,7 @@ import { SecretSauce } from "@/components/SecretSauce";
 import { Architecture } from "@/components/Architecture";
 import { Metrics } from "@/components/Metrics";
 import { About } from "@/components/About";
+import { Newsletter } from "@/components/Newsletter";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
 
@@ -18,6 +19,7 @@ export default function Home() {
       </div>
       <Architecture />
       <Metrics />
+      <Newsletter />
       <About />
       <Footer />
     </main>

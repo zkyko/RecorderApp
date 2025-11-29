@@ -52,6 +52,12 @@ export function Navbar() {
             >
               Download
             </Link>
+            <Link
+              href="/faq"
+              className="text-zinc-400 hover:text-blue-400 transition-colors hidden sm:inline"
+            >
+              FAQ
+            </Link>
             <Button variant="outline" size="sm" asChild>
               <Link href="/download">Get Started</Link>
             </Button>
