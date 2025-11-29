@@ -47,12 +47,12 @@ export default function GettingStartedPage() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-                  <h4 className="font-semibold text-white mb-2">Windows</h4>
+                  <h4 className="font-semibold text-white mb-2">Windows x64</h4>
                   <p className="text-sm text-zinc-400">Download the .zip file and extract to your preferred location</p>
                 </div>
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-                  <h4 className="font-semibold text-white mb-2">Mac</h4>
-                  <p className="text-sm text-zinc-400">Download the .zip file and extract to Applications</p>
+                  <h4 className="font-semibold text-white mb-2">Windows ARM64</h4>
+                  <p className="text-sm text-zinc-400">Download the .zip file and extract to your preferred location</p>
                 </div>
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
                   <h4 className="font-semibold text-white mb-2">Requirements</h4>

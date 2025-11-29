@@ -52,13 +52,12 @@ Major update introducing visual test building capabilities and improved locator 
 
 - **Windows x64:** [QA-Studio-Windows-x64-v1.5.0.zip](https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-x64-v1.5.0.zip)
 - **Windows ARM64:** [QA-Studio-Windows-ARM64-v1.5.0.zip](https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-ARM64-v1.5.0.zip)
-- **Mac ARM64:** (Coming soon - needs to be built on Mac)
 
 ## Installation
 
-1. Download the appropriate zip file for your platform
+1. Download the appropriate zip file for your Windows platform (x64 or ARM64)
 2. Extract the zip file to your desired location
-3. Run `QA Studio.exe` (Windows) or `QA Studio.app` (Mac) from the extracted folder
+3. Run `QA Studio.exe` from the extracted folder
 
 ## Full Changelog
 

@@ -10,9 +10,8 @@ const versions = [
   {
     version: "v1.5.0",
     date: "November 28, 2025",
-    windows: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Windows-x64-v1.5.0.zip",
-    windowsArm64: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Windows-ARM64-v1.5.0.zip",
-    mac: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Mac-ARM64-v1.5.0.zip",
+    windows: "https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-x64-v1.5.0.zip",
+    windowsArm64: "https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-ARM64-v1.5.0.zip",
   },
 ];
 
@@ -76,17 +75,6 @@ export default function DownloadPage() {
                       </a>
                     </Button>
                   </div>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-violet-500/50 text-violet-400 hover:bg-violet-500/10 w-full"
-                    asChild
-                  >
-                    <a href={version.mac} target="_blank" rel="noopener noreferrer">
-                      <Download className="mr-2 h-5 w-5" />
-                      Mac (.zip)
-                    </a>
-                  </Button>
                 </div>
               </CardContent>
             </Card>

@@ -58,12 +58,12 @@ export function Hero() {
             asChild
           >
             <a 
-              href="https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Windows-x64-v1.5.0.zip"
+              href="https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-x64-v1.5.0.zip"
               target="_blank"
               rel="noopener noreferrer"
             >
               <Download className="mr-2 h-5 w-5 relative z-10" />
-              <span className="relative z-10">Download for Windows (.zip)</span>
+              <span className="relative z-10">Download for Windows x64 (.zip)</span>
             </a>
           </Button>
           <Button 
@@ -72,12 +72,12 @@ export function Hero() {
             asChild
           >
             <a 
-              href="https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Mac-ARM64-v1.5.0.zip"
+              href="https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-ARM64-v1.5.0.zip"
               target="_blank"
               rel="noopener noreferrer"
             >
               <Download className="mr-2 h-5 w-5" />
-              Download for Mac (.zip)
+              Download for Windows ARM64 (.zip)
             </a>
           </Button>
         </motion.div>
