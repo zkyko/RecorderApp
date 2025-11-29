@@ -16,6 +16,7 @@ release.zip
 Frontend-website/.next/
 Frontend-website/out/
 Frontend-website/node_modules/
+release-zips/
 
 # Generated runtime files (created during prebuild)
 runtime/

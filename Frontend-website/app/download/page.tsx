@@ -10,8 +10,9 @@ const versions = [
   {
     version: "v1.5.0",
     date: "2024-11-28",
-    windows: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA.Studio.Setup.1.5.0.exe",
-    mac: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA.Studio-1.5.0.dmg",
+    windows: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Windows-x64-v1.5.0.zip",
+    windowsArm64: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Windows-ARM64-v1.5.0.zip",
+    mac: "https://github.com/zkyko/RecorderApp/releases/latest/download/QA-Studio-Mac-ARM64-v1.5.0.zip",
   },
 ];
 
@@ -51,26 +52,39 @@ export default function DownloadPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button
-                    size="lg"
-                    className="bg-blue-600 hover:bg-blue-700 text-white flex-1"
-                    asChild
-                  >
-                    <a href={version.windows}>
-                      <Download className="mr-2 h-5 w-5" />
-                      Download for Windows (.exe)
-                    </a>
-                  </Button>
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      size="lg"
+                      className="bg-blue-600 hover:bg-blue-700 text-white flex-1"
+                      asChild
+                    >
+                      <a href={version.windows} target="_blank" rel="noopener noreferrer">
+                        <Download className="mr-2 h-5 w-5" />
+                        Windows x64 (.zip)
+                      </a>
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10 flex-1"
+                      asChild
+                    >
+                      <a href={version.windowsArm64} target="_blank" rel="noopener noreferrer">
+                        <Download className="mr-2 h-5 w-5" />
+                        Windows ARM64 (.zip)
+                      </a>
+                    </Button>
+                  </div>
                   <Button
                     size="lg"
                     variant="outline"
-                    className="border-violet-500/50 text-violet-400 hover:bg-violet-500/10 flex-1"
+                    className="border-violet-500/50 text-violet-400 hover:bg-violet-500/10 w-full"
                     asChild
                   >
-                    <a href={version.mac}>
+                    <a href={version.mac} target="_blank" rel="noopener noreferrer">
                       <Download className="mr-2 h-5 w-5" />
-                      Download for Mac (.dmg)
+                      Mac (.zip)
                     </a>
                   </Button>
                 </div>

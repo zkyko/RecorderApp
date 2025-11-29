@@ -11,6 +11,11 @@
     "prebuild": "npm run build:clean && mkdir -p runtime/reporters && cp dist/main/services/reporters/ErrorGrabber.js runtime/reporters/ || echo 'ErrorGrabber.js not found, skipping copy'",
     "build:clean": "rm -rf runtime/reporters",
     "build:win": "npm run build:app && npm run prebuild && electron-builder --win --x64",
+    "build:win:arm64": "npm run build:app && npm run prebuild && electron-builder --win --arm64",
+    "build:mac": "npm run build:app && npm run prebuild && electron-builder --mac",
+    "dist:mac": "npm run build:app && npm run prebuild && electron-builder --mac --dir",
+    "dist:win:arm64": "npm run build:app && npm run prebuild && electron-builder --win --arm64 --dir",
+    "package:releases": "bash scripts/package-releases.sh",
     "start": "electron dist/main/index.js",
     "dev": "tsc && npm run build:ui && electron dist/main/index.js",
     "dev:electron": "tsc && electron dist/main/index.js",
@@ -85,6 +90,14 @@
     "win": {
       "target": "nsis",
       "signAndEditExecutable": false
+    },
+    "mac": {
+      "target": ["dmg", "dir"],
+      "category": "public.app-category.developer-tools"
+    },
+    "dmg": {
+      "title": "QA Studio ${version}",
+      "icon": "build/icon.icns"
     },
     "nsis": {
       "oneClick": false,
