@@ -6,6 +6,12 @@ import { ArrowLeft, Brain, Layers, Link2 } from "lucide-react";
 
 const advancedDocs = [
   {
+    title: "RAG Architecture",
+    description: "How QA Studio's Retrieval-Augmented Generation system enables intelligent test failure diagnosis",
+    icon: Brain,
+    href: "/docs/advanced/rag-architecture",
+  },
+  {
     title: "AI Test Generation Vision",
     description: "Visionary approach to intelligent test automation powered by AI",
     icon: Brain,

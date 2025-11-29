@@ -29,8 +29,7 @@ export function Navbar() {
               Features
             </Link>
             <Link
-              href="#features"
-              onClick={(e) => handleAnchorClick(e, '#features')}
+              href="/"
               className="text-zinc-400 hover:text-blue-400 transition-colors hidden sm:inline"
             >
               Overview
