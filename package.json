@@ -16,6 +16,7 @@
     "dist:mac": "npm run build:app && npm run prebuild && electron-builder --mac --dir",
     "dist:win:arm64": "npm run build:app && npm run prebuild && electron-builder --win --arm64 --dir",
     "package:releases": "bash scripts/package-releases.sh",
+    "release:github": "bash scripts/create-github-release.sh",
     "start": "electron dist/main/index.js",
     "dev": "tsc && npm run build:ui && electron dist/main/index.js",
     "dev:electron": "tsc && electron dist/main/index.js",
