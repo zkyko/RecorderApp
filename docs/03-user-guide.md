@@ -4,11 +4,14 @@ This document explains how product owners, QA engineers, and analysts use QA Stu
 
 ### 1. Getting Ready
 - **Install & launch:** Run the packaged Electron app or `npm run dev` during previews.
+- **Select Workspace:** Choose your target platform workspace (currently D365 is available; Koerber and Salesforce coming soon).
 - **Configure environments:** Open the Settings screen and provide:
-  - D365 tenant URL and credentials (stored securely in `electron-store`).
-  - Default module (e.g., `Sales`, `Warehouse`) so generated files land under `d365/<module>/`.
+  - Platform-specific tenant URL and credentials (stored securely in `electron-store`).
+  - Default module (e.g., `Sales`, `Warehouse`) so generated files land under the workspace-specific path.
   - Execution profile (Local Playwright, BrowserStack, or custom runner).
-- **Verify dependencies:** Use the “Diagnostics” card to ensure Playwright browsers, Node, and BrowserStack creds (if selected) are reachable.
+- **Verify dependencies:** Use the "Diagnostics" card to ensure Playwright browsers, Node, and BrowserStack creds (if selected) are reachable.
+
+**Note:** QA Studio currently supports the D365 workspace. Additional workspaces for Koerber, Salesforce, and other platforms will be added in future releases. Each workspace uses platform-specific locator algorithms while sharing the same recording, code generation, and execution infrastructure.
 
 ### 2. Recording a Flow
 1. Click **Start Recording**.

@@ -155,7 +155,7 @@ const features: Feature[] = [
     iconBg: "bg-purple-500/20",
     category: "development",
     highlights: [
-      "D365 module taxonomy",
+      "Platform-specific module taxonomy",
       "Type-safe page objects",
       "Automatic code formatting",
       "Safe merge with ts-morph"
@@ -207,8 +207,8 @@ const features: Feature[] = [
     ]
   },
   {
-    title: "Locator Intelligence",
-    description: "D365-specific locator extraction with priority-based selection. Automatically chooses the most stable selectors (data-dyn-controlname, roles, labels).",
+    title: "Pluggable Locator Intelligence",
+    description: "Platform-specific locator extraction with priority-based selection. Currently optimized for D365 (data-dyn-controlname, roles, labels), with pluggable algorithms for Koerber, Salesforce, and custom platforms.",
     icon: Shield,
     gradient: "from-green-500 to-emerald-500",
     iconColor: "text-green-400",
@@ -216,10 +216,10 @@ const features: Feature[] = [
     category: "intelligence",
     unique: true,
     highlights: [
-      "D365 controlname priority",
+      "Pluggable locator algorithms",
+      "Platform-specific priority rules",
       "Accessibility-based selectors",
-      "Automatic CSS fallback",
-      "Quality scoring system"
+      "Easy to extend for new platforms"
     ]
   }
 ];
@@ -245,14 +245,14 @@ export function FeaturesShowcase() {
         className="text-center mb-16"
       >
         <h1 className="text-5xl sm:text-6xl font-bold mb-6 tracking-tight bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
-          Built for D365. Built to Last.
+          Built to Scale. Built to Last.
         </h1>
         <p className="text-xl text-zinc-400 max-w-3xl mx-auto leading-relaxed mb-8">
-          QA Studio isn't just a recorder. It's a complete automation workbench designed specifically for Microsoft Dynamics 365, with features you won't find anywhere else.
+          QA Studio isn't just a recorder. It's a complete automation workbench with a pluggable architecture that adapts to your platform. Start with D365, extend to Koerber, Salesforce, or any enterprise application.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Badge className="bg-violet-500/20 text-violet-400 border-violet-500/30 px-4 py-1.5">
-            D365-Specific
+            Pluggable Architecture
           </Badge>
           <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 px-4 py-1.5">
             AI-Powered
@@ -275,7 +275,7 @@ export function FeaturesShowcase() {
             What Makes Us Different
           </h2>
           <p className="text-zinc-400 text-lg">
-            Features you won't find in BrowserStack LCA, Executive Automats, or any other tool.
+            A pluggable architecture that grows with your needs. Build custom locator logic for any platform and plug it in seamlessly.
           </p>
         </motion.div>
 

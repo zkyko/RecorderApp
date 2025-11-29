@@ -3,11 +3,27 @@
 ### System Overview
 QA Studio is an Electron desktop application that orchestrates four collaborating branches:
 1. **Core Runtime (`src/core/`)** – Playwright-powered recorder, locator extractor, registry, and session utilities that run inside the browser context during capture.
-2. **Main Process (`src/main/`)** – Electron orchestration layer that brokers device capabilities (filesystem, config, BrowserStack credentials) and exposes them via IPC services.
+2. **Main Process (`src/main//`)** – Electron orchestration layer that brokers device capabilities (filesystem, config, BrowserStack credentials) and exposes them via IPC services.
 3. **Code Generation & Execution (`src/generators/`, `src/main/services/`, `src/main/test-executor.ts`)** – Translates recorded steps into TypeScript POMs/specs and executes them through Playwright.
 4. **Studio UI (`src/ui/`)** – Mantine/React front-end that drives recording sessions, artifact review, settings, and run management.
 
 The `dist/` directory contains the compiled equivalents of those branches for packaged releases, while `Recordings/` stores runtime outputs (page registry, tests, data captures).
+
+### Workspace Architecture
+QA Studio uses a **workspace-based architecture** that makes it platform-agnostic and easily extensible:
+
+- **Current Support:** Microsoft Dynamics 365 (D365) workspace with optimized locator extraction algorithms
+- **Future Support:** Koerber, Salesforce, and other enterprise platforms will be added as separate workspaces
+- **Pluggable Design:** Each workspace contains platform-specific locator logic, page classification rules, and navigation heuristics
+- **Shared Infrastructure:** The recorder engine, code generation, and execution layers remain the same across all workspaces
+
+To add support for a new platform, developers need to:
+1. Create platform-specific locator extraction algorithms
+2. Define platform-specific page classification rules
+3. Configure workspace settings and metadata
+4. Plug the new workspace into the system
+
+The workspace system ensures that QA Studio can adapt to any enterprise application while maintaining a consistent user experience and code generation pipeline.
 
 ### Toolchain Interplay
 | Stage | Responsible Module | Key Artifacts | Notes |
