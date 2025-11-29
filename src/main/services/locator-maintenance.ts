@@ -49,13 +49,68 @@ export class LocatorMaintenanceService {
 
   public attachStatuses(entries: LocatorIndexEntry[], workspacePath: string): LocatorIndexEntry[] {
     const statusMap = this.loadStatusMap(workspacePath);
-    return entries.map((entry) => {
+    const enriched = entries.map((entry) => {
       const key = this.makeKey(entry.type, entry.locator);
       if (statusMap[key]) {
         return { ...entry, status: statusMap[key] };
       }
       return entry;
     });
+    
+    // Also include custom locators from status map that aren't in entries
+    const customLocators: LocatorIndexEntry[] = [];
+    try {
+      for (const [key, statusData] of Object.entries(statusMap)) {
+        // Check if statusData has the required properties and is a custom locator
+        if (statusData && typeof statusData === 'object' && 'custom' in statusData && statusData.custom) {
+          if (statusData.locator && statusData.type) {
+            // Check if this custom locator is already in the entries
+            const exists = enriched.some(e => 
+              this.makeKey(e.type, e.locator) === key
+            );
+            if (!exists) {
+              customLocators.push({
+                locator: String(statusData.locator),
+                type: statusData.type as LocatorIndexEntry['type'],
+                testCount: (statusData.testCount as number) || 0,
+                usedInTests: Array.isArray(statusData.usedInTests) ? statusData.usedInTests : [],
+                status: statusData as LocatorStatusRecord,
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[LocatorMaintenance] Error processing custom locators:', error);
+    }
+    
+    return [...enriched, ...customLocators];
+  }
+
+  public async addCustomLocator(workspacePath: string, locator: string, type: LocatorIndexEntry['type'], tests: string[] = []): Promise<{ success: boolean; error?: string }> {
+    try {
+      const statusMap = this.loadStatusMap(workspacePath);
+      const key = this.makeKey(type, locator);
+      
+      if (statusMap[key] && !statusMap[key].custom) {
+        return { success: false, error: 'Locator already exists in test files' };
+      }
+      
+      statusMap[key] = {
+        locator,
+        type,
+        usedInTests: tests,
+        testCount: tests.length,
+        custom: true,
+        state: 'healthy',
+        updatedAt: new Date().toISOString(),
+      };
+      
+      this.saveStatusMap(workspacePath, statusMap);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to add custom locator' };
+    }
   }
 
   public async updateLocator(request: LocatorUpdateRequest): Promise<LocatorUpdateResponse> {
@@ -105,7 +160,7 @@ export class LocatorMaintenanceService {
     }
   }
 
-  public async setLocatorStatus(request: LocatorStatusUpdateRequest): Promise<LocatorStatusUpdateResponse> {
+  public async setLocatorStatus(request: LocatorStatusUpdateRequest, mainWindow?: any): Promise<LocatorStatusUpdateResponse> {
     try {
       const statusMap = this.loadStatusMap(request.workspacePath);
       statusMap[request.locatorKey] = {
@@ -115,6 +170,19 @@ export class LocatorMaintenanceService {
         lastTest: request.testName,
       };
       this.saveStatusMap(request.workspacePath, statusMap);
+
+      // Emit IPC event to notify UI that locator status was updated
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try {
+          mainWindow.webContents.send('locator:status:updated', {
+            workspacePath: request.workspacePath,
+            locatorKey: request.locatorKey,
+            status: statusMap[request.locatorKey],
+          });
+        } catch (error) {
+          console.warn('[LocatorMaintenance] Failed to emit status update event:', error);
+        }
+      }
 
       return {
         success: true,

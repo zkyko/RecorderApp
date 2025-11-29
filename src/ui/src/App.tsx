@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { notifications } from '@mantine/notifications';
+import { AlertTriangle } from 'lucide-react';
 import AppLayout from './components/AppLayout';
 import Dashboard from './components/Dashboard';
 import TestLibrary from './components/TestLibrary';
@@ -29,84 +31,205 @@ function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [config, setConfig] = useState<any>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const expiredNotificationShown = useRef(false);
+  const storageStateCheckInterval = useRef<NodeJS.Timeout | null>(null);
+  const debugLogsRef = useRef<string[]>([]);
+  const lastRenderStateRef = useRef<string>('');
+
+  const addDebugLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logMessage = `[${timestamp}] ${message}`;
+    console.log(logMessage);
+    // Only store in ref - no state updates to avoid infinite loops
+    debugLogsRef.current = [...debugLogsRef.current.slice(-9), logMessage]; // Keep last 10 logs
+  };
 
   useEffect(() => {
+    addDebugLog('AppContent mounted');
+    addDebugLog(`window.electronAPI available: ${!!window.electronAPI}`);
     loadCurrentWorkspace();
   }, []);
 
-  useEffect(() => {
-    if (currentWorkspace) {
-      loadConfig();
-    }
-  }, [currentWorkspace]);
-
-  const loadCurrentWorkspace = async () => {
-    if (!window.electronAPI) {
-      return;
-    }
+  const checkStorageStateStatus = useCallback(async () => {
+    if (!window.electronAPI) return;
 
     try {
-      const response = await ipc.workspaces.getCurrent();
-      if (response.success) {
-        if (response.workspace) {
-          setCurrentWorkspace(response.workspace);
-        } else {
-          // No current workspace - create default
-          const createResponse = await ipc.workspaces.create('Default D365 Workspace', 'd365');
-          if (createResponse.success && createResponse.workspace) {
-            await ipc.workspaces.setCurrent(createResponse.workspace.id);
-            setCurrentWorkspace(createResponse.workspace);
-          }
-        }
+      const status = await (window.electronAPI as any).checkStorageState();
+      if (status.status === 'expired' && !expiredNotificationShown.current) {
+        expiredNotificationShown.current = true;
+        notifications.show({
+          id: 'storage-state-expired',
+          title: 'Authentication Expired',
+          message: 'Your Dynamics 365 authentication has expired. Please re-authenticate in Settings.',
+          color: 'orange',
+          icon: <AlertTriangle size={16} />,
+          autoClose: false,
+          withCloseButton: true,
+          onClose: () => {
+            expiredNotificationShown.current = false;
+          },
+        });
+      } else if (status.status === 'valid' && expiredNotificationShown.current) {
+        // If state becomes valid again, close the notification
+        notifications.hide('storage-state-expired');
+        expiredNotificationShown.current = false;
       }
     } catch (error) {
-      console.error('Error loading current workspace:', error);
+      console.error('Error checking storage state status:', error);
     }
-  };
+  }, []);
 
-  const loadConfig = async () => {
+  const checkAuthentication = useCallback(async () => {
+    addDebugLog('checkAuthentication called');
+    if (window.electronAPI) {
+      try {
+        addDebugLog('Calling window.electronAPI.checkAuth()');
+        const authStatus = await window.electronAPI.checkAuth();
+        addDebugLog(`Auth status: needsLogin=${authStatus.needsLogin}, hasStorageState=${authStatus.hasStorageState}`);
+        if (authStatus.needsLogin) {
+          addDebugLog('Needs login, showing login dialog');
+          setShowLogin(true);
+        } else {
+          addDebugLog('Authenticated, setting isAuthenticated=true');
+          setIsAuthenticated(true);
+          // Only check storage state status if we have a storage state
+          // This avoids launching a browser unnecessarily
+          if (authStatus.hasStorageState) {
+            addDebugLog('Has storage state, will check status later');
+            checkStorageStateStatus();
+          }
+        }
+      } catch (error) {
+        addDebugLog(`ERROR checking auth: ${error}`);
+        console.error('Error checking authentication:', error);
+        setShowLogin(true);
+      }
+    } else {
+      addDebugLog('ERROR: window.electronAPI not available in checkAuthentication');
+    }
+  }, [checkStorageStateStatus]);
+
+  const loadConfig = useCallback(async () => {
+    addDebugLog('loadConfig called');
     if (!window.electronAPI) {
+      addDebugLog('ERROR: window.electronAPI not available in loadConfig');
       setIsLoadingConfig(false);
       return;
     }
 
     try {
-      const cfg = await window.electronAPI.getConfig();
+      addDebugLog('Calling window.electronAPI.getConfig()');
+      const cfg = await (window.electronAPI as any).getConfig();
+      addDebugLog(`Config loaded: isSetupComplete=${cfg?.isSetupComplete}`);
       setConfig(cfg);
       
       // Use workspace path from current workspace if available
       if (currentWorkspace) {
         setWorkspacePath(currentWorkspace.workspacePath);
+        addDebugLog(`Using workspace path: ${currentWorkspace.workspacePath}`);
       } else {
         setWorkspacePath(cfg.workspacePath || cfg.recordingsDir);
+        addDebugLog(`Using config path: ${cfg.workspacePath || cfg.recordingsDir}`);
       }
       
-      // If setup is complete, check authentication
+      // If setup is complete, check authentication (non-blocking)
       if (cfg.isSetupComplete) {
-        await checkAuthentication();
+        addDebugLog('Setup complete, checking authentication');
+        // Don't await - let the UI render first
+        checkAuthentication().catch(error => {
+          addDebugLog(`ERROR in checkAuthentication: ${error}`);
+          console.error('Error in checkAuthentication:', error);
+          // If auth check fails, show login dialog
+          setShowLogin(true);
+        });
+      } else {
+        addDebugLog('Setup not complete');
+        // Setup not complete - ensure we're not showing login
+        setIsAuthenticated(false);
+        setShowLogin(false);
       }
     } catch (error) {
+      addDebugLog(`ERROR loading config: ${error}`);
       console.error('Error loading config:', error);
-    } finally {
       setIsLoadingConfig(false);
+    } finally {
+      addDebugLog('loadConfig finished, setting isLoadingConfig=false');
+      setIsLoadingConfig(false);
+    }
+  }, [currentWorkspace, checkAuthentication]);
+
+  useEffect(() => {
+    if (currentWorkspace) {
+      loadConfig();
+    }
+  }, [currentWorkspace, loadConfig]);
+
+  const loadCurrentWorkspace = async () => {
+    addDebugLog('loadCurrentWorkspace called');
+    if (!window.electronAPI) {
+      addDebugLog('ERROR: window.electronAPI not available');
+      return;
+    }
+
+    try {
+      addDebugLog('Calling ipc.workspaces.getCurrent()');
+      const response = await ipc.workspaces.getCurrent();
+      addDebugLog(`getCurrent response: ${JSON.stringify(response)}`);
+      if (response.success) {
+        if (response.workspace) {
+          addDebugLog(`Found workspace: ${response.workspace.id}`);
+          setCurrentWorkspace(response.workspace);
+        } else {
+          addDebugLog('No workspace found, creating default');
+          // No current workspace - create default
+          const createResponse = await ipc.workspaces.create('Default D365 Workspace', 'd365');
+          addDebugLog(`create response: ${JSON.stringify(createResponse)}`);
+          if (createResponse.success && createResponse.workspace) {
+            await ipc.workspaces.setCurrent(createResponse.workspace.id);
+            setCurrentWorkspace(createResponse.workspace);
+            addDebugLog('Default workspace created and set');
+          }
+        }
+      }
+    } catch (error) {
+      addDebugLog(`ERROR loading workspace: ${error}`);
+      console.error('Error loading current workspace:', error);
     }
   };
 
-  const checkAuthentication = async () => {
-    if (window.electronAPI) {
-      try {
-        const authStatus = await window.electronAPI.checkAuth();
-        if (authStatus.needsLogin) {
-          setShowLogin(true);
-        } else {
-          setIsAuthenticated(true);
+
+
+  // Set up periodic check for expired storage state
+  // Only check if authenticated and setup is complete (avoids launching browser unnecessarily)
+  useEffect(() => {
+    if (isAuthenticated && config?.isSetupComplete) {
+      // Delay the initial check slightly to avoid blocking app startup
+      const timeoutId = setTimeout(() => {
+        checkStorageStateStatus();
+      }, 2000); // Wait 2 seconds after app loads
+      
+      // Then check every 5 minutes
+      storageStateCheckInterval.current = setInterval(() => {
+        checkStorageStateStatus();
+      }, 5 * 60 * 1000); // 5 minutes
+
+      // Listen for storage state updates (e.g., after re-authentication)
+      const handleStorageStateUpdate = () => {
+        setTimeout(() => {
+          checkStorageStateStatus();
+        }, 1000); // Wait 1 second for storage state to be saved
+      };
+      window.addEventListener('storage-state-updated', handleStorageStateUpdate);
+
+      return () => {
+        clearTimeout(timeoutId);
+        if (storageStateCheckInterval.current) {
+          clearInterval(storageStateCheckInterval.current);
         }
-      } catch (error) {
-        console.error('Error checking authentication:', error);
-        setShowLogin(true);
-      }
+        window.removeEventListener('storage-state-updated', handleStorageStateUpdate);
+      };
     }
-  };
+  }, [isAuthenticated, config?.isSetupComplete, checkStorageStateStatus]);
 
   const handleSetupComplete = () => {
     loadConfig();
@@ -121,12 +244,43 @@ function AppContent() {
   if (isLoadingConfig || !config) {
     return (
       <div className="app">
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <div style={{ padding: '2rem', textAlign: 'center', color: 'white' }}>
           <p>Loading...</p>
+          <p style={{ fontSize: '12px', marginTop: '1rem', opacity: 0.7 }}>
+            isLoadingConfig: {isLoadingConfig ? 'true' : 'false'}, config: {config ? 'loaded' : 'null'}
+          </p>
+          {debugLogsRef.current.length > 0 && (
+            <div style={{ marginTop: '1rem', textAlign: 'left', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflow: 'auto' }}>
+              <strong>Debug Log:</strong>
+              {debugLogsRef.current.map((log, i) => (
+                <div key={i} style={{ marginTop: '4px' }}>{log}</div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
   }
+
+  // Debug logging for render decisions (only log when state actually changes)
+  // Removed to prevent infinite loops - debug logs are still available in console
+  // useEffect(() => {
+  //   if (config) {
+  //     const currentState = `${config.isSetupComplete}-${showLogin}-${isAuthenticated}`;
+  //     if (currentState !== lastRenderStateRef.current) {
+  //       lastRenderStateRef.current = currentState;
+  //       if (!config.isSetupComplete) {
+  //         addDebugLog('Rendering SetupScreen (setup not complete)');
+  //       } else if (showLogin) {
+  //         addDebugLog('Rendering LoginDialog (showLogin=true)');
+  //       } else if (!isAuthenticated) {
+  //         addDebugLog('Rendering auth check screen (not authenticated yet)');
+  //       } else {
+  //         addDebugLog('Rendering main app routes');
+  //       }
+  //     }
+  //   }
+  // }, [config, showLogin, isAuthenticated]);
 
   // Show setup screen if not completed
   if (!config.isSetupComplete) {
@@ -141,8 +295,19 @@ function AppContent() {
   if (!isAuthenticated) {
     return (
       <div className="app">
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <div style={{ padding: '2rem', textAlign: 'center', color: 'white' }}>
           <p>Checking authentication...</p>
+          <p style={{ fontSize: '12px', marginTop: '1rem', opacity: 0.7 }}>
+            isAuthenticated: {isAuthenticated ? 'true' : 'false'}, showLogin: {showLogin ? 'true' : 'false'}
+          </p>
+          {debugLogsRef.current.length > 0 && (
+            <div style={{ marginTop: '1rem', textAlign: 'left', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflow: 'auto' }}>
+              <strong>Debug Log:</strong>
+              {debugLogsRef.current.map((log, i) => (
+                <div key={i} style={{ marginTop: '4px' }}>{log}</div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -150,6 +315,37 @@ function AppContent() {
 
   return (
     <div className="app">
+      {/* Debug overlay - remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          background: 'rgba(0,0,0,0.8)',
+          color: 'white',
+          padding: '10px',
+          fontSize: '10px',
+          fontFamily: 'monospace',
+          zIndex: 10000,
+          maxWidth: '400px',
+          maxHeight: '300px',
+          overflow: 'auto',
+          borderRadius: '4px',
+          border: '1px solid #555'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Debug Info</div>
+          <div>isLoadingConfig: {isLoadingConfig ? 'true' : 'false'}</div>
+          <div>config: {config ? 'loaded' : 'null'}</div>
+          <div>isSetupComplete: {config?.isSetupComplete ? 'true' : 'false'}</div>
+          <div>isAuthenticated: {isAuthenticated ? 'true' : 'false'}</div>
+          <div>showLogin: {showLogin ? 'true' : 'false'}</div>
+          <div>currentWorkspace: {currentWorkspace ? currentWorkspace.id : 'null'}</div>
+          <div style={{ marginTop: '10px', fontWeight: 'bold' }}>Recent Logs:</div>
+          {debugLogsRef.current.slice(-5).map((log, i) => (
+            <div key={i} style={{ marginTop: '2px', fontSize: '9px' }}>{log}</div>
+          ))}
+        </div>
+      )}
       <Routes>
         <Route path="/setup" element={<SetupScreen onSetupComplete={handleSetupComplete} />} />
         <Route path="/login" element={<LoginDialog onLoginSuccess={handleLoginSuccess} />} />

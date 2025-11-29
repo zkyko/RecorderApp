@@ -86,6 +86,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
   recorderStart: (request: any) => ipcRenderer.invoke('recorder:start', request),
   recorderStop: () => ipcRenderer.invoke('recorder:stop'),
   recorderCompileSteps: (steps: RecordedStep[]) => ipcRenderer.invoke('recorder:compileSteps', steps),
+  
+  // Locator Browser
+  locatorBrowseStart: (request: { workspacePath: string; storageStatePath?: string; url?: string }) => ipcRenderer.invoke('locator:browse:start', request),
+  locatorBrowseStop: () => ipcRenderer.invoke('locator:browse:stop'),
+  onLocatorBrowseElementHover: (callback: (data: any) => void) => {
+    ipcRenderer.on('locator:browse:elementHover', (_, data) => callback(data));
+  },
+  onLocatorBrowseElementClick: (callback: (data: any) => void) => {
+    ipcRenderer.on('locator:browse:elementClick', (_, data) => callback(data));
+  },
+  onLocatorBrowseClickedElements: (callback: (data: any) => void) => {
+    ipcRenderer.on('locator:browse:clickedElements', (_, data) => callback(data));
+  },
+  removeLocatorBrowseListeners: () => {
+    ipcRenderer.removeAllListeners('locator:browse:elementHover');
+    ipcRenderer.removeAllListeners('locator:browse:elementClick');
+    ipcRenderer.removeAllListeners('locator:browse:clickedElements');
+  },
+  onLocatorStatusUpdated: (callback: (data: any) => void) => {
+    ipcRenderer.on('locator:status:updated', (_, data) => callback(data));
+  },
+  removeLocatorStatusUpdatedListener: () => {
+    ipcRenderer.removeAllListeners('locator:status:updated');
+  },
+  
   onRecorderCodeUpdate: (callback: (update: any) => void) => {
     ipcRenderer.on('recorder:code-update', (_event, update) => callback(update));
   },
@@ -139,6 +164,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   workspacesCreate: (request: { name: string; type?: string }) => ipcRenderer.invoke('workspaces:create', request),
   workspacesGetCurrent: () => ipcRenderer.invoke('workspaces:getCurrent'),
   workspacesSetCurrent: (request: { workspaceId: string }) => ipcRenderer.invoke('workspaces:setCurrent', request),
+  workspaceDeleteFiles: (request: { workspacePath: string }) => ipcRenderer.invoke('workspace:deleteFiles', request),
 
   // ============================================================================
   // v1.6: Test Details IPC Methods
@@ -148,6 +174,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testGetSpec: (request: { workspacePath: string; testName: string }) => ipcRenderer.invoke('test:getSpec', request),
   testParseLocators: (request: { workspacePath: string; testName: string }) => ipcRenderer.invoke('test:parseLocators', request),
   testExportBundle: (request: { workspacePath: string; testName: string }) => ipcRenderer.invoke('test:exportBundle', request),
+  testUpdateSpec: (request: any) => ipcRenderer.invoke('test:updateSpec', request),
+  testAddStep: (request: any) => ipcRenderer.invoke('test:addStep', request),
+  testDeleteStep: (request: any) => ipcRenderer.invoke('test:deleteStep', request),
+  testReorderSteps: (request: any) => ipcRenderer.invoke('test:reorderSteps', request),
 
   // Data operations
   dataRead: (request: { workspacePath: string; testName: string }) => ipcRenderer.invoke('data:read', request),
@@ -157,6 +187,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   workspaceLocatorsList: (request: { workspacePath: string }) => ipcRenderer.invoke('workspace:locators:list', request),
   workspaceLocatorsUpdate: (request: any) => ipcRenderer.invoke('workspace:locators:update', request),
   workspaceLocatorsSetStatus: (request: any) => ipcRenderer.invoke('workspace:locators:setStatus', request),
+  workspaceLocatorsAdd: (request: { workspacePath: string; locator: string; type: string; tests?: string[] }) => ipcRenderer.invoke('workspace:locators:add', request),
 
   // Settings
   settingsGetBrowserStack: (request: { workspacePath: string }) => ipcRenderer.invoke('settings:getBrowserStack', request),
@@ -165,8 +196,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   settingsUpdateRecordingEngine: (request: { workspacePath: string; recordingEngine: string }) => ipcRenderer.invoke('settings:updateRecordingEngine', request),
   settingsGetAIConfig: () => ipcRenderer.invoke('settings:getAIConfig'),
   settingsUpdateAIConfig: (request: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }) => ipcRenderer.invoke('settings:updateAIConfig', request),
+  settingsGetDevMode: () => ipcRenderer.invoke('settings:getDevMode'),
+  settingsUpdateDevMode: (request: { devMode: boolean }) => ipcRenderer.invoke('settings:updateDevMode', request),
 
   // RAG Chat
   ragChat: (request: { workspacePath: string; testName: string; messages: Array<{ role: string; content: string }> }) => ipcRenderer.invoke('rag:chat', request),
+
+  // Dev mode utilities
+  devOpenFolder: (request: { path: string }) => ipcRenderer.invoke('dev:openFolder', request),
+  devClearTempFiles: (request: { workspacePath: string }) => ipcRenderer.invoke('dev:clearTempFiles', request),
+  devClearOldTraces: (request: { workspacePath: string; daysToKeep?: number }) => ipcRenderer.invoke('dev:clearOldTraces', request),
+  devClearOldReports: (request: { workspacePath: string; daysToKeep?: number }) => ipcRenderer.invoke('dev:clearOldReports', request),
+  devGetWorkspaceStats: (request: { workspacePath: string }) => ipcRenderer.invoke('dev:getWorkspaceStats', request),
+  devRebuildWorkspaceStructure: (request: { workspacePath: string }) => ipcRenderer.invoke('dev:rebuildWorkspaceStructure', request),
+  devGetRawConfig: () => ipcRenderer.invoke('dev:getRawConfig'),
+  devGetStorageStatePath: () => ipcRenderer.invoke('dev:getStorageStatePath'),
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   Text,
@@ -16,6 +16,11 @@ import {
   Select,
   Loader,
   Tabs,
+  Switch,
+  Modal,
+  Alert,
+  ScrollArea,
+  Code,
 } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -34,6 +39,15 @@ import {
   ListChecks,
   Database,
   Clock4,
+  Code as CodeIcon,
+  Trash2,
+  AlertTriangle,
+  FolderOpen,
+  FileX,
+  BarChart3,
+  Wrench,
+  Eye,
+  Key,
 } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
@@ -100,6 +114,14 @@ const SettingsScreen: React.FC = () => {
   }>({});
   const [savingAIConfig, setSavingAIConfig] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>('authentication');
+  const [devMode, setDevMode] = useState(false);
+  const [savingDevMode, setSavingDevMode] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingFiles, setDeletingFiles] = useState(false);
+  const [devWorkspaceStats, setDevWorkspaceStats] = useState<any>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [rawConfig, setRawConfig] = useState<any>(null);
 
   useEffect(() => {
     if (workspacePath) {
@@ -108,6 +130,7 @@ const SettingsScreen: React.FC = () => {
       loadWorkspaceStats();
     }
     loadAIConfig();
+    loadDevMode();
   }, [workspacePath]);
 
   useEffect(() => {
@@ -201,6 +224,199 @@ const SettingsScreen: React.FC = () => {
       console.error('Failed to load AI config:', error);
     }
   };
+
+  const loadDevMode = async () => {
+    try {
+      const response = await ipc.settings.getDevMode();
+      if (response.success) {
+        setDevMode(response.devMode || false);
+      }
+    } catch (error) {
+      console.error('Failed to load dev mode:', error);
+    }
+  };
+
+  const handleSaveDevMode = async () => {
+    setSavingDevMode(true);
+    try {
+      const response = await ipc.settings.updateDevMode({ devMode });
+      if (response.success) {
+        alert('Dev mode setting has been saved successfully.');
+      } else {
+        alert(`Failed to save setting: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to save setting'}`);
+    } finally {
+      setSavingDevMode(false);
+    }
+  };
+
+  const refreshWorkspaceStats = useCallback(async () => {
+    if (!workspacePath) return;
+    setLoadingStats(true);
+    try {
+      const response = await ipc.dev.getWorkspaceStats({ workspacePath });
+      if (response.success && response.stats) {
+        setDevWorkspaceStats(response.stats);
+      }
+    } catch (error) {
+      console.error('Failed to load workspace stats:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, [workspacePath]);
+
+  const handleDeleteFiles = async () => {
+    if (!workspacePath) {
+      alert('No workspace path available');
+      return;
+    }
+
+    setDeletingFiles(true);
+    try {
+      const response = await ipc.workspaces.deleteFiles({ workspacePath });
+      if (response.success) {
+        alert('Workspace files have been deleted successfully. The directory structure has been recreated.');
+        setShowDeleteConfirm(false);
+        // Reload workspace stats
+        loadWorkspaceStats();
+        refreshWorkspaceStats();
+      } else {
+        alert(`Failed to delete files: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to delete files'}`);
+    } finally {
+      setDeletingFiles(false);
+    }
+  };
+
+  const handleOpenFolder = async (folderPath: string) => {
+    try {
+      const response = await ipc.dev.openFolder({ path: folderPath });
+      if (!response.success) {
+        alert(`Failed to open folder: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to open folder'}`);
+    }
+  };
+
+  const handleClearTempFiles = async () => {
+    if (!workspacePath) return;
+    if (!confirm('Clear all temporary files in the tmp/ directory?')) return;
+    try {
+      const response = await ipc.dev.clearTempFiles({ workspacePath });
+      if (response.success) {
+        alert(`Cleared ${response.deletedCount || 0} temporary file(s).`);
+        refreshWorkspaceStats();
+      } else {
+        alert(`Failed to clear temp files: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to clear temp files'}`);
+    }
+  };
+
+  const handleClearOldTraces = async () => {
+    if (!workspacePath) return;
+    const daysToKeep = prompt('Keep traces from the last N days (default: 7):', '7');
+    if (daysToKeep === null) return;
+    const days = parseInt(daysToKeep) || 7;
+    if (!confirm(`Delete traces older than ${days} days?`)) return;
+    try {
+      const response = await ipc.dev.clearOldTraces({ workspacePath, daysToKeep: days });
+      if (response.success) {
+        alert(`Cleared ${response.deletedCount || 0} old trace(s).`);
+        refreshWorkspaceStats();
+      } else {
+        alert(`Failed to clear old traces: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to clear old traces'}`);
+    }
+  };
+
+  const handleClearOldReports = async () => {
+    if (!workspacePath) return;
+    const daysToKeep = prompt('Keep reports from the last N days (default: 7):', '7');
+    if (daysToKeep === null) return;
+    const days = parseInt(daysToKeep) || 7;
+    if (!confirm(`Delete reports older than ${days} days?`)) return;
+    try {
+      const response = await ipc.dev.clearOldReports({ workspacePath, daysToKeep: days });
+      if (response.success) {
+        alert(`Cleared ${response.deletedCount || 0} old report(s).`);
+        refreshWorkspaceStats();
+      } else {
+        alert(`Failed to clear old reports: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to clear old reports'}`);
+    }
+  };
+
+  const handleRebuildWorkspaceStructure = async () => {
+    if (!workspacePath) return;
+    if (!confirm('Rebuild workspace directory structure? This will create any missing directories.')) return;
+    try {
+      const response = await ipc.dev.rebuildWorkspaceStructure({ workspacePath });
+      if (response.success) {
+        alert('Workspace structure rebuilt successfully.');
+        refreshWorkspaceStats();
+      } else {
+        alert(`Failed to rebuild structure: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to rebuild structure'}`);
+    }
+  };
+
+  const handleViewRawConfig = async () => {
+    try {
+      const response = await ipc.dev.getRawConfig();
+      if (response.success && response.config) {
+        setRawConfig(response.config);
+        setShowConfigModal(true);
+      } else {
+        alert(`Failed to load config: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to load config'}`);
+    }
+  };
+
+  const handleOpenStorageStateLocation = async () => {
+    try {
+      const response = await ipc.dev.getStorageStatePath();
+      if (response.success && response.path) {
+        // Extract directory from path (remove filename)
+        const dirPath = response.path.substring(0, response.path.lastIndexOf('\\') || response.path.lastIndexOf('/'));
+        await handleOpenFolder(dirPath);
+      } else {
+        alert(`Failed to get storage state path: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to get storage state path'}`);
+    }
+  };
+
+  useEffect(() => {
+    if (devMode && workspacePath) {
+      refreshWorkspaceStats();
+    } else {
+      // Clear stats when dev mode is disabled
+      setDevWorkspaceStats(null);
+    }
+  }, [devMode, workspacePath, refreshWorkspaceStats]);
+
+  // Switch away from Developer tab if dev mode is disabled
+  useEffect(() => {
+    if (!devMode && activeTab === 'developer') {
+      setActiveTab('authentication');
+    }
+  }, [devMode, activeTab]);
 
   const handleSaveAIConfig = async () => {
     setSavingAIConfig(true);
@@ -403,7 +619,34 @@ const SettingsScreen: React.FC = () => {
       <Breadcrumbs mb="md">{breadcrumbs}</Breadcrumbs>
 
       <Card padding="lg" radius="md" withBorder style={{ maxWidth: 1000, margin: '0 auto' }}>
-        <Text size="xl" fw={600} mb="lg">Settings</Text>
+        <Group justify="space-between" mb="lg">
+          <Text size="xl" fw={600}>Settings</Text>
+          <Group gap="xs">
+            <Text size="sm" c="dimmed">Developer Mode</Text>
+            <Switch
+              checked={devMode}
+              onChange={async (e) => {
+                const newValue = e.currentTarget.checked;
+                setDevMode(newValue);
+                setSavingDevMode(true);
+                try {
+                  const response = await ipc.settings.updateDevMode({ devMode: newValue });
+                  if (!response.success) {
+                    alert(`Failed to save dev mode: ${response.error || 'Unknown error'}`);
+                    setDevMode(!newValue); // Revert on error
+                  }
+                } catch (error: any) {
+                  alert(`Error: ${error.message || 'Failed to save dev mode'}`);
+                  setDevMode(!newValue); // Revert on error
+                } finally {
+                  setSavingDevMode(false);
+                }
+              }}
+              disabled={savingDevMode}
+            />
+            {savingDevMode && <Loader size="xs" />}
+          </Group>
+        </Group>
 
         <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List>
@@ -412,6 +655,7 @@ const SettingsScreen: React.FC = () => {
             <Tabs.Tab value="recording">Recording</Tabs.Tab>
             <Tabs.Tab value="ai">AI Debugging</Tabs.Tab>
             <Tabs.Tab value="browserstack">BrowserStack</Tabs.Tab>
+            {devMode && <Tabs.Tab value="developer" leftSection={<CodeIcon size={16} />}>Developer</Tabs.Tab>}
           </Tabs.List>
 
           {/* Authentication & Storage State Tab */}
@@ -779,14 +1023,289 @@ const SettingsScreen: React.FC = () => {
           </div>
             </Stack>
           </Tabs.Panel>
+
+          {/* Developer Tab (only shown when dev mode is enabled) */}
+          {devMode && (
+            <Tabs.Panel value="developer" pt="md">
+              <Stack gap="md">
+                <div>
+                  <Group gap="xs" mb="md">
+                    <CodeIcon size={20} />
+                    <Text size="lg" fw={600}>Developer Mode</Text>
+                  </Group>
+                  <Text size="sm" c="dimmed" mb="md">
+                    Advanced controls for developers. Use with caution.
+                  </Text>
+
+                  <Stack gap="md">
+                    <Card padding="md" radius="md" withBorder>
+                      <Group gap="xs" mb="md">
+                        <CodeIcon size={20} />
+                        <Text fw={500}>Developer Mode</Text>
+                      </Group>
+                      <Text size="sm" c="dimmed" mb="md">
+                        Developer mode is currently enabled. Additional developer controls are available in this tab.
+                        You can toggle developer mode from the top of the Settings page.
+                      </Text>
+                      <Button
+                        leftSection={<Save size={16} />}
+                        onClick={handleSaveDevMode}
+                        loading={savingDevMode}
+                        size="sm"
+                      >
+                        Save Dev Mode Setting
+                      </Button>
+                    </Card>
+
+                    <Card padding="md" radius="md" withBorder>
+                      <Group gap="xs" mb="md">
+                        <BarChart3 size={20} />
+                        <Text fw={500}>Workspace Statistics</Text>
+                      </Group>
+                      {loadingStats ? (
+                        <Loader size="sm" />
+                      ) : devWorkspaceStats ? (
+                        <Stack gap="xs">
+                          <Group justify="space-between">
+                            <Text size="sm">Total Files:</Text>
+                            <Text fw={500}>{devWorkspaceStats.total.count.toLocaleString()}</Text>
+                          </Group>
+                          <Group justify="space-between">
+                            <Text size="sm">Total Size:</Text>
+                            <Text fw={500}>{(devWorkspaceStats.total.size / 1024 / 1024).toFixed(2)} MB</Text>
+                          </Group>
+                          <Text size="xs" c="dimmed" mt="xs">Breakdown by directory:</Text>
+                          {['tests', 'data', 'traces', 'runs', 'reports', 'tmp'].map((dir) => (
+                            <Group key={dir} justify="space-between" pl="md">
+                              <Text size="xs">{dir}/</Text>
+                              <Group gap="md">
+                                <Text size="xs">{devWorkspaceStats[dir]?.count || 0} files</Text>
+                                <Text size="xs" c="dimmed">
+                                  {devWorkspaceStats[dir]?.size ? ((devWorkspaceStats[dir].size / 1024).toFixed(1) + ' KB') : '0 KB'}
+                                </Text>
+                              </Group>
+                            </Group>
+                          ))}
+                          <Button
+                            leftSection={<RefreshCw size={16} />}
+                            onClick={refreshWorkspaceStats}
+                            variant="light"
+                            size="xs"
+                            mt="xs"
+                          >
+                            Refresh
+                          </Button>
+                        </Stack>
+                      ) : (
+                        <Text size="sm" c="dimmed">Click refresh to load statistics</Text>
+                      )}
+                    </Card>
+
+                    <Card padding="md" radius="md" withBorder>
+                      <Group gap="xs" mb="md">
+                        <FolderOpen size={20} />
+                        <Text fw={500}>Quick Access</Text>
+                      </Group>
+                      <Stack gap="xs">
+                        <Button
+                          leftSection={<FolderOpen size={16} />}
+                          onClick={() => workspacePath && handleOpenFolder(workspacePath)}
+                          variant="light"
+                          disabled={!workspacePath}
+                          fullWidth
+                        >
+                          Open Workspace Folder
+                        </Button>
+                        <Button
+                          leftSection={<Key size={16} />}
+                          onClick={handleOpenStorageStateLocation}
+                          variant="light"
+                          fullWidth
+                        >
+                          Open Storage State Location
+                        </Button>
+                      </Stack>
+                    </Card>
+
+                    <Card padding="md" radius="md" withBorder>
+                      <Group gap="xs" mb="md">
+                        <FileX size={20} />
+                        <Text fw={500}>Cleanup Tools</Text>
+                      </Group>
+                      <Stack gap="xs">
+                        <Button
+                          leftSection={<FileX size={16} />}
+                          onClick={handleClearTempFiles}
+                          variant="light"
+                          color="orange"
+                          disabled={!workspacePath}
+                          fullWidth
+                        >
+                          Clear Temp Files
+                        </Button>
+                        <Button
+                          leftSection={<FileX size={16} />}
+                          onClick={handleClearOldTraces}
+                          variant="light"
+                          color="orange"
+                          disabled={!workspacePath}
+                          fullWidth
+                        >
+                          Clear Old Traces
+                        </Button>
+                        <Button
+                          leftSection={<FileX size={16} />}
+                          onClick={handleClearOldReports}
+                          variant="light"
+                          color="orange"
+                          disabled={!workspacePath}
+                          fullWidth
+                        >
+                          Clear Old Reports
+                        </Button>
+                      </Stack>
+                    </Card>
+
+                    <Card padding="md" radius="md" withBorder>
+                      <Group gap="xs" mb="md">
+                        <Wrench size={20} />
+                        <Text fw={500}>Workspace Tools</Text>
+                      </Group>
+                      <Stack gap="xs">
+                        <Button
+                          leftSection={<Wrench size={16} />}
+                          onClick={handleRebuildWorkspaceStructure}
+                          variant="light"
+                          disabled={!workspacePath}
+                          fullWidth
+                        >
+                          Rebuild Workspace Structure
+                        </Button>
+                        <Button
+                          leftSection={<Eye size={16} />}
+                          onClick={handleViewRawConfig}
+                          variant="light"
+                          fullWidth
+                        >
+                          View Raw Config JSON
+                        </Button>
+                      </Stack>
+                    </Card>
+
+                    <Card padding="md" radius="md" withBorder>
+                      <Group gap="xs" mb="md">
+                        <Trash2 size={20} />
+                        <Text fw={500}>Delete Workspace Files</Text>
+                      </Group>
+                      <Text size="sm" c="dimmed" mb="md">
+                        Permanently delete all files in the workspace including tests, data, traces, reports, and runs.
+                        This action cannot be undone. The directory structure will be recreated empty.
+                      </Text>
+                      <Alert icon={<AlertTriangle size={16} />} title="Warning" color="red" mb="md">
+                        This will delete:
+                        <ul style={{ marginTop: '8px', marginBottom: 0 }}>
+                          <li>All test files in the <code>tests/</code> folder</li>
+                          <li>All data files in the <code>data/</code> folder</li>
+                          <li>All traces in the <code>traces/</code> folder</li>
+                          <li>All run history in the <code>runs/</code> folder</li>
+                          <li>All reports in the <code>reports/</code> folder</li>
+                          <li>All temporary files in the <code>tmp/</code> folder</li>
+                        </ul>
+                      </Alert>
+                      <Button
+                        leftSection={<Trash2 size={16} />}
+                        onClick={() => setShowDeleteConfirm(true)}
+                        color="red"
+                        variant="outline"
+                        disabled={!workspacePath}
+                      >
+                        Delete All Workspace Files
+                      </Button>
+                    </Card>
+                  </Stack>
+                </div>
+              </Stack>
+            </Tabs.Panel>
+          )}
         </Tabs>
       </Card>
 
+      {/* Delete Confirmation Modal */}
+      <Modal
+        opened={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Confirm Deletion"
+        centered
+      >
+        <Stack gap="md">
+          <Alert icon={<AlertTriangle size={16} />} title="This action cannot be undone!" color="red">
+            You are about to permanently delete all files in the workspace. This includes:
+            <ul style={{ marginTop: '8px', marginBottom: 0 }}>
+              <li>All test files</li>
+              <li>All data files</li>
+              <li>All traces and run history</li>
+              <li>All reports</li>
+            </ul>
+          </Alert>
+          <Text size="sm" c="dimmed">
+            Workspace path: <code>{workspacePath}</code>
+          </Text>
+          <Group justify="flex-end" mt="md">
+            <Button variant="subtle" onClick={() => setShowDeleteConfirm(false)} disabled={deletingFiles}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={handleDeleteFiles}
+              loading={deletingFiles}
+              leftSection={<Trash2 size={16} />}
+            >
+              Delete All Files
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Raw Config Modal */}
+      <Modal
+        opened={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
+        title="Raw Configuration JSON"
+        size="xl"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Current application configuration:
+          </Text>
+          <ScrollArea h={400}>
+            <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {rawConfig ? JSON.stringify(rawConfig, null, 2) : 'Loading...'}
+            </Code>
+          </ScrollArea>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={() => setShowConfigModal(false)}>
+              Close
+            </Button>
+            <CopyButton value={rawConfig ? JSON.stringify(rawConfig, null, 2) : ''}>
+              {({ copied, copy }) => (
+                <Button leftSection={copied ? <Check size={16} /> : <Copy size={16} />} onClick={copy}>
+                  {copied ? 'Copied' : 'Copy'}
+                </Button>
+              )}
+            </CopyButton>
+          </Group>
+        </Stack>
+      </Modal>
+
       {showAuthDialog && (
         <LoginDialog
+          forceShow={true}
           onLoginSuccess={() => {
             setShowAuthDialog(false);
             refreshStorageStateStatus();
+            // Trigger storage state check in App.tsx to dismiss notification
+            window.dispatchEvent(new CustomEvent('storage-state-updated'));
           }}
           onSkip={() => setShowAuthDialog(false)}
         />

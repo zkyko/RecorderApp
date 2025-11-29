@@ -35,6 +35,7 @@ import {
   Trash2,
   Sparkles,
   RefreshCw,
+  Bug,
 } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
@@ -42,6 +43,7 @@ import { TestSummary, TestMeta, TestRunMeta, DataRow, LocatorInfo } from '../../
 import RunModal from './RunModal';
 import TestDetailsLocatorsTab from './TestDetailsLocatorsTab';
 import DebugChatPanel from './DebugChatPanel';
+import EnhancedStepsTab from './EnhancedStepsTab';
 import './TestDetailsScreen.css';
 
 const TestDetailsScreen: React.FC = () => {
@@ -378,6 +380,16 @@ const TestDetailsScreen: React.FC = () => {
           <Tabs.Tab value="locators">Locators</Tabs.Tab>
           <Tabs.Tab value="data">Data</Tabs.Tab>
           <Tabs.Tab value="steps">Steps</Tabs.Tab>
+          <Tabs.Tab 
+            value="trace"
+            rightSection={
+              runs.some(r => r.tracePaths && r.tracePaths.length > 0) ? (
+                <Badge size="xs" color="blue" variant="filled" circle>!</Badge>
+              ) : undefined
+            }
+          >
+            Trace
+          </Tabs.Tab>
           <Tabs.Tab value="runs">Runs</Tabs.Tab>
           <Tabs.Tab value="export">Export</Tabs.Tab>
         </Tabs.List>
@@ -469,8 +481,22 @@ const TestDetailsScreen: React.FC = () => {
                     Run Test
                   </Button>
                   {runs.length > 0 && runs[0].tracePaths && runs[0].tracePaths.length > 0 && (
-                    <Button leftSection={<Eye size={16} />} onClick={handleOpenTrace} variant="light">
-                      Open Trace
+                    <Button 
+                      leftSection={<Bug size={16} />} 
+                      onClick={handleOpenTrace} 
+                      variant="filled"
+                      color="blue"
+                    >
+                      Debug with Trace
+                    </Button>
+                  )}
+                  {runs.some(r => r.tracePaths && r.tracePaths.length > 0) && (
+                    <Button
+                      leftSection={<Eye size={16} />}
+                      onClick={() => setActiveTab('trace')}
+                      variant="light"
+                    >
+                      View All Traces
                     </Button>
                   )}
                 </Group>
@@ -502,7 +528,11 @@ const TestDetailsScreen: React.FC = () => {
 
         {/* Steps Tab */}
         <Tabs.Panel value="steps" pt="md">
-          <StepsTab specContent={specContent} />
+          <EnhancedStepsTab
+            specContent={specContent}
+            testName={testName!}
+            onSpecUpdate={loadTestData}
+          />
         </Tabs.Panel>
 
         {/* Runs Tab */}
@@ -841,6 +871,157 @@ const StepsTab: React.FC<{ specContent: string | null }> = ({ specContent }) => 
         )}
       </Group>
     </Card>
+  );
+};
+
+// Trace Tab Component
+const TraceTab: React.FC<{ runs: TestRunMeta[]; testName: string; workspacePath: string }> = ({ runs, testName, workspacePath }) => {
+  const navigate = useNavigate();
+  const runsWithTraces = runs.filter(r => r.tracePaths && r.tracePaths.length > 0);
+
+  if (runsWithTraces.length === 0) {
+    return (
+      <Card padding="xl" radius="md" withBorder>
+        <Center>
+          <Stack align="center" gap="md">
+            <Text size="4rem">🔍</Text>
+            <Text size="xl" fw={600}>No Traces Available</Text>
+            <Text c="dimmed" ta="center" maw={500}>
+              Traces are generated when you run tests with tracing enabled. 
+              Run a test to generate trace files for debugging.
+            </Text>
+            <Button
+              leftSection={<Play size={16} />}
+              onClick={() => {
+                const activeTab = document.querySelector('[data-value="overview"]');
+                if (activeTab) {
+                  (activeTab as HTMLElement).click();
+                }
+              }}
+            >
+              Run Test to Generate Trace
+            </Button>
+          </Stack>
+        </Center>
+      </Card>
+    );
+  }
+
+  return (
+    <Stack gap="md">
+      <Card padding="lg" radius="md" withBorder>
+        <Group justify="space-between" mb="md">
+          <div>
+            <Text fw={600} size="lg" mb="xs">Test Execution Traces</Text>
+            <Text size="sm" c="dimmed">
+              Interactive trace viewer for debugging test failures. Click on any trace to view detailed execution timeline.
+            </Text>
+          </div>
+          <Badge size="lg" variant="light" color="blue">
+            {runsWithTraces.length} Trace{runsWithTraces.length !== 1 ? 's' : ''} Available
+          </Badge>
+        </Group>
+
+        <Table highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Run ID</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Date</Table.Th>
+              <Table.Th>Duration</Table.Th>
+              <Table.Th>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {runsWithTraces.map((run) => {
+              const duration = run.finishedAt && run.startedAt
+                ? Math.round((new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)
+                : null;
+
+              return (
+                <Table.Tr key={run.runId}>
+                  <Table.Td>
+                    <Text ff="monospace" size="sm">{run.runId.substring(0, 8)}...</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge
+                      color={
+                        run.status === 'passed' ? 'green' :
+                        run.status === 'failed' ? 'red' :
+                        run.status === 'running' ? 'blue' : 'gray'
+                      }
+                      variant="light"
+                    >
+                      {run.status}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">
+                      {run.finishedAt
+                        ? new Date(run.finishedAt).toLocaleString()
+                        : run.startedAt
+                        ? new Date(run.startedAt).toLocaleString()
+                        : 'N/A'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {duration !== null ? (
+                      <Text size="sm">{duration}s</Text>
+                    ) : (
+                      <Text size="sm" c="dimmed">-</Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap="xs">
+                      <Button
+                        size="sm"
+                        variant="filled"
+                        color="blue"
+                        leftSection={<Eye size={14} />}
+                        onClick={() => navigate(`/trace/${testName}/${run.runId}`)}
+                      >
+                        View Trace
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="light"
+                        onClick={async () => {
+                          await ipc.trace.openWindow({
+                            workspacePath,
+                            traceZipPath: run.tracePaths![0],
+                          });
+                        }}
+                      >
+                        Open in New Window
+                      </Button>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+      </Card>
+
+      <Card padding="lg" radius="md" withBorder>
+        <Stack gap="md">
+          <Text fw={600}>About Traces</Text>
+          <Text size="sm" c="dimmed">
+            Playwright traces provide a complete timeline of your test execution, including:
+          </Text>
+          <ul style={{ marginLeft: '20px', color: 'var(--mantine-color-dimmed)' }}>
+            <li>Step-by-step execution timeline</li>
+            <li>DOM snapshots at each step</li>
+            <li>Network requests and responses</li>
+            <li>Console logs and errors</li>
+            <li>Visual screenshots of each action</li>
+          </ul>
+          <Text size="sm" c="dimmed" mt="md">
+            Traces are especially useful for debugging failed tests and understanding test behavior.
+          </Text>
+        </Stack>
+      </Card>
+    </Stack>
   );
 };
 

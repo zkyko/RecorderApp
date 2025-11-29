@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { SessionManager } from '../core/session/session-manager';
@@ -21,6 +21,8 @@ import { TraceServer } from './services/trace-server';
 import { WorkspaceManager } from './services/workspace-manager';
 import { LocatorMaintenanceService } from './services/locator-maintenance';
 import { RAGService } from './services/rag-service';
+import { SpecUpdater } from './services/spec-updater';
+import { LocatorBrowserService } from './services/locator-browser-service';
 import {
   CodegenStartRequest,
   LocatorCleanupRequest,
@@ -100,6 +102,8 @@ export class IPCBridge {
   private workspaceManager: WorkspaceManager;
   private locatorMaintenance: LocatorMaintenanceService;
   private ragService: RAGService;
+  private specUpdater: SpecUpdater;
+  private locatorBrowser: LocatorBrowserService;
 
   constructor(configManager: ConfigManager, workspaceManager: WorkspaceManager, mainWindow: BrowserWindow | null = null) {
     this.configManager = configManager;
@@ -124,6 +128,9 @@ export class IPCBridge {
     this.traceServer = new TraceServer();
     this.locatorMaintenance = new LocatorMaintenanceService();
     this.ragService = new RAGService(configManager);
+    this.specUpdater = new SpecUpdater();
+    this.locatorBrowser = new LocatorBrowserService();
+    this.locatorBrowser.setMainWindow(mainWindow);
   }
 
   /**
@@ -135,6 +142,10 @@ export class IPCBridge {
     this.codegenService.setMainWindow(window);
     if (this.recorderService) {
       this.recorderService.setMainWindow(window);
+    }
+    // Also set main window for locator browser
+    if (this.locatorBrowser) {
+      this.locatorBrowser.setMainWindow(window);
     }
   }
 
@@ -320,6 +331,15 @@ export class IPCBridge {
 
     ipcMain.handle('recorder:compileSteps', async (_, steps: RecordedStep[]) => {
       return this.recorderService.compileSteps(steps);
+    });
+
+    // Locator Browser handlers
+    ipcMain.handle('locator:browse:start', async (_, request: any) => {
+      return await this.locatorBrowser.start(request);
+    });
+
+    ipcMain.handle('locator:browse:stop', async () => {
+      return await this.locatorBrowser.stop();
     });
 
     // Locator cleanup
@@ -509,6 +529,26 @@ export class IPCBridge {
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to read spec file' };
       }
+    });
+
+    // Update spec file steps
+    ipcMain.handle('test:updateSpec', async (_, request: any): Promise<{ success: boolean; error?: string; updatedLines?: number[] }> => {
+      return await this.specUpdater.updateSpec(request);
+    });
+
+    // Add step to spec file
+    ipcMain.handle('test:addStep', async (_, request: any): Promise<{ success: boolean; error?: string; updatedLines?: number[] }> => {
+      return await this.specUpdater.addStep(request);
+    });
+
+    // Delete step from spec file
+    ipcMain.handle('test:deleteStep', async (_, request: any): Promise<{ success: boolean; error?: string; updatedLines?: number[] }> => {
+      return await this.specUpdater.deleteStep(request);
+    });
+
+    // Reorder steps in spec file
+    ipcMain.handle('test:reorderSteps', async (_, request: any): Promise<{ success: boolean; error?: string; updatedLines?: number[] }> => {
+      return await this.specUpdater.reorderSteps(request);
     });
 
     // Parse locators from spec file
@@ -726,7 +766,10 @@ export class IPCBridge {
       return await this.locatorMaintenance.updateLocator(request);
     });
     ipcMain.handle('workspace:locators:setStatus', async (_, request: LocatorStatusUpdateRequest): Promise<LocatorStatusUpdateResponse> => {
-      return await this.locatorMaintenance.setLocatorStatus(request);
+      return await this.locatorMaintenance.setLocatorStatus(request, this.mainWindow);
+    });
+    ipcMain.handle('workspace:locators:add', async (_, request: { workspacePath: string; locator: string; type: LocatorIndexEntry['type']; tests?: string[] }): Promise<{ success: boolean; error?: string }> => {
+      return await this.locatorMaintenance.addCustomLocator(request.workspacePath, request.locator, request.type, request.tests || []);
     });
 
     // BrowserStack Settings
@@ -855,6 +898,272 @@ export class IPCBridge {
         return { success: false, error: error.message || 'Failed to update recording engine setting' };
       }
     });
+
+    // Dev mode settings
+    ipcMain.handle('settings:getDevMode', async (): Promise<{ success: boolean; devMode?: boolean; error?: string }> => {
+      try {
+        const devMode = this.configManager.getDevMode();
+        return { success: true, devMode };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get dev mode' };
+      }
+    });
+
+    ipcMain.handle('settings:updateDevMode', async (_, request: { devMode: boolean }): Promise<{ success: boolean; error?: string }> => {
+      try {
+        this.configManager.setDevMode(request.devMode);
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update dev mode' };
+      }
+    });
+
+    // Delete workspace files (dev mode only)
+    ipcMain.handle('workspace:deleteFiles', async (_, request: { workspacePath: string }): Promise<{ success: boolean; error?: string }> => {
+      try {
+        // Check if dev mode is enabled
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled to delete workspace files' };
+        }
+
+        const workspacePath = request.workspacePath;
+        if (!workspacePath || !fs.existsSync(workspacePath)) {
+          return { success: false, error: 'Workspace path does not exist' };
+        }
+
+        // Delete all contents in the workspace (tests, data, traces, reports, etc.)
+        const dirsToDelete = ['tests', 'data', 'traces', 'runs', 'reports', 'tmp', 'allure-results', 'allure-report'];
+        
+        for (const dir of dirsToDelete) {
+          const dirPath = path.join(workspacePath, dir);
+          if (fs.existsSync(dirPath)) {
+            fs.rmSync(dirPath, { recursive: true, force: true });
+          }
+        }
+
+        // Recreate empty directory structure
+        for (const dir of dirsToDelete) {
+          const dirPath = path.join(workspacePath, dir);
+          fs.mkdirSync(dirPath, { recursive: true });
+        }
+
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to delete workspace files' };
+      }
+    });
+
+    // Dev mode utilities
+    ipcMain.handle('dev:openFolder', async (_, request: { path: string }): Promise<{ success: boolean; error?: string }> => {
+      try {
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled' };
+        }
+        if (!fs.existsSync(request.path)) {
+          return { success: false, error: 'Path does not exist' };
+        }
+        shell.openPath(request.path);
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to open folder' };
+      }
+    });
+
+    ipcMain.handle('dev:clearTempFiles', async (_, request: { workspacePath: string }): Promise<{ success: boolean; error?: string; deletedCount?: number }> => {
+      try {
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled' };
+        }
+        const tmpDir = path.join(request.workspacePath, 'tmp');
+        let deletedCount = 0;
+        if (fs.existsSync(tmpDir)) {
+          const files = fs.readdirSync(tmpDir);
+          for (const file of files) {
+            const filePath = path.join(tmpDir, file);
+            try {
+              fs.rmSync(filePath, { recursive: true, force: true });
+              deletedCount++;
+            } catch (e) {
+              // Continue on error
+            }
+          }
+        }
+        return { success: true, deletedCount };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to clear temp files' };
+      }
+    });
+
+    ipcMain.handle('dev:clearOldTraces', async (_, request: { workspacePath: string; daysToKeep?: number }): Promise<{ success: boolean; error?: string; deletedCount?: number }> => {
+      try {
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled' };
+        }
+        const tracesDir = path.join(request.workspacePath, 'traces');
+        const daysToKeep = request.daysToKeep || 7;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+        let deletedCount = 0;
+
+        if (fs.existsSync(tracesDir)) {
+          const entries = fs.readdirSync(tracesDir, { withFileTypes: true });
+          for (const entry of entries) {
+            const entryPath = path.join(tracesDir, entry.name);
+            try {
+              const stats = fs.statSync(entryPath);
+              if (stats.mtime < cutoffDate) {
+                fs.rmSync(entryPath, { recursive: true, force: true });
+                deletedCount++;
+              }
+            } catch (e) {
+              // Continue on error
+            }
+          }
+        }
+        return { success: true, deletedCount };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to clear old traces' };
+      }
+    });
+
+    ipcMain.handle('dev:clearOldReports', async (_, request: { workspacePath: string; daysToKeep?: number }): Promise<{ success: boolean; error?: string; deletedCount?: number }> => {
+      try {
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled' };
+        }
+        const reportsDir = path.join(request.workspacePath, 'reports');
+        const daysToKeep = request.daysToKeep || 7;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+        let deletedCount = 0;
+
+        if (fs.existsSync(reportsDir)) {
+          const entries = fs.readdirSync(reportsDir, { withFileTypes: true });
+          for (const entry of entries) {
+            const entryPath = path.join(reportsDir, entry.name);
+            try {
+              const stats = fs.statSync(entryPath);
+              if (stats.mtime < cutoffDate) {
+                fs.rmSync(entryPath, { recursive: true, force: true });
+                deletedCount++;
+              }
+            } catch (e) {
+              // Continue on error
+            }
+          }
+        }
+        return { success: true, deletedCount };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to clear old reports' };
+      }
+    });
+
+    ipcMain.handle('dev:getWorkspaceStats', async (_, request: { workspacePath: string }): Promise<{ success: boolean; stats?: any; error?: string }> => {
+      try {
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled' };
+        }
+        const stats: any = {
+          tests: { count: 0, size: 0 },
+          data: { count: 0, size: 0 },
+          traces: { count: 0, size: 0 },
+          runs: { count: 0, size: 0 },
+          reports: { count: 0, size: 0 },
+          tmp: { count: 0, size: 0 },
+          total: { count: 0, size: 0 },
+        };
+
+        const dirs = ['tests', 'data', 'traces', 'runs', 'reports', 'tmp'];
+        
+        for (const dir of dirs) {
+          const dirPath = path.join(request.workspacePath, dir);
+          if (fs.existsSync(dirPath)) {
+            const result = this.calculateDirectoryStats(dirPath);
+            stats[dir] = result;
+            stats.total.count += result.count;
+            stats.total.size += result.size;
+          }
+        }
+
+        return { success: true, stats };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get workspace stats' };
+      }
+    });
+
+    ipcMain.handle('dev:rebuildWorkspaceStructure', async (_, request: { workspacePath: string }): Promise<{ success: boolean; error?: string }> => {
+      try {
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled' };
+        }
+        const dirs = ['tests', 'data', 'traces', 'runs', 'reports', 'storage_state', 'tmp', 'allure-results', 'allure-report'];
+        for (const dir of dirs) {
+          const dirPath = path.join(request.workspacePath, dir);
+          if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+          }
+        }
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to rebuild workspace structure' };
+      }
+    });
+
+    ipcMain.handle('dev:getRawConfig', async (): Promise<{ success: boolean; config?: any; error?: string }> => {
+      try {
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled' };
+        }
+        const config = this.configManager.getConfig();
+        return { success: true, config };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get config' };
+      }
+    });
+
+    ipcMain.handle('dev:getStorageStatePath', async (): Promise<{ success: boolean; path?: string; error?: string }> => {
+      try {
+        if (!this.configManager.getDevMode()) {
+          return { success: false, error: 'Dev mode must be enabled' };
+        }
+        const storagePath = this.configManager.getStorageStatePath();
+        return { success: true, path: storagePath };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get storage state path' };
+      }
+    });
+  }
+
+  /**
+   * Calculate directory statistics (file count and total size)
+   */
+  private calculateDirectoryStats(dirPath: string): { count: number; size: number } {
+    let count = 0;
+    let size = 0;
+
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const entryPath = path.join(dirPath, entry.name);
+        try {
+          if (entry.isDirectory()) {
+            const subStats = this.calculateDirectoryStats(entryPath);
+            count += subStats.count;
+            size += subStats.size;
+          } else {
+            const stats = fs.statSync(entryPath);
+            count++;
+            size += stats.size;
+          }
+        } catch (e) {
+          // Skip files we can't access
+        }
+      }
+    } catch (e) {
+      // Return zero stats if directory can't be read
+    }
+
+    return { count, size };
   }
 
   /**
@@ -1002,17 +1311,20 @@ export class IPCBridge {
    */
   private async handleLogin(credentials: { username: string; password: string; d365Url?: string }): Promise<{ success: boolean; error?: string }> {
     try {
-      const d365Url = credentials.d365Url || process.env.D365_URL;
+      const d365Url = credentials.d365Url || this.getD365Url() || process.env.D365_URL;
       if (!d365Url) {
         return { success: false, error: 'D365 URL not configured' };
       }
 
       const storageStatePath = this.getStorageStatePath();
 
-      // Launch browser if not already launched
-      if (!this.browserManager.isOpen()) {
-        await this.browserManager.launch({ headless: false });
+      // Close browser if already open (to start fresh)
+      if (this.browserManager.isOpen()) {
+        await this.browserManager.close();
       }
+
+      // Launch browser
+      await this.browserManager.launch({ headless: false });
 
       // Perform login
       await this.browserManager.performLogin(
@@ -1021,13 +1333,26 @@ export class IPCBridge {
         credentials.password,
         storageStatePath,
         (message) => {
-          // Could emit progress events here if needed
+          // Emit progress events to renderer
+          if (this.mainWindow) {
+            this.mainWindow.webContents.send('login:progress', message);
+          }
           console.log('Login progress:', message);
         }
       );
 
+      // Close browser after login
+      await this.browserManager.close();
+
+      // Save storage state path to config (same as createStorageState)
+      this.configManager.setStorageStatePath(storageStatePath);
+
       return { success: true };
     } catch (error: any) {
+      // Ensure browser is closed on error
+      if (this.browserManager.isOpen()) {
+        await this.browserManager.close().catch(() => {});
+      }
       return { success: false, error: error.message };
     }
   }

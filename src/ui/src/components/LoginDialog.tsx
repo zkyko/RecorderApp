@@ -4,6 +4,7 @@ import './LoginDialog.css';
 interface LoginDialogProps {
   onLoginSuccess: () => void;
   onSkip?: () => void;
+  forceShow?: boolean; // If true, always show the dialog even if auth check passes
 }
 
 declare global {
@@ -15,7 +16,7 @@ declare global {
   }
 }
 
-const LoginDialog: React.FC<LoginDialogProps> = ({ onLoginSuccess, onSkip }) => {
+const LoginDialog: React.FC<LoginDialogProps> = ({ onLoginSuccess, onSkip, forceShow = false }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [d365Url, setD365Url] = useState('https://fourhands-test.sandbox.operations.dynamics.com/');
@@ -36,7 +37,8 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ onLoginSuccess, onSkip }) => 
 
     try {
       const authStatus = await window.electronAPI.checkAuth();
-      if (!authStatus.needsLogin) {
+      // If forceShow is true (e.g., from re-authenticate button), always show the dialog
+      if (!forceShow && !authStatus.needsLogin) {
         // Already authenticated
         onLoginSuccess();
       }

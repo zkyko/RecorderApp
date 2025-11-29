@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Card, Text, Button, Group, Stack, TextInput, Badge, ScrollArea, ActionIcon, Checkbox, Alert, Menu } from '@mantine/core';
+import { Card, Text, Button, Group, Stack, TextInput, Badge, ScrollArea, ActionIcon, Checkbox, Alert, Menu, Code } from '@mantine/core';
 import { ArrowRight, Trash2, Edit2, Check, X, Plus, Clock, MessageSquare } from 'lucide-react';
 import { ipc } from '../ipc';
 import './StepEditorScreen.css';
@@ -95,20 +95,23 @@ const StepEditorScreen: React.FC = () => {
 
   const handleContinue = () => {
     // Extract parameterized steps info and create ParamCandidate objects
-    const parameterizedSteps = steps
-      .filter(step => step.value && step.value.startsWith('{{') && step.value.endsWith('}}'))
-      .map((step, index) => {
-        const originalValue = step.value!.slice(2, -2); // Remove {{ }}
-        const label = extractFieldLabel(step.description) || step.description || 'Field';
-        const suggestedName = generateParameterName(step, label);
-        
-        return {
-          id: `param-${step.order}-${index}`, // Unique ID
-          label: label,
-          originalValue: originalValue,
-          suggestedName: suggestedName,
-        };
-      });
+    // If steps is empty (e.g., from Visual Builder), we'll detect parameters in the parameter mapping screen
+    const parameterizedSteps = steps.length > 0
+      ? steps
+          .filter(step => step.value && step.value.startsWith('{{') && step.value.endsWith('}}'))
+          .map((step, index) => {
+            const originalValue = step.value!.slice(2, -2); // Remove {{ }}
+            const label = extractFieldLabel(step.description) || step.description || 'Field';
+            const suggestedName = generateParameterName(step, label);
+            
+            return {
+              id: `param-${step.order}-${index}`, // Unique ID
+              label: label,
+              originalValue: originalValue,
+              suggestedName: suggestedName,
+            };
+          })
+      : []; // Empty array - parameter detection will happen in parameter mapping screen
 
     // Navigate to locator cleanup with the final code and parameterized steps
     navigate('/record/locator-cleanup', { 
@@ -264,7 +267,25 @@ const StepEditorScreen: React.FC = () => {
 
       <ScrollArea h={600} mb="md">
         <Stack gap="md">
-          {steps.length === 0 ? (
+          {steps.length === 0 && rawCode ? (
+            <Card padding="lg" radius="md" withBorder>
+              <Text fw={600} mb="sm">Generated Code</Text>
+              <Code block style={{ 
+                background: '#0b1020', 
+                color: '#d4d4d4',
+                padding: '16px',
+                borderRadius: '8px',
+                fontFamily: "'Courier New', monospace",
+                fontSize: '0.875rem',
+                lineHeight: 1.6,
+              }}>
+                {rawCode}
+              </Code>
+              <Text size="sm" c="dimmed" mt="md" ta="center">
+                Code generated from Visual Builder. You can continue to locator cleanup or edit the code manually.
+              </Text>
+            </Card>
+          ) : steps.length === 0 ? (
             <Card padding="lg" radius="md" withBorder>
               <Text c="dimmed" ta="center">No steps to display</Text>
             </Card>
@@ -437,12 +458,16 @@ const StepEditorScreen: React.FC = () => {
 
       <Group justify="space-between" mt="md">
         <Text size="sm" c="dimmed">
-          {steps.length} step{steps.length !== 1 ? 's' : ''} total
+          {steps.length > 0 
+            ? `${steps.length} step${steps.length !== 1 ? 's' : ''} total`
+            : rawCode 
+              ? 'Code ready - continue to proceed with locator cleanup'
+              : 'No steps or code available'}
         </Text>
         <Button
           leftSection={<ArrowRight size={16} />}
           onClick={handleContinue}
-          disabled={steps.length === 0}
+          disabled={!rawCode && steps.length === 0}
         >
           Continue to Locator Cleanup
         </Button>

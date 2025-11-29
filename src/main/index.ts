@@ -16,9 +16,23 @@ app.disableHardwareAcceleration();
 
 // Set cache directory to avoid permission errors
 const cacheDir = path.join(os.tmpdir(), 'qa-studio-cache');
+// Ensure cache directory exists with proper permissions
+try {
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+} catch (error) {
+  console.warn('Failed to create cache directory:', error);
+}
+
 app.setPath('userData', path.join(os.homedir(), 'AppData', 'Roaming', 'QA-Studio'));
 app.commandLine.appendSwitch('disk-cache-dir', cacheDir);
 app.commandLine.appendSwitch('disable-gpu-disk-cache'); // Disable GPU cache to avoid errors
+app.commandLine.appendSwitch('disable-software-rasterizer'); // Disable software rasterizer
+app.commandLine.appendSwitch('disable-background-networking'); // Reduce background network activity
+app.commandLine.appendSwitch('disable-background-timer-throttling'); // Disable background throttling
+app.commandLine.appendSwitch('disable-renderer-backgrounding'); // Disable renderer backgrounding
+app.commandLine.appendSwitch('disable-features', 'VizDisplayCompositor'); // Disable display compositor
 
 let mainWindow: BrowserWindow | null = null;
 let ipcBridge: IPCBridge;
@@ -34,6 +48,9 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      // Disable service workers to avoid storage errors
+      enableBlinkFeatures: '',
+      disableBlinkFeatures: 'ServiceWorker',
     },
   });
 
@@ -54,8 +71,8 @@ function createWindow(): void {
         console.error('UI not found. Please run "npm run build:ui" or start the dev server with "npm run dev:ui"');
       }
     });
-    // Only open DevTools if explicitly requested via environment variable
-    if (process.env.OPEN_DEVTOOLS === 'true') {
+    // Open DevTools in dev mode to help debug issues
+    if (isDev) {
       mainWindow.webContents.openDevTools();
     }
   } else {

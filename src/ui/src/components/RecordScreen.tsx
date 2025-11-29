@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Text, Button, Group, Alert, Badge, ScrollArea, Code, Grid, Stack, List, Select } from '@mantine/core';
-import { CircleDot, Square, Play, Info, Clock, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { CircleDot, Square, Play, Info, Clock, CheckCircle2, AlertTriangle, XCircle, Sparkles } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { CodegenCodeUpdate, RecorderCodeUpdate, RecordingEngine } from '../../../types/v1.5';
+import VisualTestBuilder from './VisualTestBuilder';
+import { notifications } from '@mantine/notifications';
 import './RecordScreen.css';
 
 const RecordScreen: React.FC = () => {
@@ -24,6 +26,7 @@ const RecordScreen: React.FC = () => {
     bad: number;
   } | null>(null);
   const [recordingEngine, setRecordingEngine] = useState<RecordingEngine>('qaStudio');
+  const [visualBuilderOpen, setVisualBuilderOpen] = useState(false);
 
   // Load recording engine setting on mount
   useEffect(() => {
@@ -378,7 +381,17 @@ const RecordScreen: React.FC = () => {
             )}
 
             <Card padding="lg" radius="md" withBorder>
-              <Text fw={600} mb="sm">Workflow</Text>
+              <Group justify="space-between" mb="sm">
+                <Text fw={600}>Workflow</Text>
+                <Button
+                  leftSection={<Sparkles size={16} />}
+                  variant="light"
+                  size="xs"
+                  onClick={() => setVisualBuilderOpen(true)}
+                >
+                  Visual Builder <Badge size="xs" ml="xs" color="violet">BETA</Badge>
+                </Button>
+              </Group>
               <List spacing="xs" size="sm" c="dimmed">
                 <List.Item>Launch the recorder and run through your D365 scenario.</List.Item>
                 <List.Item>Stop recording to review steps and cleanup locators.</List.Item>
@@ -505,6 +518,17 @@ const RecordScreen: React.FC = () => {
           </Card>
         </Grid.Col>
       </Grid>
+
+      {/* Visual Test Builder (BETA) */}
+      {workspacePath && (
+        <VisualTestBuilder
+          opened={visualBuilderOpen}
+          onClose={() => setVisualBuilderOpen(false)}
+          workspacePath={workspacePath}
+          // No testName means we're on Record screen - will navigate to step editor
+          // No onStepsGenerated means it will navigate instead of calling callback
+        />
+      )}
     </div>
   );
 };

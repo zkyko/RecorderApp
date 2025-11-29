@@ -125,6 +125,9 @@ export const ipc = {
     locatorsUpdate: (request: any): Promise<{ success: boolean; updatedTests?: string[]; error?: string }> => {
       return window.electronAPI?.workspaceLocatorsUpdate(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    locatorsAdd: (request: { workspacePath: string; locator: string; type: string; tests?: string[] }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.workspaceLocatorsAdd(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
     locatorsSetStatus: (request: any): Promise<{ success: boolean; status?: any; error?: string }> => {
       return window.electronAPI?.workspaceLocatorsSetStatus(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
@@ -150,6 +153,18 @@ export const ipc = {
     },
     parseLocators: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; locators?: any[]; error?: string }> => {
       return window.electronAPI?.testParseLocators(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateSpec: (request: { workspacePath: string; testName: string; updates: Array<{ line: number; originalContent?: string; newContent: string }> }): Promise<{ success: boolean; error?: string; updatedLines?: number[] }> => {
+      return window.electronAPI?.testUpdateSpec(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    addStep: (request: { workspacePath: string; testName: string; afterLine?: number; stepContent: string }): Promise<{ success: boolean; error?: string; updatedLines?: number[] }> => {
+      return window.electronAPI?.testAddStep(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    deleteStep: (request: { workspacePath: string; testName: string; line: number }): Promise<{ success: boolean; error?: string; updatedLines?: number[] }> => {
+      return window.electronAPI?.testDeleteStep(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    reorderSteps: (request: { workspacePath: string; testName: string; stepLines: number[] }): Promise<{ success: boolean; error?: string; updatedLines?: number[] }> => {
+      return window.electronAPI?.testReorderSteps(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
     exportBundle: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; bundlePath?: string; error?: string }> => {
       return window.electronAPI?.testExportBundle(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
@@ -198,6 +213,37 @@ export const ipc = {
     setCurrent: (workspaceId: string): Promise<WorkspaceSetCurrentResponse> => {
       return window.electronAPI?.workspacesSetCurrent({ workspaceId }) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    deleteFiles: (request: { workspacePath: string }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.workspaceDeleteFiles(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Dev mode utilities
+  dev: {
+    openFolder: (request: { path: string }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.devOpenFolder(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    clearTempFiles: (request: { workspacePath: string }): Promise<{ success: boolean; error?: string; deletedCount?: number }> => {
+      return window.electronAPI?.devClearTempFiles(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    clearOldTraces: (request: { workspacePath: string; daysToKeep?: number }): Promise<{ success: boolean; error?: string; deletedCount?: number }> => {
+      return window.electronAPI?.devClearOldTraces(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    clearOldReports: (request: { workspacePath: string; daysToKeep?: number }): Promise<{ success: boolean; error?: string; deletedCount?: number }> => {
+      return window.electronAPI?.devClearOldReports(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getWorkspaceStats: (request: { workspacePath: string }): Promise<{ success: boolean; stats?: any; error?: string }> => {
+      return window.electronAPI?.devGetWorkspaceStats(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    rebuildWorkspaceStructure: (request: { workspacePath: string }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.devRebuildWorkspaceStructure(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getRawConfig: (): Promise<{ success: boolean; config?: any; error?: string }> => {
+      return window.electronAPI?.devGetRawConfig() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getStorageStatePath: (): Promise<{ success: boolean; path?: string; error?: string }> => {
+      return window.electronAPI?.devGetStorageStatePath() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
   },
 
   // v1.6: Settings
@@ -220,12 +266,48 @@ export const ipc = {
     updateAIConfig: (request: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }): Promise<{ success: boolean; error?: string }> => {
       return window.electronAPI?.settingsUpdateAIConfig(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    getDevMode: (): Promise<{ success: boolean; devMode?: boolean; error?: string }> => {
+      return window.electronAPI?.settingsGetDevMode() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateDevMode: (request: { devMode: boolean }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.settingsUpdateDevMode(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
   },
 
   // RAG Chat
   rag: {
     chat: (request: { workspacePath: string; testName: string; messages: Array<{ role: string; content: string }> }): Promise<{ success: boolean; response?: string; error?: string }> => {
       return window.electronAPI?.ragChat(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // Locator Browser
+  locatorBrowse: {
+    start: (request: { workspacePath: string; storageStatePath?: string; url?: string }): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.locatorBrowseStart(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    stop: (): Promise<{ success: boolean; error?: string }> => {
+      return window.electronAPI?.locatorBrowseStop() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    onElementHover: (callback: (data: any) => void): void => {
+      window.electronAPI?.onLocatorBrowseElementHover(callback);
+    },
+    onElementClick: (callback: (data: any) => void): void => {
+      window.electronAPI?.onLocatorBrowseElementClick(callback);
+    },
+    onClickedElements: (callback: (data: any) => void): void => {
+      window.electronAPI?.onLocatorBrowseClickedElements(callback);
+    },
+    removeListeners: (): void => {
+      window.electronAPI?.removeLocatorBrowseListeners();
+    },
+  },
+  locator: {
+    onStatusUpdated: (callback: (data: any) => void): void => {
+      window.electronAPI?.onLocatorStatusUpdated(callback);
+    },
+    removeStatusUpdatedListener: (): void => {
+      window.electronAPI?.removeLocatorStatusUpdatedListener();
     },
   },
 };

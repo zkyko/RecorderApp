@@ -42,13 +42,35 @@ const TestDetailsLocatorsTab: React.FC<TestDetailsLocatorsTabProps> = ({
   const [locatorStatuses, setLocatorStatuses] = useState<Map<string, { state: LocatorStatusState; note?: string }>>(new Map());
   const [saving, setSaving] = useState(false);
 
-  // Load locator statuses
-  useEffect(() => {
-    if (locators.length > 0 && workspacePath) {
-      loadLocatorStatuses();
+  // Helper function to extract just the locator part from a full line
+  // e.g., "await page.locator('#i0118').fill('value');" -> "page.locator('#i0118')"
+  const extractLocatorPart = (selector: string, type: string): string => {
+    // Remove "await " prefix if present
+    let cleaned = selector.replace(/^await\s+/, '').trim();
+    
+    // Extract the locator part based on type
+    if (type === 'role') {
+      // Match: page.getByRole('button', { name: 'Sign in' })
+      const match = cleaned.match(/page\.getByRole\([^)]+\)/);
+      return match ? match[0] : cleaned;
+    } else if (type === 'label') {
+      // Match: page.getByLabel('text')
+      const match = cleaned.match(/page\.getByLabel\([^)]+\)/);
+      return match ? match[0] : cleaned;
+    } else if (type === 'text') {
+      // Match: page.getByText('text')
+      const match = cleaned.match(/page\.getByText\([^)]+\)/);
+      return match ? match[0] : cleaned;
+    } else if (type === 'placeholder') {
+      // Match: page.getByPlaceholder('text')
+      const match = cleaned.match(/page\.getByPlaceholder\([^)]+\)/);
+      return match ? match[0] : cleaned;
+    } else {
+      // For CSS, XPath, d365-controlname, testid: match page.locator(...)
+      const match = cleaned.match(/page\.locator\([^)]+\)/);
+      return match ? match[0] : cleaned;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locators, workspacePath, testName]);
+  };
 
   const loadLocatorStatuses = async () => {
     if (!workspacePath) return;
@@ -59,13 +81,15 @@ const TestDetailsLocatorsTab: React.FC<TestDetailsLocatorsTabProps> = ({
       if (response.success && response.locators) {
         const statusMap = new Map<string, { state: LocatorStatusState; note?: string }>();
         
-        response.        response.locators.forEach((entry: any) => {
+        response.locators.forEach((entry: any) => {
           if (entry.status && entry.usedInTests.includes(testName)) {
-            // Match locators by selector - check if the locator snippet matches
+            // Match locators by extracting the locator part and comparing
             locators.forEach(loc => {
-              // Match if entry locator is contained in locator selector or vice versa
-              if (loc.selector.includes(entry.locator) || entry.locator.includes(loc.selector) || 
-                  loc.selector.trim() === entry.locator.trim()) {
+              const locatorPart = extractLocatorPart(loc.selector, loc.type);
+              // Match if the extracted locator part matches the entry locator
+              if (locatorPart.trim() === entry.locator.trim() || 
+                  loc.selector.includes(entry.locator) || 
+                  entry.locator.includes(locatorPart)) {
                 statusMap.set(loc.selector, {
                   state: entry.status.state || 'healthy',
                   note: entry.status.note,
@@ -154,7 +178,10 @@ const TestDetailsLocatorsTab: React.FC<TestDetailsLocatorsTabProps> = ({
     const locator = locators[statusTargetIndex];
     setSaving(true);
     try {
-      const locatorKey = `${locator.type}:${locator.selector}`;
+      // Extract just the locator part (e.g., "page.locator('#i0118')") from the full line
+      const locatorPart = extractLocatorPart(locator.selector, locator.type);
+      const locatorKey = `${locator.type}:${locatorPart.trim()}`;
+      
       const response = await ipc.workspace.locatorsSetStatus({
         workspacePath,
         locatorKey,

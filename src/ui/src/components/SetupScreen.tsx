@@ -82,6 +82,8 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
     try {
       await window.electronAPI.saveD365Url(d365Url.trim());
       setError(null);
+      // After saving D365 URL, automatically prompt for login
+      // The login section will be visible and user should proceed
     } catch (err: any) {
       setError(err.message || 'Failed to save D365 URL');
     }
@@ -106,8 +108,10 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
 
       if (result.success) {
         setLoginProgress('Login successful!');
-        // Immediately proceed to next step (no artificial delay)
-        onSetupComplete();
+        // Wait a moment to show success message, then proceed
+        setTimeout(() => {
+          onSetupComplete();
+        }, 1500);
       } else {
         setError(result.error || 'Login failed');
         setLoginProgress(null);
@@ -172,8 +176,8 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
         </div>
 
         <div className="setup-section">
-          <h2>3. Sign in to D365</h2>
-          <p className="setup-hint">We'll open a browser for you to sign in</p>
+          <h2>3. Sign in to D365 (Required)</h2>
+          <p className="setup-hint">You must sign in to Dynamics 365 to continue. We'll open a browser for you to complete authentication.</p>
           
           <div className="setup-field">
             <input

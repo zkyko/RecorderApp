@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Grid, Text, Group, Button, Loader, Center } from '@mantine/core';
-import { Library, PlayCircle, BarChart3, Plus } from 'lucide-react';
+import { Card, Grid, Text, Group, Button, Loader, Center, Badge } from '@mantine/core';
+import { Library, PlayCircle, BarChart3, Plus, Bug, Eye } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { TestSummary } from '../../../types/v1.5';
@@ -18,7 +18,9 @@ const Dashboard: React.FC = () => {
     failedTests: 0,
     neverRun: 0,
     totalDatasets: 0,
+    testsWithTraces: 0,
   });
+  const [recentRunsWithTraces, setRecentRunsWithTraces] = useState<any[]>([]);
 
   useEffect(() => {
     if (workspacePath) {
@@ -35,14 +37,25 @@ const Dashboard: React.FC = () => {
       if (response.success && response.tests) {
         setTests(response.tests);
         
+        // Load recent runs to check for traces
+        const runsResponse = await ipc.runs.list({ workspacePath });
+        const runsWithTraces = runsResponse.success && runsResponse.runs
+          ? runsResponse.runs.filter(r => r.tracePaths && r.tracePaths.length > 0)
+          : [];
+        
+        // Get unique test names that have traces
+        const testNamesWithTraces = new Set(runsWithTraces.map(r => r.testName));
+        
         const stats = {
           totalTests: response.tests.length,
           passedTests: response.tests.filter(t => t.lastStatus === 'passed').length,
           failedTests: response.tests.filter(t => t.lastStatus === 'failed').length,
           neverRun: response.tests.filter(t => t.lastStatus === 'never_run').length,
           totalDatasets: response.tests.reduce((sum, t) => sum + t.datasetCount, 0),
+          testsWithTraces: testNamesWithTraces.size,
         };
         setStats(stats);
+        setRecentRunsWithTraces(runsWithTraces.slice(0, 5));
       }
     } catch (error) {
       console.error('Failed to load tests:', error);

@@ -46,6 +46,7 @@
   "dependencies": {
     "@mantine/core": "^8.3.9",
     "@mantine/hooks": "^8.3.9",
+    "@mantine/notifications": "^8.3.9",
     "dotenv": "^16.3.1",
     "electron-store": "^8.1.0",
     "lucide-react": "^0.555.0",
@@ -85,7 +86,9 @@
       {
         "from": "runtime/",
         "to": "runtime/",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
@@ -93,7 +96,10 @@
       "signAndEditExecutable": false
     },
     "mac": {
-      "target": ["dmg", "dir"],
+      "target": [
+        "dmg",
+        "dir"
+      ],
       "category": "public.app-category.developer-tools"
     },
     "dmg": {

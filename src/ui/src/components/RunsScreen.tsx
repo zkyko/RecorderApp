@@ -290,8 +290,9 @@ const RunsScreen: React.FC = () => {
                         {run.tracePaths && run.tracePaths.length > 0 && (
                           <Button
                             leftSection={<Eye size={14} />}
-                            variant="light"
-                            size="xs"
+                            variant="filled"
+                            color="blue"
+                            size="sm"
                             onClick={async () => {
                               if (!workspacePath) return;
                               await ipc.trace.openWindow({
@@ -300,7 +301,7 @@ const RunsScreen: React.FC = () => {
                               });
                             }}
                           >
-                            Trace
+                            Debug Trace
                           </Button>
                         )}
                         {(run.allureReportPath || run.reportPath) && (

@@ -1,7 +1,9 @@
 import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { MantineProvider, createTheme } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
 import Sidebar from './Sidebar';
 import TopToolbar from './TopToolbar';
 import HintPanel from './HintPanel';
@@ -36,6 +38,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   return (
     <MantineProvider theme={darkTheme} defaultColorScheme="dark">
+      <Notifications position="top-right" zIndex={1000} />
       <div className="app-layout">
         <Sidebar />
         <div className="app-main">

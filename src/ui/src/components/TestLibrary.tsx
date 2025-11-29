@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Grid, Text, Group, Button, TextInput, Select, Loader, Center, Badge } from '@mantine/core';
-import { Play, Edit, FileText, Plus } from 'lucide-react';
+import { Play, Edit, FileText, Plus, Bug } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { TestSummary } from '../../../types/v1.5';
@@ -54,6 +54,18 @@ const TestLibrary: React.FC = () => {
       const response = await ipc.workspace.testsList({ workspacePath });
       if (response.success && response.tests) {
         setTests(response.tests);
+        
+        // Load runs to check which tests have traces
+        const runsResponse = await ipc.runs.list({ workspacePath });
+        if (runsResponse.success && runsResponse.runs) {
+          const testsWithTracesSet = new Set<string>();
+          runsResponse.runs.forEach(run => {
+            if (run.tracePaths && run.tracePaths.length > 0) {
+              testsWithTracesSet.add(run.testName);
+            }
+          });
+          setTestsWithTraces(testsWithTracesSet);
+        }
       }
     } catch (error) {
       console.error('Failed to load tests:', error);

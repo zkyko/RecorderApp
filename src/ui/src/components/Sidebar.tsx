@@ -25,7 +25,7 @@ const Sidebar: React.FC = () => {
     { path: '/record', label: 'Record', icon: Camera, section: 'Workspace' },
     { path: '/runs', label: 'Runs', icon: History, section: 'Tools' },
     { path: '/report', label: 'Report', icon: BarChart3, section: 'Tools' },
-    { path: '/locators', label: 'Locators', icon: Crosshair, section: 'Tools' },
+    { path: '/locators', label: 'Locator Library', icon: Crosshair, section: 'Tools' },
     { path: '/settings', label: 'Settings', icon: Settings, section: 'Tools' },
   ];
 

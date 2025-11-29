@@ -15,6 +15,7 @@ interface ConfigSchema {
   aiApiKey?: string;
   aiModel?: string;
   aiBaseUrl?: string;
+  devMode?: boolean; // Developer mode for advanced controls
 }
 
 /**
@@ -250,5 +251,19 @@ export class ConfigManager {
     if (config.baseUrl !== undefined) {
       this.storeAccess.set('aiBaseUrl', config.baseUrl);
     }
+  }
+
+  /**
+   * Get dev mode setting
+   */
+  getDevMode(): boolean {
+    return this.storeAccess.get('devMode') || false;
+  }
+
+  /**
+   * Set dev mode setting
+   */
+  setDevMode(enabled: boolean): void {
+    this.storeAccess.set('devMode', enabled);
   }
 }

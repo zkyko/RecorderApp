@@ -21,10 +21,11 @@ import {
   ActionIcon,
   Tooltip,
 } from '@mantine/core';
-import { Crosshair, Search, Eye, Pencil } from 'lucide-react';
+import { Crosshair, Search, Eye, Pencil, Plus, Compass } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { LocatorIndexEntry } from '../../../types/v1.5';
+import BrowseLocator from './BrowseLocator';
 import './LocatorsScreen.css';
 
 const LocatorsScreen: React.FC = () => {
@@ -39,11 +40,37 @@ const LocatorsScreen: React.FC = () => {
   const [editedSnippet, setEditedSnippet] = useState('');
   const [editedTests, setEditedTests] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [newLocatorSnippet, setNewLocatorSnippet] = useState('');
+  const [newLocatorType, setNewLocatorType] = useState<string>('css');
+  const [newLocatorTests, setNewLocatorTests] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [browseLocatorOpen, setBrowseLocatorOpen] = useState(false);
 
   useEffect(() => {
     if (workspacePath) {
       loadLocators();
     }
+  }, [workspacePath]);
+
+  // Listen for locator status updates
+  useEffect(() => {
+    if (!workspacePath) return;
+
+    const handleStatusUpdate = (data: { workspacePath: string; locatorKey: string; status: any }) => {
+      // Only refresh if the update is for the current workspace
+      if (data.workspacePath === workspacePath) {
+        console.log('[LocatorsScreen] Locator status updated, refreshing...');
+        loadLocators();
+      }
+    };
+
+    ipc.locator.onStatusUpdated(handleStatusUpdate);
+
+    return () => {
+      ipc.locator.removeStatusUpdatedListener();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspacePath]);
 
   const loadLocators = async () => {
@@ -146,6 +173,22 @@ const LocatorsScreen: React.FC = () => {
               Review, edit, and track the health of every locator across your tests.
             </Text>
           </div>
+          <Group>
+            <Button
+              leftSection={<Compass size={16} />}
+              onClick={() => setBrowseLocatorOpen(true)}
+              variant="filled"
+              color="blue"
+            >
+              Browse Locator
+            </Button>
+            <Button
+              leftSection={<Plus size={16} />}
+              onClick={() => setAddModalOpen(true)}
+            >
+              Add Locator
+            </Button>
+          </Group>
         </Group>
 
         <Group gap="md" mb="md">
@@ -281,6 +324,102 @@ const LocatorsScreen: React.FC = () => {
         )}
       </Modal>
 
+      <Modal
+        opened={addModalOpen}
+        onClose={() => {
+          setAddModalOpen(false);
+          setNewLocatorSnippet('');
+          setNewLocatorType('css');
+          setNewLocatorTests([]);
+        }}
+        title="Add New Locator"
+        size="lg"
+        radius="md"
+      >
+        <Stack gap="md">
+          <Textarea
+            label="Locator snippet"
+            description="Enter the Playwright locator snippet (e.g., await page.locator('#myId').click();)"
+            value={newLocatorSnippet}
+            onChange={(e) => setNewLocatorSnippet(e.currentTarget.value)}
+            placeholder="await page.locator('#myId').click();"
+            minRows={3}
+          />
+          <Select
+            label="Locator Type"
+            data={[
+              { value: 'css', label: 'CSS' },
+              { value: 'role', label: 'Role' },
+              { value: 'label', label: 'Label' },
+              { value: 'text', label: 'Text' },
+              { value: 'xpath', label: 'XPath' },
+              { value: 'placeholder', label: 'Placeholder' },
+              { value: 'testid', label: 'Test ID' },
+            ]}
+            value={newLocatorType}
+            onChange={(value) => setNewLocatorType(value || 'css')}
+            description="Select the type of locator."
+          />
+          <Text size="sm" c="dimmed">
+            Note: Custom locators are saved to locators/status.json and can be used across your workspace.
+          </Text>
+          <Group justify="flex-end">
+            <Button
+              variant="light"
+              onClick={() => {
+                setAddModalOpen(false);
+                setNewLocatorSnippet('');
+                setNewLocatorType('css');
+                setNewLocatorTests([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!workspacePath || !newLocatorSnippet.trim()) return;
+                setAdding(true);
+                try {
+                  const response = await ipc.workspace.locatorsAdd({
+                    workspacePath,
+                    locator: newLocatorSnippet.trim(),
+                    type: newLocatorType as LocatorIndexEntry['type'],
+                    tests: newLocatorTests,
+                  });
+                  if (response.success) {
+                    setAddModalOpen(false);
+                    setNewLocatorSnippet('');
+                    setNewLocatorType('css');
+                    setNewLocatorTests([]);
+                    await loadLocators();
+                  } else {
+                    console.error('Failed to add locator:', response.error);
+                    alert(response.error || 'Failed to add locator');
+                  }
+                } catch (error) {
+                  console.error('Failed to add locator:', error);
+                  alert('Failed to add locator');
+                } finally {
+                  setAdding(false);
+                }
+              }}
+              loading={adding}
+              disabled={!newLocatorSnippet.trim()}
+            >
+              Add Locator
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Browse Locator Modal */}
+      <BrowseLocator
+        opened={browseLocatorOpen}
+        onClose={() => {
+          setBrowseLocatorOpen(false);
+          loadLocators(); // Refresh locators after closing
+        }}
+      />
     </div>
   );
 };
