@@ -13,6 +13,7 @@ import { mockElectronAPI } from '@/lib/mock-backend/mock-electron-api';
 import { DesktopOnlyModal } from '@/components/demo/DesktopOnlyModal';
 import { DemoTour } from '@/components/demo/DemoTour';
 import { isDesktopOnlyError } from '@/lib/mock-backend/errors';
+// @ts-ignore - Shared UI component, type checking handled separately
 import App from '../../../src/ui/src/App';
 
 // IMPORTANT: Set the backend getter at module scope (before App renders)

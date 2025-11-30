@@ -10,7 +10,6 @@ import { mockElectronAPI } from '@/lib/mock-backend/mock-electron-api';
 import { DemoBanner } from '@/components/demo/DemoBanner';
 
 const darkTheme = createTheme({
-  colorScheme: 'dark',
   primaryColor: 'blue',
   colors: {
     dark: [
@@ -23,6 +22,7 @@ const darkTheme = createTheme({
       '#0b1020', // 6 - main bg
       '#030712', // 7 - sidebar bg
       '#000000', // 8 - darkest
+      '#000000', // 9 - extra (required by Mantine)
     ],
   },
   defaultRadius: 'md',

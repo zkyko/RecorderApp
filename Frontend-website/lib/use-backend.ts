@@ -22,7 +22,7 @@ export function useBackend(): ElectronAPI {
     // Context not available - we're in desktop app or outside provider
     // Use window.electronAPI if available
     if (typeof window !== 'undefined' && window.electronAPI) {
-      return window.electronAPI;
+      return window.electronAPI as ElectronAPI;
     }
     // Fallback: throw error to indicate backend not available
     throw new Error('Backend not available. Ensure BackendProvider is set up or window.electronAPI is available.');

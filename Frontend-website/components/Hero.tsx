@@ -104,6 +104,7 @@ export function Hero() {
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 via-transparent to-transparent pointer-events-none z-10"></div>
               
               <div className="relative rounded-xl overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={`${basePath}/qa-studio-dashboard.png`}
                   alt="QA Studio Dashboard"

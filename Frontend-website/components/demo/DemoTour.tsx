@@ -159,12 +159,12 @@ export function DemoTour({ opened, onClose, autoPlay = false }: DemoTourProps) {
           <Progress value={progress} size="sm" />
         </div>
 
-        {/* Stepper */}
-        <Stepper active={currentStep} breakpoint="sm" size="xs">
-          {tourSteps.map((s, idx) => (
-            <Stepper.Step key={s.id} label={s.title} />
-          ))}
-        </Stepper>
+                {/* Stepper */}
+                <Stepper active={currentStep} size="xs">
+                  {tourSteps.map((s, idx) => (
+                    <Stepper.Step key={s.id} label={s.title} />
+                  ))}
+                </Stepper>
 
         {/* Content */}
         <div style={{ minHeight: '200px' }}>

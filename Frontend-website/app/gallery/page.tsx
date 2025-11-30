@@ -89,7 +89,8 @@ export default function GalleryPage() {
           className="mb-12 text-center"
         >
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 mb-6">
-            <Image className="h-8 w-8 text-white" />
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image className="h-8 w-8 text-white" aria-hidden="true" />
           </div>
           <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
             Product Gallery
@@ -139,6 +140,7 @@ export default function GalleryPage() {
               >
                 <Card className="h-full bg-zinc-900/50 border-zinc-800 hover:border-blue-500/50 transition-all hover:shadow-lg hover:shadow-blue-500/10 overflow-hidden group">
                   <div className="relative aspect-video bg-zinc-900 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={screenshot.image}
                       alt={screenshot.title}
