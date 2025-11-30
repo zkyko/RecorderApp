@@ -1,0 +1,82 @@
+{
+  "steps": [
+    {
+      "order": 1,
+      "description": "Navigate to Sales Orders",
+      "action": "navigate",
+      "pageId": "sales-orders-list",
+      "locator": null,
+      "value": null
+    },
+    {
+      "order": 2,
+      "description": "Click New button",
+      "action": "click",
+      "pageId": "sales-orders-list",
+      "locator": {
+        "type": "role",
+        "role": "button",
+        "name": "New"
+      },
+      "value": null
+    },
+    {
+      "order": 3,
+      "description": "Fill Customer Account",
+      "action": "fill",
+      "pageId": "sales-order-form",
+      "locator": {
+        "type": "label",
+        "label": "Customer account"
+      },
+      "value": "US-001"
+    },
+    {
+      "order": 4,
+      "description": "Add Sales Order Line",
+      "action": "click",
+      "pageId": "sales-order-form",
+      "locator": {
+        "type": "role",
+        "role": "button",
+        "name": "Add line"
+      },
+      "value": null
+    },
+    {
+      "order": 5,
+      "description": "Enter Item Number",
+      "action": "fill",
+      "pageId": "sales-order-form",
+      "locator": {
+        "type": "d365-controlname",
+        "controlname": "SalesLine_ItemId"
+      },
+      "value": "A0001"
+    },
+    {
+      "order": 6,
+      "description": "Enter Quantity",
+      "action": "fill",
+      "pageId": "sales-order-form",
+      "locator": {
+        "type": "d365-controlname",
+        "controlname": "SalesLine_SalesQty"
+      },
+      "value": "10"
+    },
+    {
+      "order": 7,
+      "description": "Save Sales Order",
+      "action": "click",
+      "pageId": "sales-order-form",
+      "locator": {
+        "type": "role",
+        "role": "button",
+        "name": "Save"
+      },
+      "value": null
+    }
+  ]
+}
+

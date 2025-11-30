@@ -1,0 +1,135 @@
+{
+  "tests": [
+    {
+      "testName": "create-sales-order",
+      "module": "Sales",
+      "specPath": "tests/d365/specs/create-sales-order/create-sales-order.spec.ts",
+      "dataPath": "tests/d365/data/create-sales-orderData.json",
+      "metaPath": "tests/d365/specs/create-sales-order/create-sales-order.meta.json",
+      "datasetCount": 5,
+      "lastRunAt": "2024-01-15T10:30:00Z",
+      "lastStatus": "passed",
+      "lastRunId": "run-20240115-103000",
+      "tags": ["smoke", "sales", "critical"]
+    },
+    {
+      "testName": "process-purchase-order",
+      "module": "Procurement",
+      "specPath": "tests/d365/specs/process-purchase-order/process-purchase-order.spec.ts",
+      "dataPath": "tests/d365/data/process-purchase-orderData.json",
+      "metaPath": "tests/d365/specs/process-purchase-order/process-purchase-order.meta.json",
+      "datasetCount": 3,
+      "lastRunAt": "2024-01-14T14:20:00Z",
+      "lastStatus": "passed",
+      "lastRunId": "run-20240114-142000",
+      "tags": ["procurement", "regression"]
+    },
+    {
+      "testName": "warehouse-transfer",
+      "module": "Warehouse",
+      "specPath": "tests/d365/specs/warehouse-transfer/warehouse-transfer.spec.ts",
+      "dataPath": "tests/d365/data/warehouse-transferData.json",
+      "metaPath": "tests/d365/specs/warehouse-transfer/warehouse-transfer.meta.json",
+      "datasetCount": 2,
+      "lastRunAt": "2024-01-13T09:15:00Z",
+      "lastStatus": "failed",
+      "lastRunId": "run-20240113-091500",
+      "tags": ["warehouse", "integration"]
+    },
+    {
+      "testName": "customer-invoice",
+      "module": "Accounts Receivable",
+      "specPath": "tests/d365/specs/customer-invoice/customer-invoice.spec.ts",
+      "dataPath": "tests/d365/data/customer-invoiceData.json",
+      "datasetCount": 4,
+      "lastStatus": "never_run",
+      "tags": ["ar", "finance"]
+    },
+    {
+      "testName": "approve-purchase-requisition",
+      "module": "Procurement",
+      "specPath": "tests/d365/specs/approve-purchase-requisition/approve-purchase-requisition.spec.ts",
+      "dataPath": "tests/d365/data/approve-purchase-requisitionData.json",
+      "datasetCount": 2,
+      "lastRunAt": "2024-01-12T11:00:00Z",
+      "lastStatus": "passed",
+      "lastRunId": "run-20240112-110000",
+      "tags": ["procurement", "approval"]
+    },
+    {
+      "testName": "create-production-order",
+      "module": "Manufacturing",
+      "specPath": "tests/d365/specs/create-production-order/create-production-order.spec.ts",
+      "dataPath": "tests/d365/data/create-production-orderData.json",
+      "datasetCount": 3,
+      "lastRunAt": "2024-01-11T15:45:00Z",
+      "lastStatus": "passed",
+      "lastRunId": "run-20240111-154500",
+      "tags": ["manufacturing", "production"]
+    },
+    {
+      "testName": "post-vendor-invoice",
+      "module": "Accounts Payable",
+      "specPath": "tests/d365/specs/post-vendor-invoice/post-vendor-invoice.spec.ts",
+      "dataPath": "tests/d365/data/post-vendor-invoiceData.json",
+      "datasetCount": 6,
+      "lastRunAt": "2024-01-10T09:30:00Z",
+      "lastStatus": "passed",
+      "lastRunId": "run-20240110-093000",
+      "tags": ["ap", "finance"]
+    },
+    {
+      "testName": "create-customer-payment",
+      "module": "Accounts Receivable",
+      "specPath": "tests/d365/specs/create-customer-payment/create-customer-payment.spec.ts",
+      "dataPath": "tests/d365/data/create-customer-paymentData.json",
+      "datasetCount": 3,
+      "lastRunAt": "2024-01-09T14:20:00Z",
+      "lastStatus": "failed",
+      "lastRunId": "run-20240109-142000",
+      "tags": ["ar", "payment"]
+    },
+    {
+      "testName": "inventory-adjustment",
+      "module": "Warehouse",
+      "specPath": "tests/d365/specs/inventory-adjustment/inventory-adjustment.spec.ts",
+      "dataPath": "tests/d365/data/inventory-adjustmentData.json",
+      "datasetCount": 1,
+      "lastRunAt": "2024-01-08T16:00:00Z",
+      "lastStatus": "passed",
+      "lastRunId": "run-20240108-160000",
+      "tags": ["warehouse", "inventory"]
+    },
+    {
+      "testName": "sales-quotation",
+      "module": "Sales",
+      "specPath": "tests/d365/specs/sales-quotation/sales-quotation.spec.ts",
+      "dataPath": "tests/d365/data/sales-quotationData.json",
+      "datasetCount": 4,
+      "lastStatus": "never_run",
+      "tags": ["sales", "quotation"]
+    },
+    {
+      "testName": "vendor-payment",
+      "module": "Accounts Payable",
+      "specPath": "tests/d365/specs/vendor-payment/vendor-payment.spec.ts",
+      "dataPath": "tests/d365/data/vendor-paymentData.json",
+      "datasetCount": 2,
+      "lastRunAt": "2024-01-07T10:15:00Z",
+      "lastStatus": "passed",
+      "lastRunId": "run-20240107-101500",
+      "tags": ["ap", "payment"]
+    },
+    {
+      "testName": "product-master-data",
+      "module": "Product Information",
+      "specPath": "tests/d365/specs/product-master-data/product-master-data.spec.ts",
+      "dataPath": "tests/d365/data/product-master-dataData.json",
+      "datasetCount": 8,
+      "lastRunAt": "2024-01-06T13:30:00Z",
+      "lastStatus": "passed",
+      "lastRunId": "run-20240106-133000",
+      "tags": ["product", "master-data"]
+    }
+  ]
+}

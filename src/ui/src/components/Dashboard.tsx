@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Grid, Text, Group, Button, Loader, Center, Badge } from '@mantine/core';
-import { Library, PlayCircle, BarChart3, Plus, Bug, Eye } from 'lucide-react';
+import { Library, PlayCircle, BarChart3, Plus, Bug, Eye, Play } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { TestSummary } from '../../../types/v1.5';
 import './Dashboard.css';
+
+// Check if we're in demo mode (web environment)
+const isDemoMode = typeof window !== 'undefined' && !window.electronAPI;
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -86,8 +89,35 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  const handleStartTour = () => {
+    // Trigger tour by setting a custom event or localStorage flag
+    window.dispatchEvent(new CustomEvent('start-demo-tour'));
+  };
+
   return (
     <div className="dashboard">
+      {/* Demo Tour CTA */}
+      {isDemoMode && (
+        <Card padding="md" radius="md" withBorder mb="xl" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)' }}>
+          <Group justify="space-between" align="center">
+            <div>
+              <Text fw={600} size="lg" mb={4}>New to QA Studio?</Text>
+              <Text size="sm" c="dimmed">
+                Take a guided tour to learn about all the features and capabilities
+              </Text>
+            </div>
+            <Button
+              leftSection={<Play size={16} />}
+              variant="filled"
+              color="blue"
+              onClick={handleStartTour}
+            >
+              Start Tour
+            </Button>
+          </Group>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <Grid gutter="md" mb="xl">
         <Grid.Col span={{ base: 12, sm: 6, md: 4, lg: 2.4 }}>

@@ -92,7 +92,7 @@ const LocatorsScreen: React.FC = () => {
   const filteredLocators = locators.filter(loc => {
     const matchesSearch = !searchQuery || 
       loc.locator.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      loc.usedInTests.some(test => test.toLowerCase().includes(searchQuery.toLowerCase()));
+      (loc.usedInTests || []).some(test => test.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesType = !typeFilter || loc.type === typeFilter;
     return matchesSearch && matchesType;
   });
@@ -100,7 +100,7 @@ const LocatorsScreen: React.FC = () => {
   const types = Array.from(new Set(locators.map(l => l.type)));
 
   const handleViewInTest = (locator: LocatorIndexEntry) => {
-    if (locator.usedInTests.length > 0) {
+    if (locator.usedInTests && locator.usedInTests.length > 0) {
       navigate(`/tests/${locator.usedInTests[0]}`, { state: { initialTab: 'locators', highlightLocator: locator.locator } });
     }
   };
@@ -108,7 +108,7 @@ const LocatorsScreen: React.FC = () => {
   const openEditModal = (locator: LocatorIndexEntry) => {
     setEditingLocator(locator);
     setEditedSnippet(locator.locator);
-    setEditedTests(locator.usedInTests);
+    setEditedTests(locator.usedInTests || []);
     setEditModalOpen(true);
   };
 
@@ -252,14 +252,14 @@ const LocatorsScreen: React.FC = () => {
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs">
-                      {locator.usedInTests.slice(0, 3).map(test => (
+                      {(locator.usedInTests || []).slice(0, 3).map(test => (
                         <Chip key={test} size="xs" variant="light">
                           {test}
                         </Chip>
                       ))}
-                      {locator.usedInTests.length > 3 && (
+                      {(locator.usedInTests || []).length > 3 && (
                         <Chip size="xs" variant="light">
-                          +{locator.usedInTests.length - 3}
+                          +{(locator.usedInTests || []).length - 3}
                         </Chip>
                       )}
                     </Group>
@@ -303,7 +303,7 @@ const LocatorsScreen: React.FC = () => {
             />
             <MultiSelect
               label="Apply to tests"
-              data={editingLocator.usedInTests.map(test => ({ value: test, label: test }))}
+              data={(editingLocator.usedInTests || []).map(test => ({ value: test, label: test }))}
               value={editedTests}
               onChange={setEditedTests}
               description="Choose which tests should be updated."

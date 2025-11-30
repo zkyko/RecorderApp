@@ -20,6 +20,7 @@ import {
   Crosshair,
 } from 'lucide-react';
 import { ipc } from '../ipc';
+import { getBackend } from '../ipc-backend';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { notifications } from '@mantine/notifications';
 
@@ -80,7 +81,8 @@ const BrowseLocator: React.FC<BrowseLocatorProps> = ({ opened, onClose }) => {
       // Load config to get D365 URL and storage state
       const loadConfig = async () => {
         try {
-          const config = await (window.electronAPI as any)?.getConfig();
+          const backend = getBackend();
+          const config = await backend?.getConfig();
           if (config) {
             if (config.d365Url) {
               setD365Url(config.d365Url);

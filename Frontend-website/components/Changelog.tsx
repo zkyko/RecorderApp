@@ -15,6 +15,21 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: "1.6.0",
+    date: "December 2025",
+    type: "feature",
+    title: "Web Demo Mode - Try QA Studio in Your Browser",
+    description: "Experience QA Studio's full interface directly in your browser with our new interactive web demo. No installation required - explore all features, see realistic mock data, and get a feel for the platform before downloading.",
+    items: [
+      "Interactive Web Demo - Full QA Studio UI accessible at /demo with no installation required",
+      "Realistic Mock Data - Explore tests, runs, locators, and AI explanations with pre-populated demo data",
+      "Guided Tour Mode - Step-by-step walkthrough highlighting key features and workflows",
+      "Desktop-Only Feature Detection - Clear indicators when features require the desktop app",
+      "Seamless UI Parity - Same React components and design as the desktop application",
+      "Marketplace Preview - See integration vision for JIRA, BrowserStack, Salesforce, and more"
+    ]
+  },
+  {
     version: "1.5.0",
     date: "November 28, 2025",
     type: "feature",

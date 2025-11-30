@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getBackend } from '../ipc-backend';
 import './TestRunner.css';
 
 interface TestRunnerProps {
@@ -29,26 +30,27 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
     loadBrowserStackCredentials();
     
     // Set up test output listeners
-    if (window.electronAPI) {
-      window.electronAPI.onTestOutput((data) => {
+    const backend = getBackend();
+    if (backend) {
+      backend.onTestOutput?.((data) => {
         setConsoleOutput(prev => [...prev, data]);
         setTestStatus('running');
       });
       
-      window.electronAPI.onTestError((data) => {
+      backend.onTestError?.((data) => {
         setConsoleOutput(prev => [...prev, `[ERROR] ${data}`]);
         setTestStatus('running');
       });
       
-      window.electronAPI.onTestClose((code) => {
+      backend.onTestClose?.((code) => {
         setIsRunning(false);
         setTestStatus(code === 0 ? 'passed' : 'failed');
       });
     }
 
     return () => {
-      if (window.electronAPI) {
-        window.electronAPI.removeTestListeners();
+      if (backend) {
+        backend.removeTestListeners?.();
       }
     };
   }, []);
@@ -61,10 +63,11 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
   }, [consoleOutput]);
 
   const loadSpecFiles = async () => {
-    if (!window.electronAPI) return;
+    const backend = getBackend();
+    if (!backend) return;
     
     try {
-      const result = await window.electronAPI.listSpecFiles();
+      const result = await backend.listSpecFiles?.();
       if (result.success && result.specFiles) {
         setSpecFiles(result.specFiles);
         // Auto-select first file if available
@@ -78,10 +81,11 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
   };
 
   const loadBrowserStackCredentials = async () => {
-    if (!window.electronAPI) return;
+    const backend = getBackend();
+    if (!backend) return;
     
     try {
-      const creds = await window.electronAPI.getBrowserStackCredentials();
+      const creds = await backend.getBrowserStackCredentials?.();
       setBrowserstackUsername(creds.username || '');
       setBrowserstackAccessKey(creds.accessKey || '');
     } catch (error) {
@@ -97,11 +101,12 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
     setConsoleOutput([]);
     setTestStatus('idle');
 
-    if (!window.electronAPI || !specFile) return;
+    const backend = getBackend();
+    if (!backend || !specFile) return;
 
     try {
       // Find associated data file and detect parameters
-      const result = await window.electronAPI.findDataFile(specFile);
+      const result = await backend.findDataFile?.(specFile);
       if (result.success) {
         // Store detected parameters
         if (result.parameters && result.parameters.length > 0) {
@@ -113,7 +118,7 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
           
           // Load the data if file exists
           if (result.hasDataFile) {
-            const dataResult = await window.electronAPI.loadTestData(result.dataFilePath);
+            const dataResult = await backend.loadTestData?.(result.dataFilePath);
             if (dataResult.success && dataResult.data) {
               setTestData(Array.isArray(dataResult.data) ? dataResult.data : [dataResult.data]);
             }
@@ -150,7 +155,8 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
   };
 
   const handleSaveData = async () => {
-    if (!window.electronAPI) return;
+    const backend = getBackend();
+    if (!backend) return;
 
     try {
       setIsLoading(true);
@@ -170,7 +176,7 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
         return;
       }
       
-      const result = await window.electronAPI.saveTestData(filePath, testData);
+      const result = await backend.saveTestData?.(filePath, testData);
       if (result.success) {
         alert('Test data saved successfully!');
       } else {
@@ -184,7 +190,8 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
   };
 
   const handleRunLocal = async () => {
-    if (!window.electronAPI || !selectedSpec) return;
+    const backend = getBackend();
+    if (!backend || !selectedSpec) return;
 
     // Save data first
     if (dataFilePath && testData.length > 0) {
@@ -196,7 +203,7 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
       setTestStatus('running');
       setConsoleOutput(['Starting test execution...\n']);
       
-      const result = await window.electronAPI.runTestLocal(selectedSpec);
+      const result = await backend.runTestLocal?.(selectedSpec);
       if (!result.success) {
         setTestStatus('failed');
         setConsoleOutput(prev => [...prev, `[ERROR] ${result.error}\n`]);
@@ -210,7 +217,8 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
   };
 
   const handleRunBrowserStack = async () => {
-    if (!window.electronAPI || !selectedSpec) return;
+    const backend = getBackend();
+    if (!backend || !selectedSpec) return;
 
     // Check credentials
     if (!browserstackUsername || !browserstackAccessKey) {
@@ -229,7 +237,7 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
       setTestStatus('running');
       setConsoleOutput(['Starting test execution on BrowserStack...\n']);
       
-      const result = await window.electronAPI.runTestBrowserStack(selectedSpec);
+      const result = await backend.runTestBrowserStack?.(selectedSpec);
       if (!result.success) {
         setTestStatus('failed');
         setConsoleOutput(prev => [...prev, `[ERROR] ${result.error}\n`]);
@@ -243,18 +251,20 @@ const TestRunner: React.FC<TestRunnerProps> = ({ onClose }) => {
   };
 
   const handleStop = async () => {
-    if (!window.electronAPI) return;
+    const backend = getBackend();
+    if (!backend) return;
     
-    await window.electronAPI.stopTest();
+    await backend.stopTest?.();
     setIsRunning(false);
     setTestStatus('idle');
   };
 
   const handleSaveBrowserStackSettings = async () => {
-    if (!window.electronAPI) return;
+    const backend = getBackend();
+    if (!backend) return;
 
     try {
-      await window.electronAPI.setBrowserStackCredentials(browserstackUsername, browserstackAccessKey);
+      await backend.setBrowserStackCredentials?.(browserstackUsername, browserstackAccessKey);
       setShowBrowserStackSettings(false);
       alert('BrowserStack credentials saved!');
     } catch (error: any) {

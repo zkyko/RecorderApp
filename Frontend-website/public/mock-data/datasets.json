@@ -1,0 +1,45 @@
+{
+  "rows": [
+    {
+      "id": "row-1",
+      "enabled": true,
+      "customerName": "Acme Corporation",
+      "customerAccount": "US-001",
+      "itemNumber": "A0001",
+      "quantity": "10",
+      "unitPrice": "150.00",
+      "expectedTotal": "1500.00"
+    },
+    {
+      "id": "row-2",
+      "enabled": true,
+      "customerName": "Contoso Ltd",
+      "customerAccount": "US-002",
+      "itemNumber": "A0002",
+      "quantity": "5",
+      "unitPrice": "200.00",
+      "expectedTotal": "1000.00"
+    },
+    {
+      "id": "row-3",
+      "enabled": false,
+      "customerName": "Fabrikam Inc",
+      "customerAccount": "US-003",
+      "itemNumber": "A0003",
+      "quantity": "20",
+      "unitPrice": "75.00",
+      "expectedTotal": "1500.00"
+    },
+    {
+      "id": "row-4",
+      "enabled": true,
+      "customerName": "Adventure Works",
+      "customerAccount": "US-004",
+      "itemNumber": "A0001",
+      "quantity": "15",
+      "unitPrice": "150.00",
+      "expectedTotal": "2250.00"
+    }
+  ]
+}
+

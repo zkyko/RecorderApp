@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Grid, Text, Group, Button, TextInput, Select, Loader, Center, Badge } from '@mantine/core';
 import { Play, Edit, FileText, Plus, Bug } from 'lucide-react';
 import { ipc } from '../ipc';
+import { getBackend } from '../ipc-backend';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { TestSummary } from '../../../types/v1.5';
 import RunModal from './RunModal';
@@ -18,6 +19,7 @@ const TestLibrary: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [runModalOpened, setRunModalOpened] = useState(false);
   const [selectedTest, setSelectedTest] = useState<TestSummary | null>(null);
+  const [testsWithTraces, setTestsWithTraces] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadTests();
@@ -25,7 +27,8 @@ const TestLibrary: React.FC = () => {
 
   // Listen for test status updates
   useEffect(() => {
-    if (!window.electronAPI?.onTestUpdate) return;
+    const backend = getBackend();
+    if (!backend?.onTestUpdate) return;
 
     const handleTestUpdate = (data: { workspacePath: string; testName: string; status: 'passed' | 'failed'; lastRunAt: string; lastRunId: string }) => {
       // Only refresh if the update is for the current workspace
@@ -34,11 +37,11 @@ const TestLibrary: React.FC = () => {
       }
     };
 
-    window.electronAPI.onTestUpdate(handleTestUpdate);
+    backend.onTestUpdate(handleTestUpdate);
 
     return () => {
-      if (window.electronAPI?.removeTestUpdateListener) {
-        window.electronAPI.removeTestUpdateListener();
+      if (backend?.removeTestUpdateListener) {
+        backend.removeTestUpdateListener();
       }
     };
   }, [workspacePath]);

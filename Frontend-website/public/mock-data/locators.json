@@ -1,0 +1,126 @@
+{
+  "locators": [
+    {
+      "locator": "page.getByRole('button', { name: 'New' })",
+      "type": "role",
+      "lines": [15, 23, 45, 67, 89],
+      "name": "New Button",
+      "status": "stable",
+      "tests": ["create-sales-order", "process-purchase-order", "create-production-order"]
+    },
+    {
+      "locator": "page.getByLabel('Customer account')",
+      "type": "label",
+      "lines": [28, 52],
+      "name": "Customer Account Field",
+      "status": "stable",
+      "tests": ["create-sales-order", "customer-invoice"]
+    },
+    {
+      "locator": "page.locator('[data-dyn-controlname=\"SalesLine_ItemId\"]')",
+      "type": "d365-controlname",
+      "lines": [32, 48, 71],
+      "name": "Item Number Field",
+      "status": "stable",
+      "tests": ["create-sales-order", "warehouse-transfer"]
+    },
+    {
+      "locator": "page.getByRole('button', { name: 'Save' })",
+      "type": "role",
+      "lines": [56, 78, 92],
+      "name": "Save Button",
+      "status": "stable",
+      "tests": ["create-sales-order", "process-purchase-order", "create-production-order", "post-vendor-invoice"]
+    },
+    {
+      "locator": "page.getByText('Sales orders')",
+      "type": "text",
+      "lines": [5, 12],
+      "name": "Sales Orders Link",
+      "status": "stable",
+      "tests": ["create-sales-order", "sales-quotation"]
+    },
+    {
+      "locator": "page.getByRole('button', { name: 'Post' })",
+      "type": "role",
+      "lines": [41, 63],
+      "name": "Post Button",
+      "status": "stable",
+      "tests": ["post-vendor-invoice", "customer-invoice"]
+    },
+    {
+      "locator": "page.locator('[data-dyn-controlname=\"PurchTable_PurchId\"]')",
+      "type": "d365-controlname",
+      "lines": [19, 35],
+      "name": "Purchase Order Number",
+      "status": "stable",
+      "tests": ["process-purchase-order", "approve-purchase-requisition"]
+    },
+    {
+      "locator": "page.getByLabel('Vendor account')",
+      "type": "label",
+      "lines": [24],
+      "name": "Vendor Account Field",
+      "status": "stable",
+      "tests": ["process-purchase-order", "post-vendor-invoice"]
+    },
+    {
+      "locator": "page.getByRole('button', { name: 'Transfer' })",
+      "type": "role",
+      "lines": [38],
+      "name": "Transfer Button",
+      "status": "unstable",
+      "tests": ["warehouse-transfer"],
+      "issues": ["Element sometimes not found - timing issue"]
+    },
+    {
+      "locator": "page.getByLabel('Payment amount')",
+      "type": "label",
+      "lines": [31],
+      "name": "Payment Amount Field",
+      "status": "unstable",
+      "tests": ["create-customer-payment", "vendor-payment"],
+      "issues": ["Timeout: element appears slowly"]
+    },
+    {
+      "locator": "page.getByRole('button', { name: 'Approve' })",
+      "type": "role",
+      "lines": [27],
+      "name": "Approve Button",
+      "status": "stable",
+      "tests": ["approve-purchase-requisition"]
+    },
+    {
+      "locator": "page.locator('[data-dyn-controlname=\"InventTable_ItemId\"]')",
+      "type": "d365-controlname",
+      "lines": [18, 29, 44],
+      "name": "Item ID Field",
+      "status": "stable",
+      "tests": ["inventory-adjustment", "warehouse-transfer", "product-master-data"]
+    },
+    {
+      "locator": "page.getByText('Product information management')",
+      "type": "text",
+      "lines": [8],
+      "name": "Product Info Link",
+      "status": "stable",
+      "tests": ["product-master-data"]
+    },
+    {
+      "locator": "page.getByRole('button', { name: 'Confirm' })",
+      "type": "role",
+      "lines": [51, 73],
+      "name": "Confirm Button",
+      "status": "stable",
+      "tests": ["create-production-order", "inventory-adjustment"]
+    },
+    {
+      "locator": "page.getByLabel('Quantity')",
+      "type": "label",
+      "lines": [22, 36, 58],
+      "name": "Quantity Field",
+      "status": "stable",
+      "tests": ["warehouse-transfer", "inventory-adjustment", "create-production-order"]
+    }
+  ]
+}

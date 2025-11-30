@@ -1,0 +1,119 @@
+{
+  "runs": [
+    {
+      "runId": "run-20240115-103000",
+      "testName": "create-sales-order",
+      "specRelPath": "tests/d365/specs/create-sales-order/create-sales-order.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-15T10:30:00Z",
+      "finishedAt": "2024-01-15T10:32:15Z",
+      "duration": 135000,
+      "tracePaths": ["traces/run-20240115-103000-trace.zip"],
+      "reportPath": "reports/run-20240115-103000.html",
+      "allureReportPath": "allure-report/index.html"
+    },
+    {
+      "runId": "run-20240114-142000",
+      "testName": "process-purchase-order",
+      "specRelPath": "tests/d365/specs/process-purchase-order/process-purchase-order.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-14T14:20:00Z",
+      "finishedAt": "2024-01-14T14:22:30Z",
+      "duration": 150000,
+      "tracePaths": ["traces/run-20240114-142000-trace.zip"]
+    },
+    {
+      "runId": "run-20240113-091500",
+      "testName": "warehouse-transfer",
+      "specRelPath": "tests/d365/specs/warehouse-transfer/warehouse-transfer.spec.ts",
+      "status": "failed",
+      "startedAt": "2024-01-13T09:15:00Z",
+      "finishedAt": "2024-01-13T09:17:45Z",
+      "duration": 165000,
+      "tracePaths": ["traces/run-20240113-091500-trace.zip"],
+      "reportPath": "reports/run-20240113-091500.html",
+      "error": "Element not found: page.getByRole('button', { name: 'Transfer' })"
+    },
+    {
+      "runId": "run-20240112-160000",
+      "testName": "create-sales-order",
+      "specRelPath": "tests/d365/specs/create-sales-order/create-sales-order.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-12T16:00:00Z",
+      "finishedAt": "2024-01-12T16:02:10Z",
+      "duration": 130000
+    },
+    {
+      "runId": "run-20240112-110000",
+      "testName": "approve-purchase-requisition",
+      "specRelPath": "tests/d365/specs/approve-purchase-requisition/approve-purchase-requisition.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-12T11:00:00Z",
+      "finishedAt": "2024-01-12T11:01:45Z",
+      "duration": 105000,
+      "tracePaths": ["traces/run-20240112-110000-trace.zip"]
+    },
+    {
+      "runId": "run-20240111-154500",
+      "testName": "create-production-order",
+      "specRelPath": "tests/d365/specs/create-production-order/create-production-order.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-11T15:45:00Z",
+      "finishedAt": "2024-01-11T15:48:20Z",
+      "duration": 200000,
+      "tracePaths": ["traces/run-20240111-154500-trace.zip"]
+    },
+    {
+      "runId": "run-20240110-093000",
+      "testName": "post-vendor-invoice",
+      "specRelPath": "tests/d365/specs/post-vendor-invoice/post-vendor-invoice.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-10T09:30:00Z",
+      "finishedAt": "2024-01-10T09:33:15Z",
+      "duration": 195000,
+      "tracePaths": ["traces/run-20240110-093000-trace.zip"]
+    },
+    {
+      "runId": "run-20240109-142000",
+      "testName": "create-customer-payment",
+      "specRelPath": "tests/d365/specs/create-customer-payment/create-customer-payment.spec.ts",
+      "status": "failed",
+      "startedAt": "2024-01-09T14:20:00Z",
+      "finishedAt": "2024-01-09T14:22:10Z",
+      "duration": 130000,
+      "tracePaths": ["traces/run-20240109-142000-trace.zip"],
+      "reportPath": "reports/run-20240109-142000.html",
+      "error": "Timeout: page.getByLabel('Payment amount') did not appear within 30000ms"
+    },
+    {
+      "runId": "run-20240108-160000",
+      "testName": "inventory-adjustment",
+      "specRelPath": "tests/d365/specs/inventory-adjustment/inventory-adjustment.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-08T16:00:00Z",
+      "finishedAt": "2024-01-08T16:01:30Z",
+      "duration": 90000,
+      "tracePaths": ["traces/run-20240108-160000-trace.zip"]
+    },
+    {
+      "runId": "run-20240107-101500",
+      "testName": "vendor-payment",
+      "specRelPath": "tests/d365/specs/vendor-payment/vendor-payment.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-07T10:15:00Z",
+      "finishedAt": "2024-01-07T10:17:00Z",
+      "duration": 120000,
+      "tracePaths": ["traces/run-20240107-101500-trace.zip"]
+    },
+    {
+      "runId": "run-20240106-133000",
+      "testName": "product-master-data",
+      "specRelPath": "tests/d365/specs/product-master-data/product-master-data.spec.ts",
+      "status": "passed",
+      "startedAt": "2024-01-06T13:30:00Z",
+      "finishedAt": "2024-01-06T13:35:45Z",
+      "duration": 345000,
+      "tracePaths": ["traces/run-20240106-133000-trace.zip"]
+    }
+  ]
+}

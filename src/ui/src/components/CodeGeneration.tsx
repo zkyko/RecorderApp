@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getBackend } from '../ipc-backend';
 import './CodeGeneration.css';
 
 interface CodeGenerationProps {
@@ -29,8 +30,9 @@ const CodeGeneration: React.FC<CodeGenerationProps> = ({ sessionId }) => {
 
   // Load config on mount to set default directories
   useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI.getConfig().then((config) => {
+    const backend = getBackend();
+    if (backend) {
+      backend.getConfig().then((config) => {
         const recordingsDir = config.recordingsDir || 'Recordings';
         setPagesDir(`${recordingsDir}/pages`);
         setTestsDir(`${recordingsDir}/tests`);
@@ -43,8 +45,9 @@ const CodeGeneration: React.FC<CodeGenerationProps> = ({ sessionId }) => {
     setResult(null);
 
     try {
-      if (!window.electronAPI) {
-        throw new Error('Electron API not available');
+      const backend = getBackend();
+      if (!backend) {
+        throw new Error('Backend not available');
       }
 
       const outputConfig = {
@@ -53,7 +56,7 @@ const CodeGeneration: React.FC<CodeGenerationProps> = ({ sessionId }) => {
         module: module || undefined,
       };
 
-      const generated = await window.electronAPI.generateCode(sessionId, outputConfig);
+      const generated = await backend.generateCode(sessionId, outputConfig);
       setResult(generated);
     } catch (error: any) {
       setResult({ success: false, error: error.message });

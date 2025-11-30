@@ -10,9 +10,13 @@ import {
   Save, 
   RefreshCw,
   FileText,
-  Download
+  Download,
+  Home
 } from 'lucide-react';
 import './TopToolbar.css';
+
+// Check if we're in demo mode (web environment)
+const isDemoMode = typeof window !== 'undefined' && !window.electronAPI;
 
 const TopToolbar: React.FC = () => {
   const location = useLocation();
@@ -204,6 +208,33 @@ const TopToolbar: React.FC = () => {
           {left || <h2 className="toolbar-title">{title}</h2>}
         </div>
         <div className="toolbar-right">
+          {isDemoMode && (
+            <>
+              <Button
+                component="a"
+                href="/"
+                leftSection={<Home size={16} />}
+                variant="subtle"
+                color="gray"
+                size="sm"
+                style={{ marginRight: '8px' }}
+              >
+                Exit Demo
+              </Button>
+              <Button
+                component="a"
+                href="/download"
+                target="_blank"
+                leftSection={<Download size={16} />}
+                variant="filled"
+                color="blue"
+                size="sm"
+                style={{ marginRight: right ? '8px' : 0 }}
+              >
+                Download Desktop App
+              </Button>
+            </>
+          )}
           {right}
         </div>
       </div>

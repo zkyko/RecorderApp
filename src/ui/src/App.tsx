@@ -20,8 +20,10 @@ import ReportDashboard from './components/ReportDashboard';
 import SettingsScreen from './components/SettingsScreen';
 import SetupScreen from './components/SetupScreen';
 import LoginDialog from './components/LoginDialog';
+import MarketplaceScreen from './components/MarketplaceScreen';
 import { useWorkspaceStore } from './store/workspace-store';
 import { ipc } from './ipc';
+import { getBackend } from './ipc-backend';
 import './App.css';
 
 function AppContent() {
@@ -46,15 +48,17 @@ function AppContent() {
 
   useEffect(() => {
     addDebugLog('AppContent mounted');
-    addDebugLog(`window.electronAPI available: ${!!window.electronAPI}`);
+    const backend = getBackend();
+    addDebugLog(`Backend available: ${!!backend}`);
     loadCurrentWorkspace();
   }, []);
 
   const checkStorageStateStatus = useCallback(async () => {
-    if (!window.electronAPI) return;
+    const backend = getBackend();
+    if (!backend) return;
 
     try {
-      const status = await (window.electronAPI as any).checkStorageState();
+      const status = await backend.checkStorageState();
       if (status.status === 'expired' && !expiredNotificationShown.current) {
         expiredNotificationShown.current = true;
         notifications.show({
@@ -81,10 +85,11 @@ function AppContent() {
 
   const checkAuthentication = useCallback(async () => {
     addDebugLog('checkAuthentication called');
-    if (window.electronAPI) {
+    const backend = getBackend();
+    if (backend) {
       try {
-        addDebugLog('Calling window.electronAPI.checkAuth()');
-        const authStatus = await window.electronAPI.checkAuth();
+        addDebugLog('Calling backend.checkAuth()');
+        const authStatus = await backend.checkAuth();
         addDebugLog(`Auth status: needsLogin=${authStatus.needsLogin}, hasStorageState=${authStatus.hasStorageState}`);
         if (authStatus.needsLogin) {
           addDebugLog('Needs login, showing login dialog');
@@ -105,21 +110,31 @@ function AppContent() {
         setShowLogin(true);
       }
     } else {
-      addDebugLog('ERROR: window.electronAPI not available in checkAuthentication');
+      addDebugLog('ERROR: Backend not available in checkAuthentication');
     }
   }, [checkStorageStateStatus]);
 
   const loadConfig = useCallback(async () => {
     addDebugLog('loadConfig called');
-    if (!window.electronAPI) {
-      addDebugLog('ERROR: window.electronAPI not available in loadConfig');
-      setIsLoadingConfig(false);
+    const backend = getBackend();
+    if (!backend) {
+      addDebugLog('WARNING: Backend not available in loadConfig, will retry');
+      // Don't throw - backend might be injected soon (e.g., in demo mode)
+      // Retry after a short delay
+      setTimeout(() => {
+        const retryBackend = getBackend();
+        if (retryBackend) {
+          loadConfig();
+        } else {
+          setIsLoadingConfig(false);
+        }
+      }, 100);
       return;
     }
 
     try {
-      addDebugLog('Calling window.electronAPI.getConfig()');
-      const cfg = await (window.electronAPI as any).getConfig();
+      addDebugLog('Calling backend.getConfig()');
+      const cfg = await backend.getConfig();
       addDebugLog(`Config loaded: isSetupComplete=${cfg?.isSetupComplete}`);
       setConfig(cfg);
       
@@ -166,8 +181,17 @@ function AppContent() {
 
   const loadCurrentWorkspace = async () => {
     addDebugLog('loadCurrentWorkspace called');
-    if (!window.electronAPI) {
-      addDebugLog('ERROR: window.electronAPI not available');
+    const backend = getBackend();
+    if (!backend) {
+      addDebugLog('WARNING: Backend not available yet, will retry');
+      // Don't throw - backend might be injected soon (e.g., in demo mode)
+      // Retry after a short delay
+      setTimeout(() => {
+        const retryBackend = getBackend();
+        if (retryBackend) {
+          loadCurrentWorkspace();
+        }
+      }, 100);
       return;
     }
 
@@ -240,23 +264,27 @@ function AppContent() {
     setIsAuthenticated(true);
   };
 
+  // Check if backend is available (graceful handling for demo mode)
+  const backend = getBackend();
+  if (!backend) {
+    return (
+      <div className="app">
+        <div style={{ padding: '2rem', textAlign: 'center', color: 'white' }}>
+          <p>Loading demo backend...</p>
+          <p style={{ fontSize: '12px', marginTop: '1rem', opacity: 0.7 }}>
+            Initializing QA Studio Web Demo
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Show loading while config loads
   if (isLoadingConfig || !config) {
     return (
       <div className="app">
         <div style={{ padding: '2rem', textAlign: 'center', color: 'white' }}>
           <p>Loading...</p>
-          <p style={{ fontSize: '12px', marginTop: '1rem', opacity: 0.7 }}>
-            isLoadingConfig: {isLoadingConfig ? 'true' : 'false'}, config: {config ? 'loaded' : 'null'}
-          </p>
-          {debugLogsRef.current.length > 0 && (
-            <div style={{ marginTop: '1rem', textAlign: 'left', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflow: 'auto' }}>
-              <strong>Debug Log:</strong>
-              {debugLogsRef.current.map((log, i) => (
-                <div key={i} style={{ marginTop: '4px' }}>{log}</div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     );
@@ -315,37 +343,6 @@ function AppContent() {
 
   return (
     <div className="app">
-      {/* Debug overlay - remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <div style={{
-          position: 'fixed',
-          top: '10px',
-          right: '10px',
-          background: 'rgba(0,0,0,0.8)',
-          color: 'white',
-          padding: '10px',
-          fontSize: '10px',
-          fontFamily: 'monospace',
-          zIndex: 10000,
-          maxWidth: '400px',
-          maxHeight: '300px',
-          overflow: 'auto',
-          borderRadius: '4px',
-          border: '1px solid #555'
-        }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Debug Info</div>
-          <div>isLoadingConfig: {isLoadingConfig ? 'true' : 'false'}</div>
-          <div>config: {config ? 'loaded' : 'null'}</div>
-          <div>isSetupComplete: {config?.isSetupComplete ? 'true' : 'false'}</div>
-          <div>isAuthenticated: {isAuthenticated ? 'true' : 'false'}</div>
-          <div>showLogin: {showLogin ? 'true' : 'false'}</div>
-          <div>currentWorkspace: {currentWorkspace ? currentWorkspace.id : 'null'}</div>
-          <div style={{ marginTop: '10px', fontWeight: 'bold' }}>Recent Logs:</div>
-          {debugLogsRef.current.slice(-5).map((log, i) => (
-            <div key={i} style={{ marginTop: '2px', fontSize: '9px' }}>{log}</div>
-          ))}
-        </div>
-      )}
       <Routes>
         <Route path="/setup" element={<SetupScreen onSetupComplete={handleSetupComplete} />} />
         <Route path="/login" element={<LoginDialog onLoginSuccess={handleLoginSuccess} />} />
@@ -367,6 +364,7 @@ function AppContent() {
           <Route path="/report/:testName/:runId" element={<ReportViewerScreen />} />
           <Route path="/report/:runId" element={<ReportViewerScreen />} />
           <Route path="/report" element={<ReportDashboard />} />
+          <Route path="/marketplace" element={<MarketplaceScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
         </Route>
       </Routes>

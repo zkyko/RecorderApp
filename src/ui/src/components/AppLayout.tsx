@@ -36,19 +36,39 @@ interface AppLayoutProps {
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const location = useLocation();
 
+  // Check if we're in demo mode (MantineProvider already provided by layout)
+  const isDemoMode = typeof window !== 'undefined' && !window.electronAPI;
+
+  // In demo mode, don't wrap in MantineProvider again (it's in the layout)
+  // In Electron mode, provide MantineProvider
+  const content = (
+    <div className="app-layout">
+      <Sidebar />
+      <div className="app-main">
+        <TopToolbar />
+        <div className="app-content">
+          <HintPanel />
+          {children || <Outlet />}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isDemoMode) {
+    // Demo mode: MantineProvider is in the Next.js layout
+    return (
+      <>
+        <Notifications position="top-right" zIndex={1000} />
+        {content}
+      </>
+    );
+  }
+
+  // Electron mode: provide MantineProvider here
   return (
     <MantineProvider theme={darkTheme} defaultColorScheme="dark">
       <Notifications position="top-right" zIndex={1000} />
-      <div className="app-layout">
-        <Sidebar />
-        <div className="app-main">
-          <TopToolbar />
-          <div className="app-content">
-            <HintPanel />
-            {children || <Outlet />}
-          </div>
-        </div>
-      </div>
+      {content}
     </MantineProvider>
   );
 };
