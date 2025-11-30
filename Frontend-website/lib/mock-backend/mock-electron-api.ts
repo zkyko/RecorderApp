@@ -10,10 +10,30 @@ import { mockStore } from './mock-store';
 // Helper to simulate async delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Helper to get base path for assets (handles GitHub Pages basePath)
+// In production, GitHub Pages serves from /RecorderApp basePath
+function getBasePath(): string {
+  if (typeof window === 'undefined') return '';
+  
+  // Check if we're in production with basePath
+  // GitHub Pages uses /RecorderApp as basePath in production
+  const pathname = window.location.pathname;
+  const hostname = window.location.hostname;
+  
+  // If hosted on GitHub Pages (github.io) or pathname starts with /RecorderApp
+  if (hostname.includes('github.io') || pathname.startsWith('/RecorderApp')) {
+    return '/RecorderApp';
+  }
+  
+  // In local development, no basePath
+  return '';
+}
+
 // Helper to load mock data from JSON files
 async function loadMockData<T>(filename: string): Promise<T> {
   try {
-    const response = await fetch(`/mock-data/${filename}`);
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/mock-data/${filename}`);
     if (!response.ok) {
       throw new Error(`Failed to load mock data: ${filename}`);
     }
