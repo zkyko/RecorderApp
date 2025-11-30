@@ -18,9 +18,22 @@ import './TopToolbar.css';
 // Check if we're in demo mode (web environment)
 const isDemoMode = typeof window !== 'undefined' && !window.electronAPI;
 
+// Helper to get base path for GitHub Pages
+function getBasePath(): string {
+  if (typeof window === 'undefined') return '';
+  const pathname = window.location.pathname;
+  const hostname = window.location.hostname;
+  // If hosted on GitHub Pages or pathname starts with /RecorderApp
+  if (hostname.includes('github.io') || pathname.startsWith('/RecorderApp')) {
+    return '/RecorderApp';
+  }
+  return '';
+}
+
 const TopToolbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const basePath = getBasePath();
 
   const getToolbarContent = () => {
     const path = location.pathname;
@@ -212,7 +225,7 @@ const TopToolbar: React.FC = () => {
             <>
               <Button
                 component="a"
-                href="/"
+                href={`${basePath}/`}
                 leftSection={<Home size={16} />}
                 variant="subtle"
                 color="gray"
@@ -223,7 +236,7 @@ const TopToolbar: React.FC = () => {
               </Button>
               <Button
                 component="a"
-                href="/download"
+                href={`${basePath}/download`}
                 target="_blank"
                 leftSection={<Download size={16} />}
                 variant="filled"
