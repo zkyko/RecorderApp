@@ -47,6 +47,25 @@ const RecordScreen: React.FC = () => {
     }
   };
 
+  const checkPlaywrightEnv = async (): Promise<{ cliAvailable: boolean; browsersInstalled: boolean } | null> => {
+    if (!workspacePath) return null;
+    try {
+      const response = await ipc.playwright.checkEnv({ workspacePath });
+      if (response.success) {
+        const cliAvailable = !!response.cliAvailable;
+        const browsersInstalled = !!response.browsersInstalled;
+        // We only use this state for potential future UI; right now the main UI lives in Settings
+        // but keeping it up to date here is harmless.
+        // (No dependency on this state for control flow to avoid race conditions.)
+        return { cliAvailable, browsersInstalled };
+      } else {
+        return { cliAvailable: false, browsersInstalled: false };
+      }
+    } catch {
+      return { cliAvailable: false, browsersInstalled: false };
+    }
+  };
+
   const handleRecordingEngineChange = async (value: string | null) => {
     if (!workspacePath || !value || isRecording) return;
     
@@ -131,6 +150,15 @@ const RecordScreen: React.FC = () => {
         // Construct path manually (can't use Node.js path in browser)
         const defaultPath = `${workspacePath}/storage_state/d365.json`;
         storageStatePath = defaultPath;
+      }
+
+      // If using Playwright Codegen, make sure Playwright CLI is available
+      if (recordingEngine === 'playwright') {
+        const envResult = await checkPlaywrightEnv();
+        if (!envResult || !envResult.cliAvailable) {
+          setError('Playwright CLI is not available on this machine. Open Settings → Recording to install or repair Playwright.');
+          return;
+        }
       }
 
       // Start the appropriate recording engine

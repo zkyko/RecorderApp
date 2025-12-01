@@ -255,13 +255,163 @@ export class RecorderService {
   }
 
   /**
+   * Check if a click is a context-setting click (navigation link, workspace click)
+   * These clicks set up the page context and should not cause navigation steps to be skipped
+   * Uses DOM-aware heuristics: D365 menu attributes, navigation regions, known workspace patterns
+   */
+  private isContextSettingClick(step: RecordedStep): boolean {
+    if (step.action !== 'click' || !step.locator) return false;
+    
+    const description = step.description?.toLowerCase() || '';
+    const name = description;
+    
+    // 1. Check for D365 menu attributes in CSS selector
+    if (step.locator.strategy === 'css') {
+      const selector = (step.locator as any).selector || '';
+      // D365 menu items have specific attributes
+      if (selector.includes('data-dyn-menutext') ||
+          selector.includes('data-dyn-menuitemname') ||
+          selector.includes('data-dyn-quicklink-type') ||
+          selector.includes('[data-dyn-menutype]')) {
+        return true;
+      }
+    }
+    
+    // 2. Check for D365 controlname that indicates menu/navigation
+    if (step.locator.strategy === 'd365-controlname') {
+      const controlName = (step.locator as any).controlName?.toLowerCase() || '';
+      // Menu-related control names
+      if (controlName.includes('menu') || 
+          controlName.includes('navigation') ||
+          controlName.includes('quicklink') ||
+          controlName.includes('tile')) {
+        return true;
+      }
+    }
+    
+    // 3. Check if it's a text-based click with known workspace patterns
+    // Only treat as context if it matches known workspace entry patterns
+    if (step.locator.strategy === 'text') {
+      const knownWorkspaces = [
+        'all sales orders', 'all customers', 'all vendors', 
+        'released products', 'all items', 'all products',
+        'sales orders', 'purchase orders', 'work orders',
+        'all purchase orders', 'all work orders'
+      ];
+      return knownWorkspaces.some(ws => name.includes(ws));
+    }
+    
+    // 4. Check description for workspace/navigation patterns (more specific)
+    const workspacePatterns = [
+      /^all\s+(sales\s+)?orders/i,
+      /^all\s+customers/i,
+      /^all\s+vendors/i,
+      /^released\s+products/i,
+      /^all\s+items/i,
+      /^all\s+products/i
+    ];
+    if (workspacePatterns.some(pattern => pattern.test(description))) {
+      return true;
+    }
+    
+    // 5. Check if clicking into workspace/content area (but be more specific)
+    if (step.locator.strategy === 'css') {
+      const selector = (step.locator as any).selector || '';
+      // Only treat as context if it's clearly a workspace tile or main content
+      const isWorkspaceTile = selector.includes('[data-dyn-tile]') ||
+                              selector.includes('.workspace-tile') ||
+                              selector.includes('[role="main"]') ||
+                              (selector.includes('body') && description.includes('workspace'));
+      if (isWorkspaceTile) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Check if a click is a toolbar button that requires workspace context
+   * These buttons (like "New", "Delete", "Save") need the page to be loaded first
+   * Uses DOM-aware heuristics: D365 control names, toolbar regions, semantic button names
+   */
+  private isToolbarButton(step: RecordedStep): boolean {
+    if (step.action !== 'click' || !step.locator) return false;
+    
+    const description = step.description?.toLowerCase() || '';
+    const name = (step.locator as any).name?.toLowerCase() || description;
+    
+    // 1. Check for D365 toolbar button control names
+    if (step.locator.strategy === 'd365-controlname') {
+      const controlName = (step.locator as any).controlName?.toLowerCase() || '';
+      const toolbarControlPatterns = [
+        'systemdefinednewbutton',
+        'systemdefineddeletebutton',
+        'systemdefinedsavebutton',
+        'systemdefinedclosebutton',
+        'systemdefinedcompletebutton',
+        'systemdefinedpostbutton',
+        'systemdefinedconfirmbutton',
+        'systemdefinedcancelbutton'
+      ];
+      if (toolbarControlPatterns.some(pattern => controlName.includes(pattern))) {
+        return true;
+      }
+    }
+    
+    // 2. Check CSS selector for toolbar/command bar regions
+    if (step.locator.strategy === 'css') {
+      const selector = (step.locator as any).selector || '';
+      const inToolbar = selector.includes('commandBar') ||
+                        selector.includes('CommandBar') ||
+                        selector.includes('data-dyn-toolbar') ||
+                        selector.includes('[data-dyn-role="commandBar"]') ||
+                        selector.includes('.ms-CommandBar');
+      if (inToolbar) {
+        // Also check if it's a toolbar verb
+        const toolbarVerbs = ['new', 'delete', 'save', 'complete', 'post', 'confirm', 'cancel', 'close'];
+        const isVerb = toolbarVerbs.some(v => name === v || name.startsWith(v + ' '));
+        if (isVerb) {
+          return true;
+        }
+      }
+    }
+    
+    // 3. Check role-based buttons with toolbar verb names
+    if (step.locator.strategy === 'role' && 'role' in step.locator) {
+      const role = step.locator.role;
+      if (role === 'button') {
+        const toolbarVerbs = ['new', 'delete', 'save', 'complete', 'post', 'confirm', 'cancel', 'close'];
+        // Exact match or starts with verb
+        const isVerb = toolbarVerbs.some(v => name === v || name.startsWith(v + ' '));
+        if (isVerb) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Context state for tracking workspace/page context establishment
+   */
+  private readonly ContextState = {
+    None: 'None',           // No meaningful context yet
+    PendingNav: 'PendingNav', // Just clicked context-setting, expecting navigation
+    Ready: 'Ready',         // Context established (workspace/page loaded)
+  } as const;
+
+  /**
    * Clean and filter recorded steps
    * Applies smart filtering: auth removal, redirect chain collapsing, interaction awareness
+   * Uses context state machine to preserve navigation steps after context-setting clicks
    * This returns a high-quality list of steps for the Step Editor UI
    */
   public cleanSteps(steps: RecordedStep[]): RecordedStep[] {
     const cleaned: RecordedStep[] = [];
     let lastWrittenAction: 'click' | 'fill' | 'select' | 'wait' | 'navigate' | null = null;
+    let contextState: 'None' | 'PendingNav' | 'Ready' = 'None';
     
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -275,8 +425,18 @@ export class RecorderService {
 
         // 2. INTERACTION AWARENESS: If the last action was a click, this navigation is likely
         // a SPA route change caused by that click. Skip it - the click itself is enough.
-        if (lastWrittenAction === 'click') {
-          // This is a "ghost" navigation after a click - skip it
+        // BUT: Don't skip if we're in PendingNav state (just had a context-setting click)
+        // Context-setting clicks need their navigation steps preserved
+        if (lastWrittenAction === 'click' && contextState !== 'PendingNav') {
+          // This is a "ghost" navigation after a regular click - skip it
+          continue;
+        }
+        
+        // If we were expecting navigation (PendingNav), keep it and mark context as Ready
+        if (contextState === 'PendingNav') {
+          cleaned.push(step);
+          lastWrittenAction = 'navigate';
+          contextState = 'Ready';
           continue;
         }
 
@@ -314,11 +474,37 @@ export class RecorderService {
         // Keep this navigation step
         cleaned.push(step);
         lastWrittenAction = 'navigate';
+        contextState = 'Ready'; // Navigation establishes context
       } 
       
       // --- HANDLE OTHER ACTIONS ---
       else if (step.action === 'wait') {
         // Wait steps are handled by wait injection later
+        // BUT: Skip wait steps that appear between combobox Enter and OK button clicks
+        // These are usually unnecessary since waitForD365 already handles waiting
+        const prevStep = cleaned.length > 0 ? cleaned[cleaned.length - 1] : null;
+        const nextStep = i < steps.length - 1 ? steps[i + 1] : null;
+        
+        // Check if this wait is between a combobox fill/Enter and an OK button click
+        const isAfterCombobox = prevStep && 
+          prevStep.action === 'fill' && 
+          prevStep.locator?.strategy === 'role' && 
+          'role' in prevStep.locator && 
+          prevStep.locator.role === 'combobox';
+        
+        const isBeforeOKButton = nextStep && 
+          nextStep.action === 'click' && 
+          nextStep.locator?.strategy === 'role' && 
+          'role' in nextStep.locator && 
+          nextStep.locator.role === 'button' &&
+          (nextStep.locator as any).name === 'OK';
+        
+        if (isAfterCombobox && isBeforeOKButton) {
+          // Skip this wait - waitForD365 is sufficient
+          continue;
+        }
+        
+        // Otherwise, skip all wait steps (they're handled by wait injection)
         continue;
       }
       else if (step.action === 'click') {
@@ -335,8 +521,32 @@ export class RecorderService {
           }
         }
         
+        // Check if this is a context-setting click
+        const isContextSetting = this.isContextSettingClick(step);
+        
+        // Check if this is a toolbar button that requires workspace context
+        const isToolbar = this.isToolbarButton(step);
+        if (isToolbar) {
+          // Verify we have workspace context
+          if (contextState !== 'Ready') {
+            // Toolbar button without context - log warning but keep the step
+            const buttonName = (step.locator as any).name || step.description || 'unknown';
+            console.warn(`[RecorderService] Toolbar button "${buttonName}" detected without workspace context. Consider adding a navigation step (e.g., "All sales orders") before this.`);
+          }
+        }
+        
         cleaned.push(step);
         lastWrittenAction = 'click';
+        
+        // Update context state
+        if (isContextSetting) {
+          contextState = 'PendingNav'; // Expect navigation next
+        } else if (contextState === 'PendingNav') {
+          // Had context-setting click but no navigation followed - reset to None
+          // (or keep as Ready if we're in a workspace already)
+          contextState = 'None';
+        }
+        // If contextState is Ready, keep it Ready (toolbar buttons don't change context)
       } 
       else if (step.action === 'fill') {
         cleaned.push(step);
@@ -395,6 +605,7 @@ export class RecorderService {
         );
       };
       
+      
       // Helper to add line with proper semicolon handling
       const addLine = (line: string): void => {
         const trimmed = line.trim();
@@ -415,8 +626,20 @@ export class RecorderService {
         addLine(`await waitForD365(page)`);
       }
       else if (step.action === 'wait') {
-        const waitTime = step.value || '1000';
-        addLine(`await page.waitForTimeout(${waitTime})`);
+        // Coerce the recorded wait value into a numeric timeout in milliseconds.
+        // Some recordings may capture literal strings like "Enter" which should
+        // never be emitted as identifiers (to avoid ReferenceError: Enter is not defined).
+        const raw = step.value;
+        let waitMs = 1000;
+        if (typeof raw === 'number' && Number.isFinite(raw)) {
+          waitMs = raw;
+        } else if (typeof raw === 'string') {
+          const parsed = parseInt(raw, 10);
+          if (!Number.isNaN(parsed) && parsed > 0) {
+            waitMs = parsed;
+          }
+        }
+        addLine(`await page.waitForTimeout(${waitMs})`);
       }
       else if (step.action === 'comment') {
         const commentText = step.value || 'New Step';
@@ -435,6 +658,12 @@ export class RecorderService {
         if (!step.locator) continue; // Skip if no locator
         const locatorCode = this.locatorToCode(step.locator);
         const value = step.value || '';
+        const isCombobox = step.locator.strategy === 'role' && 'role' in step.locator && step.locator.role === 'combobox';
+        
+        // D365 comboboxes need to be cleared before filling to ensure old values don't interfere
+        if (isCombobox) {
+          addLine(`await ${locatorCode}.clear()`);
+        }
         
         // Check if value is parameterized (wrapped in {{ }})
         if (value.startsWith('{{') && value.endsWith('}}')) {
@@ -446,12 +675,14 @@ export class RecorderService {
           addLine(`await ${locatorCode}.fill('${this.escapeString(value)}')`);
         }
         
-        if (step.locator.strategy === 'role' && 'role' in step.locator && step.locator.role === 'combobox') {
+        if (isCombobox) {
           addLine(`await ${locatorCode}.press('Enter')`);
-          // Only inject wait if next step is NOT already a wait action
+          // Wait for D365 to process the lookup
           if (hasParameters && !isNextStepWait()) {
             addLine(`await waitForD365(page)`);
           }
+          // Note: Playwright's .click() has built-in waiting, so we don't need extra waits
+          // The raw codegen output works fine with just waitForD365 + direct click
         }
       } 
       else if (step.action === 'select') {

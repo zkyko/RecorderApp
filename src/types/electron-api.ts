@@ -196,6 +196,7 @@ export interface ElectronAPI {
   // v1.6: Settings
   settingsGetBrowserStack: (request: { workspacePath: string }) => Promise<{ success: boolean; settings?: { username: string; accessKey: string; project?: string; buildPrefix?: string }; error?: string }>;
   settingsUpdateBrowserStack: (request: { workspacePath: string; settings: { username: string; accessKey: string; project?: string; buildPrefix?: string } }) => Promise<{ success: boolean; error?: string }>;
+  clearBrowserStackTMSession: () => Promise<{ success: boolean; error?: string }>;
   settingsGetRecordingEngine: (request: { workspacePath: string }) => Promise<{ success: boolean; recordingEngine?: 'playwright' | 'qaStudio'; error?: string }>;
   settingsUpdateRecordingEngine: (request: { workspacePath: string; recordingEngine: 'playwright' | 'qaStudio' }) => Promise<{ success: boolean; error?: string }>;
   settingsGetAIConfig: () => Promise<{ success: boolean; config?: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }; error?: string }>;
@@ -215,5 +216,19 @@ export interface ElectronAPI {
   devRebuildWorkspaceStructure: (request: { workspacePath: string }) => Promise<{ success: boolean; error?: string }>;
   devGetRawConfig: () => Promise<{ success: boolean; config?: any; error?: string }>;
   devGetStorageStatePath: () => Promise<{ success: boolean; path?: string; error?: string }>;
+
+  // Playwright environment
+  playwrightCheckEnv: (request: { workspacePath: string }) => Promise<{
+    success: boolean;
+    cliAvailable?: boolean;
+    browsersInstalled?: boolean;
+    error?: string;
+    details?: { version?: string; browsersDir?: string };
+  }>;
+  playwrightInstall: (request: { workspacePath: string }) => Promise<{
+    success: boolean;
+    error?: string;
+    logPath?: string;
+  }>;
 }
 

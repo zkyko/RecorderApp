@@ -48,6 +48,7 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      webviewTag: true, // Enable webview tag for BrowserStack TM
       // Disable service workers to avoid storage errors
       enableBlinkFeatures: '',
       disableBlinkFeatures: 'ServiceWorker',
@@ -83,6 +84,16 @@ function createWindow(): void {
       console.error('UI not found. Please rebuild the application.');
     }
   }
+
+  // Handle window open events (for BrowserStack popups/redirects)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Allow BrowserStack URLs to open in the same window
+    if (url.includes('browserstack.com')) {
+      return { action: 'allow' };
+    }
+    // For other URLs, you might want to open in external browser
+    return { action: 'deny' };
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;

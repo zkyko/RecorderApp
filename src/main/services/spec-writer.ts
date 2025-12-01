@@ -299,6 +299,54 @@ export async function waitForD365(page: Page): Promise<void> {
         updatedCode = `import data from '../../data/${fileName}Data.json';\n${updatedCode}`;
       }
 
+      // Normalize any legacy waitForD365 imports to the bundle-aware path.
+      // Old specs (from earlier generators) might have:
+      //   import { waitForD365 } from '../runtime/d365-waits';
+      //   import { waitForD365 } from '../../runtime/d365-waits';
+      // In the bundle structure (tests/d365/specs/<TestName>/<TestName>.spec.ts)
+      // the correct relative path is: ../../../../runtime/d365-waits
+      if (workspaceType === 'd365') {
+        const waitImportRegex = /import\s+\{\s*waitForD365\s*\}\s+from\s+['"].*?d365-waits['"];?/g;
+        updatedCode = updatedCode.replace(
+          waitImportRegex,
+          `import { waitForD365 } from '../../../../runtime/d365-waits';`
+        );
+        
+        // Fix combobox fill pattern: D365 comboboxes need to be cleared before filling
+        // Also fix double await issues and add waiting logic for OK buttons after Enter
+        
+        // First, fix any double await issues
+        updatedCode = updatedCode.replace(/await\s+await\s+/g, 'await ');
+        
+        // Then, fix combobox fill pattern
+        // Match: await page.getByRole('combobox', { name: 'X' }).fill(Y)
+        // But skip if the previous line already has .clear() for the same combobox
+        const comboboxFillRegex = /(await\s+page\.getByRole\(['"]combobox['"],\s*\{[^}]+\}\))\.fill\(([^)]+)\)/g;
+        updatedCode = updatedCode.replace(comboboxFillRegex, (match, locator, fillValue, offset) => {
+          // Check if the previous lines already have .clear() for this combobox
+          const beforeMatch = updatedCode.substring(Math.max(0, offset - 300), offset);
+          const locatorPattern = locator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape regex special chars
+          const hasClear = new RegExp(`${locatorPattern}\\.clear\\(\\)`).test(beforeMatch);
+          
+          if (hasClear) {
+            // Already has .clear(), just return the fill line
+            return `${locator}.fill(${fillValue})`;
+          } else {
+            // Add .clear() before .fill()
+            return `${locator}.clear();\n      await ${locator}.fill(${fillValue})`;
+          }
+        });
+        
+        // Remove waitForTimeout calls that appear between waitForD365 and OK button clicks
+        // Pattern: waitForD365(page); -> waitForTimeout(1000) -> OK button click
+        // Replace with: waitForD365(page); -> OK button click
+        const waitForD365ToOKPattern = /(await\s+waitForD365\(page\)[^\n]*;?\s*)\n\s*await\s+page\.waitForTimeout\(\d+\)[^\n]*;?\s*\n\s*(await\s+page\.getByRole\(['"]button['"],\s*\{[^}]*name:\s*['"]OK['"][^}]*\}\)\.click\(\))/g;
+        updatedCode = updatedCode.replace(waitForD365ToOKPattern, (match, waitForD365, okClick) => {
+          // Remove the waitForTimeout, keep just waitForD365 + OK click
+          return `${waitForD365}\n      ${okClick}`;
+        });
+      }
+
       return updatedCode;
     }
 

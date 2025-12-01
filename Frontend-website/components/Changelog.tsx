@@ -15,6 +15,22 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: "1.7.0",
+    date: "December 1, 2025",
+    type: "feature",
+    title: "BrowserStack Integration & Enhanced Recorder Logic",
+    description: "Major update adding full BrowserStack cloud testing integration and improved context-aware recording logic for more reliable test generation.",
+    items: [
+      "BrowserStack Test Management - Embedded BrowserStack TM interface directly in QA Studio sidebar with persistent login sessions",
+      "BrowserStack Test Execution - Full cloud test execution support with automatic config generation, credential management, and environment variable handling",
+      "Context-Aware Recorder - Smart navigation step preservation for workspace context (e.g., 'All sales orders' clicks now preserve navigation steps)",
+      "Toolbar Button Context Tracking - Recorder now tracks workspace context and warns when toolbar buttons are used without proper navigation",
+      "DOM-Aware Locator Detection - Enhanced heuristics using D365-specific attributes (data-dyn-controlname, data-dyn-menutext) for better context-setting click detection",
+      "Windows Filesystem Lock Fix - Robust file deletion with fs-extra and automatic retry logic for EBUSY errors on Windows",
+      "Improved Test Execution Logging - Better visibility into test runs with streaming output and error handling"
+    ]
+  },
+  {
     version: "1.6.0",
     date: "December 2025",
     type: "feature",

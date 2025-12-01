@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { BrowserWindow } from 'electron';
 import { TestRunRequest, TestRunEvent, TestRunMeta, RunIndex, TestMeta } from '../../types/v1.5';
 import { getReporterPath, getReporterSourcePath } from '../utils/path-resolver';
+import { LocatorMaintenanceService } from './locator-maintenance';
 
 /**
  * Service for running Playwright tests with streaming output
@@ -14,9 +15,11 @@ import { getReporterPath, getReporterSourcePath } from '../utils/path-resolver';
 export class TestRunner {
   private currentProcess: ChildProcess | null = null;
   private mainWindow: BrowserWindow | null = null;
+  private locatorMaintenance: LocatorMaintenanceService | null = null;
 
-  constructor(mainWindow: BrowserWindow | null) {
+  constructor(mainWindow: BrowserWindow | null, locatorMaintenance?: LocatorMaintenanceService) {
     this.mainWindow = mainWindow;
+    this.locatorMaintenance = locatorMaintenance || null;
   }
 
 
@@ -113,8 +116,8 @@ export class TestRunner {
       const testName = path.basename(workspaceSpecPath, '.spec.ts');
       const specRelPath = path.relative(request.workspacePath, workspaceSpecPath).replace(/\\/g, '/');
 
-      // Ensure workspace has playwright.config.ts
-      await this.ensureWorkspaceConfig(request.workspacePath, runId);
+      // Ensure workspace has playwright.config.ts (skip browser install for BrowserStack)
+      await this.ensureWorkspaceConfig(request.workspacePath, runId, request.runMode === 'browserstack');
 
       // Prepare run directories
       const tracesDir = path.join(request.workspacePath, 'traces', runId);
@@ -134,22 +137,60 @@ export class TestRunner {
       };
       this.saveRunMeta(request.workspacePath, runMeta);
 
-      // v1.6: Handle BrowserStack mode (stub for now)
+      // v1.6: Handle BrowserStack mode
+      let env: NodeJS.ProcessEnv | undefined = undefined;
+      let command: string;
+      let args: string[];
+      
       if (request.runMode === 'browserstack') {
         console.log('[TestRunner] BrowserStack mode requested');
         console.log('[TestRunner] Target:', request.target || 'Not specified');
-        console.log('[TestRunner] Note: Real BrowserStack integration will be implemented later');
-        // For now, continue with local execution but log the intent
+        
+        // Load BrowserStack settings from workspace
+        const browserstackSettings = this.loadBrowserStackSettings(request.workspacePath);
+        if (!browserstackSettings.username || !browserstackSettings.accessKey) {
+          this.emitEvent(runId, {
+            type: 'error',
+            runId,
+            message: 'BrowserStack credentials not configured. Please set them in Settings → BrowserStack.',
+            timestamp: new Date().toISOString(),
+          });
+          return { runId };
+        }
+        
+        // Ensure BrowserStack config exists
+        await this.ensureBrowserStackConfig(request.workspacePath, browserstackSettings, request.target);
+        
+        // Set environment variables for BrowserStack
+        env = {
+          ...process.env,
+          BROWSERSTACK_USERNAME: browserstackSettings.username,
+          BROWSERSTACK_ACCESS_KEY: browserstackSettings.accessKey,
+          BROWSERSTACK_LOCAL: 'true', // Enable Local Testing for storage state access
+          D365_URL: process.env.D365_URL || 'https://fourhands-test.sandbox.operations.dynamics.com/',
+          STORAGE_STATE_PATH: path.join(request.workspacePath, 'storage_state', 'd365.json'),
+        };
+        
+        // Use BrowserStack config
+        command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        args = [
+          'playwright',
+          'test',
+          specRelPath,
+          '--config=playwright.browserstack.config.ts',
+        ];
+        
+        console.log('[TestRunner] Running test on BrowserStack');
+      } else {
+        // Local execution
+        command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        args = [
+          'playwright',
+          'test',
+          specRelPath, // Path relative to workspace root
+          '--config=playwright.config.ts',
+        ];
       }
-
-      // Spawn playwright test command from workspace root
-      const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-      const args = [
-        'playwright',
-        'test',
-        specRelPath, // Path relative to workspace root
-        '--config=playwright.config.ts',
-      ];
       
       console.log('[TestRunner] Running test from workspace:', request.workspacePath);
       console.log('[TestRunner] Test file:', specRelPath);
@@ -157,6 +198,7 @@ export class TestRunner {
       this.currentProcess = spawn(command, args, {
         cwd: request.workspacePath, // Execute from workspace root
         shell: process.platform === 'win32',
+        env: env,
       });
 
       // Emit started event after process is spawned
@@ -219,6 +261,11 @@ export class TestRunner {
         
         // Update TestMeta with last run status and timestamp
         this.updateTestMeta(request.workspacePath, testName, status, finishedAt, runId);
+        
+        // If test failed, process failure artifacts and update locator status
+        if (status === 'failed') {
+          await this.processFailureArtifacts(request.workspacePath, testName);
+        }
         
         console.log('[TestRunner] Run completed:', {
           runId,
@@ -327,7 +374,7 @@ export class TestRunner {
   /**
    * Ensure workspace has playwright.config.ts and Playwright installed
    */
-  private async ensureWorkspaceConfig(workspacePath: string, runId: string): Promise<void> {
+  private async ensureWorkspaceConfig(workspacePath: string, runId: string, skipBrowserInstall: boolean = false): Promise<void> {
     // Ensure package.json exists in workspace
     const packageJsonPath = path.join(workspacePath, 'package.json');
     let needsInstall = false;
@@ -424,8 +471,12 @@ export class TestRunner {
         installProcess.on('close', async (code) => {
           if (code === 0) {
             console.log('[TestRunner] Dependencies installed in workspace');
-            // After npm install, install Playwright browsers
-            await this.installPlaywrightBrowsers(workspacePath);
+            // After npm install, install Playwright browsers (skip for BrowserStack)
+            if (!skipBrowserInstall) {
+              await this.installPlaywrightBrowsers(workspacePath);
+            } else {
+              console.log('[TestRunner] Skipping browser installation (BrowserStack mode)');
+            }
             resolve();
           } else {
             reject(new Error(`npm install failed with code ${code}`));
@@ -434,8 +485,12 @@ export class TestRunner {
         installProcess.on('error', reject);
       });
     } else {
-      // Even if node_modules exists, check if browsers are installed
-      await this.ensurePlaywrightBrowsers(workspacePath);
+      // Even if node_modules exists, check if browsers are installed (skip for BrowserStack)
+      if (!skipBrowserInstall) {
+        await this.ensurePlaywrightBrowsers(workspacePath);
+      } else {
+        console.log('[TestRunner] Skipping browser check (BrowserStack mode)');
+      }
     }
 
     const configPath = path.join(workspacePath, 'playwright.config.ts');
@@ -531,6 +586,156 @@ export class TestRunner {
       console.log('[TestRunner] Could not verify browser installation, attempting install...');
       await this.installPlaywrightBrowsers(workspacePath);
     }
+  }
+
+  /**
+   * Load BrowserStack settings from workspace
+   */
+  private loadBrowserStackSettings(workspacePath: string): { username: string; accessKey: string; project?: string; buildPrefix?: string } {
+    const settingsPath = path.join(workspacePath, 'workspace-settings.json');
+    if (!fs.existsSync(settingsPath)) {
+      return { username: '', accessKey: '', project: '', buildPrefix: '' };
+    }
+    
+    try {
+      const content = fs.readFileSync(settingsPath, 'utf-8');
+      const settings = JSON.parse(content);
+      return {
+        username: settings.browserstack?.username || '',
+        accessKey: settings.browserstack?.accessKey || '',
+        project: settings.browserstack?.project || '',
+        buildPrefix: settings.browserstack?.buildPrefix || '',
+      };
+    } catch (error) {
+      console.warn('[TestRunner] Failed to load BrowserStack settings:', error);
+      return { username: '', accessKey: '', project: '', buildPrefix: '' };
+    }
+  }
+
+  /**
+   * Ensure BrowserStack config file exists in workspace
+   */
+  private async ensureBrowserStackConfig(
+    workspacePath: string,
+    settings: { username: string; accessKey: string; project?: string; buildPrefix?: string },
+    target?: string
+  ): Promise<void> {
+    const configPath = path.join(workspacePath, 'playwright.browserstack.config.ts');
+    
+    // Determine browser/OS from target (default to Chrome on Windows 11)
+    const browserName = target?.toLowerCase().includes('edge') ? 'Edge' : 'Chrome';
+    const osName = target?.toLowerCase().includes('mac') ? 'OS X' : 'Windows';
+    const osVersion = target?.toLowerCase().includes('mac') ? 'Ventura' : '11';
+    
+    const buildName = settings.buildPrefix 
+      ? `${settings.buildPrefix}-${new Date().toISOString().split('T')[0]}`
+      : `D365-Recorder-${new Date().toISOString().split('T')[0]}`;
+    
+    const configContent = this.generateBrowserStackConfig(browserName, osName, osVersion, settings.project || 'D365 Auto-Recorder', buildName);
+    
+    fs.writeFileSync(configPath, configContent, 'utf-8');
+    console.log('[TestRunner] Created/updated playwright.browserstack.config.ts');
+  }
+
+  /**
+   * Generate BrowserStack Playwright config
+   */
+  private generateBrowserStackConfig(
+    browserName: string,
+    osName: string,
+    osVersion: string,
+    projectName: string,
+    buildName: string
+  ): string {
+    return `import { defineConfig, devices } from '@playwright/test';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
+
+/**
+ * Playwright configuration for BrowserStack execution
+ * Uses Chrome DevTools Protocol (CDP) to connect to BrowserStack
+ */
+export default defineConfig({
+  testDir: './tests',
+  
+  /* Run tests sequentially on BrowserStack */
+  fullyParallel: false,
+  workers: 1,
+  
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  
+  reporter: [
+    ['list'],
+    ['allure-playwright', {
+      outputFolder: 'allure-results',
+      detail: true,
+      suiteTitle: false,
+    }],
+    ['./runtime/reporters/ErrorGrabber.js'],
+  ],
+  
+  use: {
+    baseURL: process.env.D365_URL || 'https://fourhands-test.sandbox.operations.dynamics.com/',
+    trace: 'on',
+    screenshot: 'on',
+    video: 'off',
+    storageState: process.env.STORAGE_STATE_PATH || 'storage_state/d365.json',
+    viewport: { width: 1920, height: 1080 },
+    // BrowserStack connection via CDP
+    connectOptions: {
+      wsEndpoint: getBrowserStackEndpoint(),
+    },
+  },
+
+  projects: [
+    {
+      name: 'browserstack',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1920, height: 1080 },
+      },
+    },
+  ],
+});
+
+/**
+ * Construct BrowserStack CDP endpoint URL
+ * Requires BROWSERSTACK_USERNAME and BROWSERSTACK_ACCESS_KEY environment variables
+ */
+function getBrowserStackEndpoint(): string {
+  const username = process.env.BROWSERSTACK_USERNAME;
+  const accessKey = process.env.BROWSERSTACK_ACCESS_KEY;
+
+  if (!username || !accessKey) {
+    throw new Error(
+      'BrowserStack credentials not found. Please set BROWSERSTACK_USERNAME and BROWSERSTACK_ACCESS_KEY environment variables.'
+    );
+  }
+
+  const enableLocalTesting = process.env.BROWSERSTACK_LOCAL === 'true';
+  
+  const caps = {
+    browserName: '${browserName}',
+    browserVersion: 'latest',
+    os: '${osName}',
+    osVersion: '${osVersion}',
+    name: 'D365 Test Execution',
+    build: '${buildName}',
+    'browserstack.username': username,
+    'browserstack.accessKey': accessKey,
+    'browserstack.local': enableLocalTesting ? 'true' : 'false',
+    'browserstack.networkLogs': 'true',
+    'browserstack.console': 'info',
+  };
+
+  // Encode capabilities as base64
+  const capsString = Buffer.from(JSON.stringify(caps)).toString('base64');
+  
+  return \`wss://cdp.browserstack.com/playwright?caps=\${encodeURIComponent(capsString)}\`;
+}
+`;
   }
 
   /**
@@ -914,6 +1119,58 @@ export default defineConfig({
         lastRunAt: finishedAt,
         lastRunId: runId,
       });
+    }
+  }
+
+  /**
+   * Process failure artifacts and update locator status for failed locators
+   */
+  private async processFailureArtifacts(workspacePath: string, testName: string): Promise<void> {
+    if (!this.locatorMaintenance) {
+      console.log('[TestRunner] LocatorMaintenanceService not available, skipping locator status update');
+      return;
+    }
+
+    try {
+      // Resolve bundle path: tests/d365/specs/<TestName>/
+      const bundlePath = path.join(workspacePath, 'tests', 'd365', 'specs', testName);
+      const failureFilePath = path.join(bundlePath, `${testName}_failure.json`);
+
+      if (!fs.existsSync(failureFilePath)) {
+        console.log(`[TestRunner] No failure artifact found at: ${failureFilePath}`);
+        return;
+      }
+
+      // Read failure artifact
+      const failureContent = fs.readFileSync(failureFilePath, 'utf-8');
+      const failureData = JSON.parse(failureContent);
+
+      // Check if failure artifact has failed locator info
+      if (failureData.failedLocator && failureData.failedLocator.locatorKey) {
+        const { locatorKey, locator, type } = failureData.failedLocator;
+        const errorMessage = failureData.error?.message || 'Test failed';
+
+        console.log(`[TestRunner] Marking locator as failing: ${locatorKey}`);
+
+        // Update locator status to 'failing' (red)
+        await this.locatorMaintenance.setLocatorStatus(
+          {
+            workspacePath,
+            locatorKey,
+            status: 'failing',
+            note: `Failed in test "${testName}": ${errorMessage.substring(0, 200)}`,
+            testName,
+          },
+          this.mainWindow || undefined
+        );
+
+        console.log(`[TestRunner] Successfully marked locator as failing: ${locatorKey}`);
+      } else {
+        console.log(`[TestRunner] Failure artifact does not contain failed locator info`);
+      }
+    } catch (error: any) {
+      // Don't fail the test run if we can't process failure artifacts
+      console.error(`[TestRunner] Failed to process failure artifacts: ${error.message}`);
     }
   }
 }

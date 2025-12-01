@@ -1,6 +1,8 @@
 import { ipcMain, BrowserWindow, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { spawn, SpawnOptions } from 'child_process';
+import { safeRemoveSync } from './utils/file-utils';
 import { SessionManager } from '../core/session/session-manager';
 import { BrowserManager } from '../core/playwright/browser-manager';
 import { RecorderEngine } from '../core/recorder/recorder-engine';
@@ -370,7 +372,7 @@ export class IPCBridge {
     // Test execution
     ipcMain.handle('test:run', async (_, request: TestRunRequest) => {
       if (!this.testRunner) {
-        this.testRunner = new TestRunner(this.mainWindow);
+        this.testRunner = new TestRunner(this.mainWindow, this.locatorMaintenance);
       }
       return await this.testRunner.run(request);
     });
@@ -662,12 +664,8 @@ export class IPCBridge {
     // Read data file
     ipcMain.handle('data:read', async (_, request: DataReadRequest): Promise<DataReadResponse> => {
       try {
-        const dataPath = path.join(request.workspacePath, 'data', `${request.testName}.json`);
-        if (!fs.existsSync(dataPath)) {
-          return { success: true, rows: [] };
-        }
-        const content = fs.readFileSync(dataPath, 'utf-8');
-        const rows = JSON.parse(content);
+        // Use DataWriter.readData() which uses the correct path: tests/d365/data/<testName>Data.json
+        const rows = await this.dataWriter.readData(request.workspacePath, request.testName);
         return { success: true, rows: Array.isArray(rows) ? rows : [] };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to read data file' };
@@ -823,6 +821,18 @@ export class IPCBridge {
       }
     });
 
+    // BrowserStack TM Session Management
+    ipcMain.handle('browserstack:clearTMSession', async (): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const { session } = require('electron');
+        const bsSession = session.fromPartition('persist:browserstack-tm');
+        await bsSession.clearStorageData();
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to clear BrowserStack TM session' };
+      }
+    });
+
     // AI Configuration handlers (stored in electron-store via ConfigManager)
     ipcMain.handle('settings:getAIConfig', async (): Promise<{ success: boolean; config?: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }; error?: string }> => {
       try {
@@ -918,6 +928,129 @@ export class IPCBridge {
       }
     });
 
+    // Playwright environment checks & installation
+    ipcMain.handle('playwright:checkEnv', async (_event, request: { workspacePath: string }): Promise<{
+      success: boolean;
+      cliAvailable?: boolean;
+      browsersInstalled?: boolean;
+      error?: string;
+      details?: { version?: string; browsersDir?: string };
+    }> => {
+      try {
+        const projectRoot = this.findProjectRoot();
+        const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        const args = ['playwright', '--version'];
+
+        let cliAvailable = false;
+        let version: string | undefined;
+
+        try {
+          const result = await this.spawnOnce(command, args, { cwd: projectRoot });
+          if (result.exitCode === 0) {
+            cliAvailable = true;
+            const line = result.stdout.trim().split('\n')[0]?.trim();
+            version = line || undefined;
+          }
+        } catch (e: any) {
+          // CLI not available or failed - we'll surface this as not available
+          return {
+            success: true,
+            cliAvailable: false,
+            browsersInstalled: false,
+            error: e.message || 'Playwright CLI is not available. Please ensure Node.js and npx are accessible.',
+          };
+        }
+
+        // Heuristic: browsers are installed if the .local-browsers directory exists and is non-empty
+        const browsersDir = path.join(projectRoot, 'node_modules', 'playwright', '.local-browsers');
+        let browsersInstalled = false;
+        try {
+          if (fs.existsSync(browsersDir)) {
+            const entries = fs.readdirSync(browsersDir);
+            browsersInstalled = entries.length > 0;
+          }
+        } catch {
+          // Ignore filesystem errors; treat as not installed
+          browsersInstalled = false;
+        }
+
+        return {
+          success: true,
+          cliAvailable,
+          browsersInstalled,
+          details: {
+            version,
+            browsersDir,
+          },
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message || 'Failed to check Playwright environment',
+        };
+      }
+    });
+
+    ipcMain.handle('playwright:install', async (_event, request: { workspacePath: string }): Promise<{
+      success: boolean;
+      error?: string;
+      logPath?: string;
+    }> => {
+      try {
+        const projectRoot = this.findProjectRoot();
+        const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        const args = ['playwright', 'install'];
+
+        // Ensure tmp directory exists under workspace for logs
+        const tmpDir = path.join(request.workspacePath, 'tmp');
+        fs.mkdirSync(tmpDir, { recursive: true });
+        const logPath = path.join(tmpDir, 'playwright-install.log');
+
+        const child = spawn(command, args, {
+          cwd: projectRoot,
+          shell: process.platform === 'win32',
+        });
+
+        const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+
+        child.stdout?.on('data', (data) => {
+          logStream.write(data);
+        });
+
+        child.stderr?.on('data', (data) => {
+          logStream.write(data);
+        });
+
+        const exitCode: number = await new Promise((resolve, reject) => {
+          child.on('error', (err) => {
+            logStream.write(`\nProcess error: ${err.message}\n`);
+            logStream.end();
+            reject(err);
+          });
+          child.on('close', (code) => {
+            logStream.write(`\nProcess exited with code ${code}\n`);
+            logStream.end();
+            resolve(code ?? 1);
+          });
+        });
+
+        if (exitCode !== 0) {
+          return {
+            success: false,
+            error: `Playwright install failed with exit code ${exitCode}. See log for details.`,
+            logPath,
+          };
+        }
+
+        return { success: true, logPath };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message || 'Failed to install Playwright',
+        };
+      }
+    });
+
     // Delete workspace files (dev mode only)
     ipcMain.handle('workspace:deleteFiles', async (_, request: { workspacePath: string }): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -937,7 +1070,7 @@ export class IPCBridge {
         for (const dir of dirsToDelete) {
           const dirPath = path.join(workspacePath, dir);
           if (fs.existsSync(dirPath)) {
-            fs.rmSync(dirPath, { recursive: true, force: true });
+            safeRemoveSync(dirPath);
           }
         }
 
@@ -981,7 +1114,7 @@ export class IPCBridge {
           for (const file of files) {
             const filePath = path.join(tmpDir, file);
             try {
-              fs.rmSync(filePath, { recursive: true, force: true });
+              safeRemoveSync(filePath);
               deletedCount++;
             } catch (e) {
               // Continue on error
@@ -1012,7 +1145,7 @@ export class IPCBridge {
             try {
               const stats = fs.statSync(entryPath);
               if (stats.mtime < cutoffDate) {
-                fs.rmSync(entryPath, { recursive: true, force: true });
+                safeRemoveSync(entryPath);
                 deletedCount++;
               }
             } catch (e) {
@@ -1044,7 +1177,7 @@ export class IPCBridge {
             try {
               const stats = fs.statSync(entryPath);
               if (stats.mtime < cutoffDate) {
-                fs.rmSync(entryPath, { recursive: true, force: true });
+                safeRemoveSync(entryPath);
                 deletedCount++;
               }
             } catch (e) {
@@ -1131,6 +1264,63 @@ export class IPCBridge {
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to get storage state path' };
       }
+    });
+  }
+
+  /**
+   * Find project root (directory containing package.json)
+   * Separate copy from TestExecutor to avoid circular deps.
+   */
+  private findProjectRoot(): string {
+    let currentDir = __dirname;
+
+    while (currentDir !== path.dirname(currentDir)) {
+      const packageJsonPath = path.join(currentDir, 'package.json');
+      if (fs.existsSync(packageJsonPath)) {
+        return currentDir;
+      }
+      currentDir = path.dirname(currentDir);
+    }
+
+    return process.cwd();
+  }
+
+  /**
+   * Spawn a one-off process and capture stdout/stderr until completion.
+   */
+  private spawnOnce(command: string, args: string[], options: SpawnOptions & { cwd: string }): Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+  }> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, args, {
+        ...options,
+        shell: process.platform === 'win32',
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      child.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      child.on('error', (err) => {
+        reject(err);
+      });
+
+      child.on('close', (code) => {
+        resolve({
+          stdout,
+          stderr,
+          exitCode: code ?? 1,
+        });
+      });
     });
   }
 

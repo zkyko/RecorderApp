@@ -228,49 +228,22 @@ const TestDetailsScreen: React.FC = () => {
       return;
     }
 
+    // Instead of silently rewriting the spec, send the user back through
+    // the Parameter Mapping wizard using the current spec content.
+    // The wizard will:
+    // 1) Re-detect parameter candidates from the existing code
+    // 2) Let the user confirm/rename parameters
+    // 3) Regenerate the spec + data files
     setRegenerating(true);
-    try {
-      // Extract parameters from dataRows (all keys except id, enabled, name)
-      const parameterKeys = new Set<string>();
-      dataRows.forEach(row => {
-        Object.keys(row).forEach(key => {
-          if (key !== 'id' && key !== 'enabled' && key !== 'name') {
-            parameterKeys.add(key);
-          }
-        });
-      });
-
-      // Convert parameter keys to SelectedParam format
-      // Use the key as both id and variableName (since we don't have the original detection IDs)
-      const selectedParams = Array.from(parameterKeys).map(key => ({
-        id: key, // Use key as ID since we don't have original detection IDs
-        variableName: key,
-      }));
-
-      // Regenerate the spec using current content and parameters
-      const response = await ipc.spec.write({
-        workspacePath,
+    navigate('/record/params', {
+      state: {
+        cleanedCode: specContent,
         testName,
         module: testMeta?.module,
-        cleanedCode: specContent,
-        selectedParams,
-      });
-
-      if (response.success) {
-        // Reload the spec content to show the updated version
-        const specResponse = await ipc.test.getSpec({ workspacePath, testName });
-        if (specResponse.success && specResponse.content) {
-          setSpecContent(specResponse.content);
-        }
-        alert('Spec file regenerated successfully.');
-      } else {
-        alert(`Failed to regenerate spec: ${response.error}`);
-      }
-    } catch (error: any) {
-      alert(`Error regenerating spec: ${error.message}`);
-    } finally {
-      setRegenerating(false);
-    }
+        mode: 'regenerate',
+      },
+    });
+    setRegenerating(false);
   };
 
   if (loading) {

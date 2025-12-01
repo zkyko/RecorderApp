@@ -190,14 +190,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   workspaceLocatorsAdd: (request: { workspacePath: string; locator: string; type: string; tests?: string[] }) => ipcRenderer.invoke('workspace:locators:add', request),
 
   // Settings
-  settingsGetBrowserStack: (request: { workspacePath: string }) => ipcRenderer.invoke('settings:getBrowserStack', request),
-  settingsUpdateBrowserStack: (request: { workspacePath: string; settings: any }) => ipcRenderer.invoke('settings:updateBrowserStack', request),
+    settingsGetBrowserStack: (request: { workspacePath: string }) => ipcRenderer.invoke('settings:getBrowserStack', request),
+    settingsUpdateBrowserStack: (request: { workspacePath: string; settings: any }) => ipcRenderer.invoke('settings:updateBrowserStack', request),
+    clearBrowserStackTMSession: () => ipcRenderer.invoke('browserstack:clearTMSession'),
   settingsGetRecordingEngine: (request: { workspacePath: string }) => ipcRenderer.invoke('settings:getRecordingEngine', request),
   settingsUpdateRecordingEngine: (request: { workspacePath: string; recordingEngine: string }) => ipcRenderer.invoke('settings:updateRecordingEngine', request),
   settingsGetAIConfig: () => ipcRenderer.invoke('settings:getAIConfig'),
   settingsUpdateAIConfig: (request: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }) => ipcRenderer.invoke('settings:updateAIConfig', request),
   settingsGetDevMode: () => ipcRenderer.invoke('settings:getDevMode'),
   settingsUpdateDevMode: (request: { devMode: boolean }) => ipcRenderer.invoke('settings:updateDevMode', request),
+
+  // Playwright environment
+  playwrightCheckEnv: (request: { workspacePath: string }) => ipcRenderer.invoke('playwright:checkEnv', request),
+  playwrightInstall: (request: { workspacePath: string }) => ipcRenderer.invoke('playwright:install', request),
 
   // RAG Chat
   ragChat: (request: { workspacePath: string; testName: string; messages: Array<{ role: string; content: string }> }) => ipcRenderer.invoke('rag:chat', request),

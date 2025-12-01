@@ -53,6 +53,7 @@ import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { RecordingEngine, WorkspaceMeta } from '../../../types/v1.5';
 import LoginDialog from './LoginDialog';
+import { BrowserStackTM } from './BrowserStackTM';
 // Using simple alerts for now - can be replaced with Mantine notifications if provider is set up
 import './SettingsScreen.css';
 
@@ -114,6 +115,7 @@ const SettingsScreen: React.FC = () => {
   }>({});
   const [savingAIConfig, setSavingAIConfig] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>('authentication');
+  const [browserstackSubTab, setBrowserstackSubTab] = useState<string>('configuration');
   const [devMode, setDevMode] = useState(false);
   const [savingDevMode, setSavingDevMode] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -122,12 +124,22 @@ const SettingsScreen: React.FC = () => {
   const [loadingStats, setLoadingStats] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [rawConfig, setRawConfig] = useState<any>(null);
+  const [playwrightStatus, setPlaywrightStatus] = useState<{
+    cliAvailable?: boolean;
+    browsersInstalled?: boolean;
+    checking: boolean;
+    lastError?: string;
+    version?: string;
+  }>({
+    checking: false,
+  });
 
   useEffect(() => {
     if (workspacePath) {
       loadBrowserStackSettings();
       loadRecordingEngine();
       loadWorkspaceStats();
+      checkPlaywrightEnv();
     }
     loadAIConfig();
     loadDevMode();
@@ -249,6 +261,66 @@ const SettingsScreen: React.FC = () => {
       alert(`Error: ${error.message || 'Failed to save setting'}`);
     } finally {
       setSavingDevMode(false);
+    }
+  };
+
+  const checkPlaywrightEnv = async () => {
+    if (!workspacePath) return;
+    setPlaywrightStatus((prev) => ({ ...prev, checking: true, lastError: undefined }));
+    try {
+      const response = await ipc.playwright.checkEnv({ workspacePath });
+      if (response.success) {
+        setPlaywrightStatus({
+          checking: false,
+          cliAvailable: response.cliAvailable,
+          browsersInstalled: response.browsersInstalled,
+          lastError: response.error,
+          version: response.details?.version,
+        });
+      } else {
+        setPlaywrightStatus({
+          checking: false,
+          cliAvailable: false,
+          browsersInstalled: false,
+          lastError: response.error || 'Failed to check Playwright environment',
+        });
+      }
+    } catch (error: any) {
+      setPlaywrightStatus({
+        checking: false,
+        cliAvailable: false,
+        browsersInstalled: false,
+        lastError: error.message || 'Failed to check Playwright environment',
+      });
+    }
+  };
+
+  const handleInstallPlaywright = async () => {
+    if (!workspacePath) return;
+    if (!confirm('Install or repair Playwright browsers? This may take a few minutes and requires internet access.')) {
+      return;
+    }
+    setPlaywrightStatus((prev) => ({ ...prev, checking: true, lastError: undefined }));
+    try {
+      const response = await ipc.playwright.install({ workspacePath });
+      if (response.success) {
+        alert('Playwright installation completed successfully.');
+        await checkPlaywrightEnv();
+      } else {
+        alert(`Playwright installation failed: ${response.error || 'Unknown error'}`);
+        setPlaywrightStatus((prev) => ({
+          ...prev,
+          checking: false,
+          lastError: response.error || 'Playwright installation failed',
+        }));
+      }
+    } catch (error: any) {
+      alert(`Error running Playwright install: ${error.message || 'Unknown error'}`);
+      setPlaywrightStatus((prev) => ({
+        ...prev,
+        checking: false,
+        lastError: error.message || 'Playwright installation failed',
+      }));
     }
   };
 
@@ -881,6 +953,66 @@ const SettingsScreen: React.FC = () => {
                 Save Setting
               </Button>
             </Group>
+
+            <Card padding="md" radius="md" withBorder mt="lg">
+              <Group gap="xs" mb="md">
+                <CodeIcon size={18} />
+                <Text fw={500}>Playwright Environment</Text>
+              </Group>
+              <Text size="sm" c="dimmed" mb="sm">
+                The Playwright CLI and browser binaries are required for both recording and running tests
+                (including Playwright Codegen). Use these tools to verify and fix your environment on this machine.
+              </Text>
+
+              <Group justify="space-between" align="flex-start" mb="sm">
+                <Stack gap={4}>
+                  <Group gap="xs">
+                    <Badge
+                      color={playwrightStatus.cliAvailable ? 'green' : 'red'}
+                      variant="light"
+                    >
+                      CLI {playwrightStatus.cliAvailable ? 'Available' : 'Missing'}
+                    </Badge>
+                    <Badge
+                      color={playwrightStatus.browsersInstalled ? 'green' : 'orange'}
+                      variant="light"
+                    >
+                      Browsers {playwrightStatus.browsersInstalled ? 'Installed' : 'Not detected'}
+                    </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    {playwrightStatus.version
+                      ? `Detected: ${playwrightStatus.version}`
+                      : 'Version unknown (run Check environment)'}
+                  </Text>
+                  {playwrightStatus.lastError && (
+                    <Text size="xs" c="red">
+                      {playwrightStatus.lastError}
+                    </Text>
+                  )}
+                </Stack>
+                {playwrightStatus.checking && <Loader size="sm" />}
+              </Group>
+
+              <Group gap="xs">
+                <Button
+                  variant="light"
+                  leftSection={<RefreshCw size={16} />}
+                  onClick={checkPlaywrightEnv}
+                  disabled={!workspacePath}
+                  loading={playwrightStatus.checking}
+                >
+                  Check environment
+                </Button>
+                <Button
+                  leftSection={<Wrench size={16} />}
+                  onClick={handleInstallPlaywright}
+                  disabled={!workspacePath || playwrightStatus.checking}
+                >
+                  Install / Repair Playwright
+                </Button>
+              </Group>
+            </Card>
           </div>
             </Stack>
           </Tabs.Panel>
@@ -965,63 +1097,76 @@ const SettingsScreen: React.FC = () => {
 
           {/* BrowserStack Settings Tab */}
           <Tabs.Panel value="browserstack" pt="md">
-            <Stack gap="md">
-              <div>
-            <Group gap="xs" mb="md">
-              <Cloud size={20} />
-              <Text size="lg" fw={600}>BrowserStack Configuration</Text>
-            </Group>
-            <Text size="sm" c="dimmed" mb="md">
-              Configure BrowserStack credentials and defaults for cloud test execution.
-            </Text>
+            <Tabs value={browserstackSubTab} onChange={(value) => setBrowserstackSubTab(value || 'configuration')}>
+              <Tabs.List mb="md">
+                <Tabs.Tab value="configuration">Configuration</Tabs.Tab>
+                <Tabs.Tab value="test-management">Test Management</Tabs.Tab>
+              </Tabs.List>
 
-            <Stack gap="md">
-              <TextInput
-                label="BrowserStack Username"
-                placeholder="Enter your BrowserStack username"
-                value={browserstackSettings.username}
-                onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, username: e.target.value })}
-              />
-              <TextInput
-                label="BrowserStack Access Key"
-                placeholder="Enter your BrowserStack access key"
-                type="password"
-                value={browserstackSettings.accessKey}
-                onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, accessKey: e.target.value })}
-              />
-              <TextInput
-                label="Project (Optional)"
-                placeholder="Project name"
-                value={browserstackSettings.project}
-                onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, project: e.target.value })}
-              />
-              <TextInput
-                label="Build Prefix (Optional)"
-                placeholder="Build prefix"
-                value={browserstackSettings.buildPrefix}
-                onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, buildPrefix: e.target.value })}
-              />
-            </Stack>
+              <Tabs.Panel value="configuration">
+                <Stack gap="md">
+                  <div>
+                    <Group gap="xs" mb="md">
+                      <Cloud size={20} />
+                      <Text size="lg" fw={600}>BrowserStack Configuration</Text>
+                    </Group>
+                    <Text size="sm" c="dimmed" mb="md">
+                      Configure BrowserStack credentials and defaults for cloud test execution.
+                    </Text>
 
-            <Group gap="xs" mt="md">
-              <Button
-                leftSection={<CheckCircle size={16} />}
-                onClick={handleTestConnection}
-                loading={testingConnection}
-                variant="light"
-              >
-                Test Connection
-              </Button>
-              <Button
-                leftSection={<Save size={16} />}
-                onClick={handleSaveBrowserStack}
-                loading={loading}
-              >
-                Save Settings
-              </Button>
-            </Group>
-          </div>
-            </Stack>
+                    <Stack gap="md">
+                      <TextInput
+                        label="BrowserStack Username"
+                        placeholder="Enter your BrowserStack username"
+                        value={browserstackSettings.username}
+                        onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, username: e.target.value })}
+                      />
+                      <TextInput
+                        label="BrowserStack Access Key"
+                        placeholder="Enter your BrowserStack access key"
+                        type="password"
+                        value={browserstackSettings.accessKey}
+                        onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, accessKey: e.target.value })}
+                      />
+                      <TextInput
+                        label="Project (Optional)"
+                        placeholder="Project name"
+                        value={browserstackSettings.project}
+                        onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, project: e.target.value })}
+                      />
+                      <TextInput
+                        label="Build Prefix (Optional)"
+                        placeholder="Build prefix"
+                        value={browserstackSettings.buildPrefix}
+                        onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, buildPrefix: e.target.value })}
+                      />
+                    </Stack>
+
+                    <Group gap="xs" mt="md">
+                      <Button
+                        leftSection={<CheckCircle size={16} />}
+                        onClick={handleTestConnection}
+                        loading={testingConnection}
+                        variant="light"
+                      >
+                        Test Connection
+                      </Button>
+                      <Button
+                        leftSection={<Save size={16} />}
+                        onClick={handleSaveBrowserStack}
+                        loading={loading}
+                      >
+                        Save Settings
+                      </Button>
+                    </Group>
+                  </div>
+                </Stack>
+              </Tabs.Panel>
+
+              <Tabs.Panel value="test-management" style={{ height: 'calc(100vh - 300px)', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
+                <BrowserStackTM />
+              </Tabs.Panel>
+            </Tabs>
           </Tabs.Panel>
 
           {/* Developer Tab (only shown when dev mode is enabled) */}

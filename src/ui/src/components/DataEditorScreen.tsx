@@ -181,8 +181,11 @@ const DataEditorScreen: React.FC = () => {
       });
 
       if (runResponse.runId) {
-        // Navigate to run screen to see output
-        navigate(`/runs/${runResponse.runId}`);
+        // Navigate to run screen to see output.
+        // RunScreen currently expects the route param to be the test name,
+        // and it will start the test run itself, streaming logs live.
+        // Using testName here keeps that behavior consistent.
+        navigate(`/runs/${testName}`);
       } else {
         // Fallback: navigate to test details page
         navigate(`/tests/${testName}`, { state: { initialTab: 'runs' } });

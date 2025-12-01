@@ -8,15 +8,24 @@ import { DataWriteRequest, DataWriteResponse, DataRow } from '../../types/v1.5';
 export class DataWriter {
   /**
    * Write data file with test datasets
+   * Data files are stored at: tests/d365/data/<testName>Data.json
+   * This matches the bundle structure used by SpecWriter
    */
   async writeData(request: DataWriteRequest): Promise<DataWriteResponse> {
     try {
-      // Ensure data directory exists
-      const dataDir = path.join(request.workspacePath, 'data');
+      // Use the same path structure as SpecWriter: tests/d365/data/<testName>Data.json
+      const testsDir = path.join(request.workspacePath, 'tests');
+      const dataDir = path.join(testsDir, 'd365', 'data');
       fs.mkdirSync(dataDir, { recursive: true });
 
-      // Write data file
-      const dataPath = path.join(dataDir, `${request.testName}.json`);
+      // Convert test name to kebab-case filename (same as SpecGenerator.flowNameToFileName)
+      const fileName = request.testName
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+
+      // Write data file with Data suffix to match SpecWriter convention
+      const dataPath = path.join(dataDir, `${fileName}Data.json`);
       
       // Create backup if file exists
       if (fs.existsSync(dataPath)) {
@@ -41,9 +50,22 @@ export class DataWriter {
 
   /**
    * Read data file
+   * Data files are stored at: tests/d365/data/<testName>Data.json
+   * This matches the bundle structure used by SpecWriter
    */
   async readData(workspacePath: string, testName: string): Promise<DataRow[]> {
-    const dataPath = path.join(workspacePath, 'data', `${testName}.json`);
+    // Use the same path structure as SpecWriter: tests/d365/data/<testName>Data.json
+    const testsDir = path.join(workspacePath, 'tests');
+    const dataDir = path.join(testsDir, 'd365', 'data');
+    
+    // Convert test name to kebab-case filename (same as SpecGenerator.flowNameToFileName)
+    const fileName = testName
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
+
+    // Read data file with Data suffix to match SpecWriter convention
+    const dataPath = path.join(dataDir, `${fileName}Data.json`);
     
     if (!fs.existsSync(dataPath)) {
       return [];

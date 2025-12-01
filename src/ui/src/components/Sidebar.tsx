@@ -12,6 +12,7 @@ import {
   Camera,
   History,
   Store,
+  Cloud,
 } from 'lucide-react';
 import { useWorkspaceStore } from '../store/workspace-store';
 import './Sidebar.css';
@@ -29,6 +30,7 @@ const Sidebar: React.FC = () => {
     { path: '/record', label: 'Record', icon: Camera, section: 'Workspace' },
     { path: '/runs', label: 'Runs', icon: History, section: 'Tools' },
     { path: '/report', label: 'Report', icon: BarChart3, section: 'Tools' },
+    { path: '/browserstack-tm', label: 'BrowserStack TM', icon: Cloud, section: 'Tools' },
     { path: '/locators', label: 'Locator Library', icon: Crosshair, section: 'Tools' },
     ...(isDemoMode ? [{ path: '/marketplace', label: 'Marketplace', icon: Store, section: 'Tools' }] : []),
     { path: '/settings', label: 'Settings', icon: Settings, section: 'Tools' },
@@ -87,7 +89,7 @@ const Sidebar: React.FC = () => {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="sidebar-version">v1.6.0</div>
+        <div className="sidebar-version">v1.7.0</div>
       </div>
     </aside>
   );

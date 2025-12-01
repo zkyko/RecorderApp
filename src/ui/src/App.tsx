@@ -21,6 +21,7 @@ import SettingsScreen from './components/SettingsScreen';
 import SetupScreen from './components/SetupScreen';
 import LoginDialog from './components/LoginDialog';
 import MarketplaceScreen from './components/MarketplaceScreen';
+import BrowserStackTMScreen from './components/BrowserStackTMScreen';
 import { useWorkspaceStore } from './store/workspace-store';
 import { ipc } from './ipc';
 import { getBackend } from './ipc-backend';
@@ -364,6 +365,7 @@ function AppContent() {
           <Route path="/report/:testName/:runId" element={<ReportViewerScreen />} />
           <Route path="/report/:runId" element={<ReportViewerScreen />} />
           <Route path="/report" element={<ReportDashboard />} />
+          <Route path="/browserstack-tm" element={<BrowserStackTMScreen />} />
           <Route path="/marketplace" element={<MarketplaceScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
         </Route>

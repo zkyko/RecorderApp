@@ -84,6 +84,12 @@ export const ipc = {
     cleanup: (request: LocatorCleanupRequest): Promise<LocatorCleanupResponse> => {
       return getBackend()?.locatorCleanup(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    onStatusUpdated: (callback: (data: any) => void): void => {
+      getBackend()?.onLocatorStatusUpdated(callback);
+    },
+    removeStatusUpdatedListener: (): void => {
+      getBackend()?.removeLocatorStatusUpdatedListener();
+    },
   },
 
   // Parameter detection
@@ -247,6 +253,26 @@ export const ipc = {
     },
   },
 
+  // Playwright environment
+  playwright: {
+    checkEnv: (request: { workspacePath: string }): Promise<{
+      success: boolean;
+      cliAvailable?: boolean;
+      browsersInstalled?: boolean;
+      error?: string;
+      details?: { version?: string; browsersDir?: string };
+    }> => {
+      return getBackend()?.playwrightCheckEnv(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    install: (request: { workspacePath: string }): Promise<{
+      success: boolean;
+      error?: string;
+      logPath?: string;
+    }> => {
+      return getBackend()?.playwrightInstall(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
   // v1.6: Settings
   settings: {
     getBrowserStack: (request: { workspacePath: string }): Promise<{ success: boolean; settings?: any; error?: string }> => {
@@ -254,6 +280,9 @@ export const ipc = {
     },
     updateBrowserStack: (request: { workspacePath: string; settings: any }): Promise<{ success: boolean; error?: string }> => {
       return getBackend()?.settingsUpdateBrowserStack(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    clearBrowserStackTMSession: (): Promise<{ success: boolean; error?: string }> => {
+      return getBackend()?.clearBrowserStackTMSession() || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
     getRecordingEngine: (request: SettingsGetRecordingEngineRequest): Promise<SettingsGetRecordingEngineResponse> => {
       return getBackend()?.settingsGetRecordingEngine(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
@@ -301,14 +330,6 @@ export const ipc = {
     },
     removeListeners: (): void => {
       getBackend()?.removeLocatorBrowseListeners();
-    },
-  },
-  locator: {
-    onStatusUpdated: (callback: (data: any) => void): void => {
-      getBackend()?.onLocatorStatusUpdated(callback);
-    },
-    removeStatusUpdatedListener: (): void => {
-      getBackend()?.removeLocatorStatusUpdatedListener();
     },
   },
 };

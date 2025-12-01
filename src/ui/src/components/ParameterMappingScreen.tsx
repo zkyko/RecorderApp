@@ -17,11 +17,30 @@ const ParameterMappingScreen: React.FC = () => {
   const [testName, setTestName] = useState('');
   const [module, setModule] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isRegenerate, setIsRegenerate] = useState(false);
 
   useEffect(() => {
-    const state = location.state as { cleanedCode?: string; parameterizedSteps?: ParamCandidate[] };
+    const state = location.state as {
+      cleanedCode?: string;
+      parameterizedSteps?: ParamCandidate[];
+      testName?: string;
+      module?: string;
+      mode?: 'regenerate' | 'new';
+    };
+
     if (state?.cleanedCode) {
       setCleanedCode(state.cleanedCode);
+
+      // If this was launched from an existing test, pre-fill test info
+      if (state.testName) {
+        setTestName(state.testName);
+      }
+      if (state.module) {
+        setModule(state.module);
+      }
+      if (state.mode === 'regenerate') {
+        setIsRegenerate(true);
+      }
       
       // If parameterized steps were passed from Step Editor, use those
       if (state.parameterizedSteps && state.parameterizedSteps.length > 0) {
@@ -123,6 +142,7 @@ const ParameterMappingScreen: React.FC = () => {
             placeholder="e.g., SalesOrder"
             value={testName}
             onChange={(e) => setTestName(e.target.value)}
+            disabled={isRegenerate} // For regenerate mode, keep the existing test name
             style={{ flex: 1 }}
             required
           />

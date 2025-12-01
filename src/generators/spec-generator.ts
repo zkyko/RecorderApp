@@ -253,8 +253,20 @@ export class SpecGenerator {
 
       // Handle wait steps
       if (step.action === 'wait') {
-        const waitTime = step.value || '1000';
-        content += `      await page.waitForTimeout(${waitTime});\n`;
+        // Coerce any recorded wait value into a numeric timeout.
+        // Older recordings may store arbitrary strings (e.g. "Enter") which
+        // must never be emitted as bare identifiers in the generated code.
+        const raw = (step as any).value as unknown;
+        let waitMs = 1000;
+        if (typeof raw === 'number' && Number.isFinite(raw)) {
+          waitMs = raw;
+        } else if (typeof raw === 'string') {
+          const parsed = parseInt(raw, 10);
+          if (!Number.isNaN(parsed) && parsed > 0) {
+            waitMs = parsed;
+          }
+        }
+        content += `      await page.waitForTimeout(${waitMs});\n`;
         continue;
       }
 

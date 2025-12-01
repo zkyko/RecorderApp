@@ -41,9 +41,11 @@ const LocatorCleanupScreen: React.FC = () => {
 
   const handleApprove = () => {
     const state = location.state as { cleanedCode?: string; parameterizedSteps?: any[] };
+    // Use cleaned code if available, otherwise fall back to the original raw code
+    const finalCode = cleanedCode || rawCode;
     navigate('/record/params', { 
       state: { 
-        cleanedCode,
+        cleanedCode: finalCode,
         parameterizedSteps: state?.parameterizedSteps || []
       } 
     });
@@ -93,6 +95,18 @@ const LocatorCleanupScreen: React.FC = () => {
         </Card>
       )}
 
+      {/* Empty-state message when no upgrades were applied (e.g., empty locator library) */}
+      {!loading && mapping.length === 0 && rawCode && (
+        <Card padding="md" radius="md" withBorder mb="md">
+          <Text fw={500} mb="xs">No locator upgrades applied</Text>
+          <Text size="sm" c="dimmed">
+            Your locator library doesn&apos;t have any saved improvements for this flow yet,
+            so the code was left as-is. You can still continue with this script and
+            future runs will start populating the locator library.
+          </Text>
+        </Card>
+      )}
+
       <Grid gutter="md" mb="md">
         <Grid.Col span={6}>
           <Card padding="lg" radius="md" withBorder style={{ height: '100%' }}>
@@ -134,7 +148,7 @@ const LocatorCleanupScreen: React.FC = () => {
         <Button
           leftSection={<Check size={16} />}
           onClick={handleApprove}
-          disabled={!cleanedCode || loading}
+          disabled={(!cleanedCode && !rawCode) || loading}
           rightSection={<ArrowRight size={16} />}
         >
           Approve & Continue

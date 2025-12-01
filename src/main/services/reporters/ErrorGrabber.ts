@@ -231,6 +231,9 @@ export class ErrorGrabber implements Reporter {
     // Extract trace path (relative to workspace)
     const trace = this.extractTracePath(result, bundlePath);
 
+    // Extract failed locator from error message
+    const failedLocator = this.extractFailedLocator(errorMessage, stackTrace);
+
     // Build failure artifact
     const artifact: FailureArtifact = {
       testName,
@@ -252,6 +255,9 @@ export class ErrorGrabber implements Reporter {
     }
     if (trace) {
       artifact.trace = trace;
+    }
+    if (failedLocator) {
+      artifact.failedLocator = failedLocator;
     }
 
     return artifact;
@@ -340,6 +346,94 @@ export class ErrorGrabber implements Reporter {
     // eslint-disable-next-line no-control-regex
     return str.replace(/\u001b\[[0-9;]*m/g, '');
   }
+
+  /**
+   * Extract failed locator from error message
+   * Common patterns:
+   * - "locator.click: Test timeout of 120000ms exceeded. Call log: - waiting for getByRole('button', { name: 'OK' })"
+   * - "locator.fill: Element not found: page.getByRole('combobox', { name: 'Customer account' })"
+   * - "Timeout 30000ms exceeded while waiting for getByLabel('Username')"
+   */
+  private extractFailedLocator(errorMessage: string, stackTrace: string): { locator: string; type: string; locatorKey: string } | undefined {
+    // Combine error message and stack trace for better matching
+    const combinedText = `${errorMessage}\n${stackTrace}`;
+
+    // Pattern 1: "waiting for getByRole('button', { name: 'OK' })"
+    const waitingPattern = /waiting for (getByRole\([^)]+\)|getByLabel\([^)]+\)|getByText\([^)]+\)|getByPlaceholder\([^)]+\)|locator\([^)]+\))/i;
+    let match = combinedText.match(waitingPattern);
+    if (match) {
+      const locatorStr = match[1].trim();
+      return this.parseLocatorString(locatorStr);
+    }
+
+    // Pattern 2: "getByRole('button', { name: 'OK' })" in error message
+    const directPattern = /(getByRole\([^)]+\)|getByLabel\([^)]+\)|getByText\([^)]+\)|getByPlaceholder\([^)]+\)|locator\([^)]+\))/i;
+    match = combinedText.match(directPattern);
+    if (match) {
+      const locatorStr = match[1].trim();
+      return this.parseLocatorString(locatorStr);
+    }
+
+    // Pattern 3: "page.getByRole('button', { name: 'OK' })" or "page.locator('#id')"
+    const pagePattern = /page\.(getByRole\([^)]+\)|getByLabel\([^)]+\)|getByText\([^)]+\)|getByPlaceholder\([^)]+\)|locator\([^)]+\))/i;
+    match = combinedText.match(pagePattern);
+    if (match) {
+      const locatorStr = match[1].trim();
+      return this.parseLocatorString(locatorStr);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Parse locator string and extract type and key
+   * Examples:
+   * - "getByRole('button', { name: 'OK' })" -> type: 'role', key: "role:page.getByRole('button', { name: 'OK' })"
+   * - "locator('#id')" -> type: 'css', key: "css:page.locator('#id')"
+   */
+  private parseLocatorString(locatorStr: string): { locator: string; type: string; locatorKey: string } | undefined {
+    // Normalize: remove 'page.' prefix if present
+    const normalized = locatorStr.replace(/^page\./, '');
+
+    // Determine type
+    let type = 'css';
+    if (normalized.startsWith('getByRole(')) {
+      type = 'role';
+    } else if (normalized.startsWith('getByLabel(')) {
+      type = 'label';
+    } else if (normalized.startsWith('getByText(')) {
+      type = 'text';
+    } else if (normalized.startsWith('getByPlaceholder(')) {
+      type = 'placeholder';
+    } else if (normalized.startsWith('locator(')) {
+      // Try to determine if it's CSS, XPath, or testid
+      const locatorMatch = normalized.match(/locator\(['"]([^'"]+)['"]\)/);
+      if (locatorMatch) {
+        const selector = locatorMatch[1];
+        if (selector.startsWith('//') || selector.startsWith('/')) {
+          type = 'xpath';
+        } else if (selector.includes('data-test-id')) {
+          type = 'testid';
+        } else if (selector.includes('data-dyn-controlname')) {
+          type = 'd365-controlname';
+        } else {
+          type = 'css';
+        }
+      }
+    } else {
+      return undefined;
+    }
+
+    // Build full locator string with 'page.' prefix
+    const fullLocator = `page.${normalized}`;
+    const locatorKey = `${type}:${fullLocator}`;
+
+    return {
+      locator: fullLocator,
+      type,
+      locatorKey,
+    };
+  }
 }
 
 // Default export for Playwright reporter loading
@@ -362,6 +456,11 @@ interface FailureArtifact {
   timestamp: string;
   screenshot?: string;
   trace?: string;
+  failedLocator?: {
+    locator: string;
+    type: string;
+    locatorKey: string;
+  };
 }
 
 interface LocationInfo {
