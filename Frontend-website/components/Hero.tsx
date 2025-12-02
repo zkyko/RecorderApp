@@ -58,7 +58,7 @@ export function Hero() {
             asChild
           >
             <a 
-              href="https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-x64-v1.5.0.zip"
+              href="https://github.com/zkyko/RecorderApp/releases/download/v1.7.0/QA-Studio-Windows-x64-v1.7.0.zip"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -72,7 +72,7 @@ export function Hero() {
             asChild
           >
             <a 
-              href="https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-ARM64-v1.5.0.zip"
+              href="https://github.com/zkyko/RecorderApp/releases/download/v1.7.0/QA-Studio-Windows-ARM64-v1.7.0.zip"
               target="_blank"
               rel="noopener noreferrer"
             >

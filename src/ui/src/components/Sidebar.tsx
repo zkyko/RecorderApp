@@ -89,7 +89,14 @@ const Sidebar: React.FC = () => {
       </nav>
 
       <div className="sidebar-footer">
-        <div className="sidebar-version">v1.7.0</div>
+        <div className="sidebar-credits">
+          <div className="sidebar-credit-line">Built by Nischal Bhandari</div>
+          <div className="sidebar-credit-line">for Fourhands</div>
+        </div>
+        <div className="sidebar-footer-meta">
+          <span className="sidebar-version">v1.7.0</span>
+          <span className="sidebar-update-date">Dec 1, 2025</span>
+        </div>
       </div>
     </aside>
   );

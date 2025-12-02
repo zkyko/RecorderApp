@@ -8,10 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const versions = [
   {
-    version: "v1.5.0",
-    date: "November 28, 2025",
-    windows: "https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-x64-v1.5.0.zip",
-    windowsArm64: "https://github.com/zkyko/RecorderApp/releases/download/v1.5.0/QA-Studio-Windows-ARM64-v1.5.0.zip",
+    version: "v1.7.0",
+    date: "December 2, 2025",
+    windows: "https://github.com/zkyko/RecorderApp/releases/download/v1.7.0/QA-Studio-Windows-x64-v1.7.0.zip",
+    windowsArm64: "https://github.com/zkyko/RecorderApp/releases/download/v1.7.0/QA-Studio-Windows-ARM64-v1.7.0.zip",
   },
 ];
 

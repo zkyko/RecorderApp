@@ -17,6 +17,30 @@ interface RoadmapItem {
 
 const roadmap: RoadmapItem[] = [
   {
+    title: "BrowserStack Integration",
+    description: "Full cloud testing integration with BrowserStack Automate and Test Management",
+    status: "completed",
+    version: "v1.7.0",
+    items: [
+      "BrowserStack Test Management embedded in sidebar with persistent login",
+      "Cloud test execution with automatic config generation",
+      "Credential management and environment variable handling",
+      "Dynamic browser/OS selection for test runs"
+    ]
+  },
+  {
+    title: "Context-Aware Recorder",
+    description: "Enhanced recorder logic with smart navigation and context tracking",
+    status: "completed",
+    version: "v1.7.0",
+    items: [
+      "Context-setting click detection using D365-specific attributes",
+      "Navigation step preservation for workspace context",
+      "Toolbar button context tracking with warnings",
+      "State machine for context management (None → PendingNav → Ready)"
+    ]
+  },
+  {
     title: "Visual Test Builder",
     description: "Build test steps visually by selecting actions and locators",
     status: "completed",
