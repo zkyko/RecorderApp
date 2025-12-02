@@ -128,12 +128,12 @@ export function ParameterizationFlow() {
                 <div>• User reviews detected candidates</div>
                 <div>• Selects which values to parameterize</div>
                 <div>• Can rename parameter names</div>
-                <div>• Creates mapping: originalValue → paramName</div>
+                <div>• Creates mapping: originalValue -&gt; paramName</div>
               </div>
             </div>
             <div className="px-4 py-3 bg-zinc-800/50 border border-cyan-500/30 rounded-lg">
               <div className="text-xs text-cyan-400 font-semibold mb-1">Output</div>
-              <div className="text-zinc-300 text-sm">Map&lt;originalValue, paramName&gt; passed to code generation</div>
+              <div className="text-zinc-300 text-sm">Map{`<`}originalValue, paramName{`>`} passed to code generation</div>
             </div>
           </div>
         </motion.div>
