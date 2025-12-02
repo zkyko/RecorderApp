@@ -188,7 +188,7 @@ export default function ParameterizationPage() {
           {/* Code Replacement */}
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader>
-              <CardTitle className="text-2xl">Code Replacement & Data Structure</CardTitle>
+              <CardTitle className="text-2xl">Code Replacement &amp; Data Structure</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
@@ -252,7 +252,7 @@ export default function ParameterizationPage() {
           {/* Regeneration Flow */}
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader>
-              <CardTitle className="text-2xl">Regeneration & Updates</CardTitle>
+              <CardTitle className="text-2xl">Regeneration &amp; Updates</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
@@ -307,4 +307,3 @@ export default function ParameterizationPage() {
     </div>
   );
 }
-
