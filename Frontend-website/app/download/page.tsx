@@ -42,11 +42,18 @@ export default function DownloadPage() {
             <Card key={version.version}>
               <CardHeader>
                 <div className="flex justify-between items-start">
-                  <div>
+                  <div className="flex-1">
                     <CardTitle className="text-2xl">{version.version}</CardTitle>
                     <CardDescription className="mt-2">
                       Released on {version.date}
                     </CardDescription>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-zinc-500 leading-tight">
+                      Built by<br />
+                      <span className="text-zinc-400 font-medium">Nischal Bhandari</span><br />
+                      for <span className="text-zinc-400 font-medium">FourHands</span>
+                    </p>
                   </div>
                 </div>
               </CardHeader>

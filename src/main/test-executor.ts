@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { BrowserWindow } from 'electron';
 import { ConfigManager } from './config-manager';
+import { runPlaywright } from './utils/playwrightRuntime';
 
 export interface TestExecutionOptions {
   specFile: string;
@@ -100,16 +101,19 @@ export class TestExecutor {
     // Get project root (where package.json is)
     const projectRoot = this.findProjectRoot();
     
-    // Spawn playwright test command
-    const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    const args = [
-      'playwright',
+    // Use the new runtime helper for local execution
+    const testArgs = [
       'test',
       relativeSpecPath, // Use relative path from project testDir
       '--config=playwright.config.ts',
     ];
 
-    this.spawnProcess(command, args, projectRoot, onOutput, onError, onClose);
+    this.currentProcess = runPlaywright(testArgs, {
+      cwd: projectRoot,
+    });
+    
+    // Set up handlers for the process
+    this.setupProcessHandlers(onOutput, onError, onClose);
   }
 
   /**
@@ -131,7 +135,6 @@ export class TestExecutor {
     const projectRoot = this.findProjectRoot();
     
     // Spawn playwright test command wrapped with BrowserStack Node SDK for observability
-    const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
     const args = [
       'browserstack-node-sdk',
       'playwright',
@@ -154,31 +157,18 @@ export class TestExecutor {
       BROWSERSTACK_LOCAL: 'true',
     };
 
-    this.spawnProcess(command, args, projectRoot, onOutput, onError, onClose, env);
+    this.spawnProcess('npx', args, projectRoot, onOutput, onError, onClose, env);
   }
 
   /**
-   * Spawn a child process and handle output
+   * Set up handlers for the current process
    */
-  private spawnProcess(
-    command: string,
-    args: string[],
-    cwd: string,
+  private setupProcessHandlers(
     onOutput?: (data: string) => void,
     onError?: (data: string) => void,
-    onClose?: (code: number | null) => void,
-    env?: NodeJS.ProcessEnv
+    onClose?: (code: number | null) => void
   ): void {
-    // Kill existing process if any
-    if (this.currentProcess) {
-      this.currentProcess.kill();
-    }
-
-    this.currentProcess = spawn(command, args, {
-      cwd,
-      env: env || process.env,
-      shell: process.platform === 'win32',
-    });
+    if (!this.currentProcess) return;
 
     // Handle stdout
     this.currentProcess.stdout?.on('data', (data) => {
@@ -205,12 +195,42 @@ export class TestExecutor {
     });
 
     // Handle process error
-    this.currentProcess.on('error', (error) => {
+    this.currentProcess.on('error', (error: any) => {
       if (onError) {
-        onError(`Process error: ${error.message}`);
+        if (error.code === 'ENOENT' || error.message?.includes('ENOENT')) {
+          onError(`Process error: System command line is restricted. This often happens on corporate devices. Original error: ${error.message}`);
+        } else {
+          onError(`Process error: ${error.message}`);
+        }
       }
       this.currentProcess = null;
     });
+  }
+
+  /**
+   * Spawn a child process and handle output
+   */
+  private spawnProcess(
+    command: string,
+    args: string[],
+    cwd: string,
+    onOutput?: (data: string) => void,
+    onError?: (data: string) => void,
+    onClose?: (code: number | null) => void,
+    env?: NodeJS.ProcessEnv
+  ): void {
+    // Kill existing process if any
+    if (this.currentProcess) {
+      this.currentProcess.kill();
+    }
+
+    this.currentProcess = spawn(command, args, {
+      cwd,
+      env: env || process.env,
+      shell: true,
+    });
+
+    this.setupProcessHandlers(onOutput, onError, onClose);
   }
 
   /**

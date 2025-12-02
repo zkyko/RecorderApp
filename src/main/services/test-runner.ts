@@ -7,6 +7,7 @@ import { BrowserWindow } from 'electron';
 import { TestRunRequest, TestRunEvent, TestRunMeta, RunIndex, TestMeta } from '../../types/v1.5';
 import { getReporterPath, getReporterSourcePath } from '../utils/path-resolver';
 import { LocatorMaintenanceService } from './locator-maintenance';
+import { runPlaywright } from '../utils/playwrightRuntime';
 
 /**
  * Service for running Playwright tests with streaming output
@@ -171,9 +172,11 @@ export class TestRunner {
           STORAGE_STATE_PATH: path.join(request.workspacePath, 'storage_state', 'd365.json'),
         };
         
-        // Use BrowserStack config
-        command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        // Use BrowserStack config - BrowserStack wrapper requires npx directly
+        // Note: BrowserStack wrapper may not work with bundled runtime, so we use npx
+        command = 'npx';
         args = [
+          'browserstack-node-sdk',
           'playwright',
           'test',
           specRelPath,
@@ -181,25 +184,30 @@ export class TestRunner {
         ];
         
         console.log('[TestRunner] Running test on BrowserStack');
+        
+        // For BrowserStack, use direct spawn (wrapper may not work with bundled runtime)
+        this.currentProcess = spawn(command, args, {
+          cwd: request.workspacePath, // Execute from workspace root
+          shell: true,
+          env: env,
+        });
       } else {
-        // Local execution
-        command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-        args = [
-          'playwright',
+        // Local execution - use bundled runtime if available
+        const testArgs = [
           'test',
           specRelPath, // Path relative to workspace root
           '--config=playwright.config.ts',
         ];
+        
+        // Use the new runtime helper for local execution
+        this.currentProcess = runPlaywright(testArgs, {
+          cwd: request.workspacePath,
+          env: env,
+        });
       }
       
       console.log('[TestRunner] Running test from workspace:', request.workspacePath);
       console.log('[TestRunner] Test file:', specRelPath);
-
-      this.currentProcess = spawn(command, args, {
-        cwd: request.workspacePath, // Execute from workspace root
-        shell: process.platform === 'win32',
-        env: env,
-      });
 
       // Emit started event after process is spawned
       this.emitEvent(runId, {
@@ -451,10 +459,10 @@ export class TestRunner {
     const nodeModulesPath = path.join(workspacePath, 'node_modules', '@playwright', 'test');
     if (!fs.existsSync(nodeModulesPath) || needsInstall) {
       console.log('[TestRunner] Installing dependencies in workspace...');
-      const installCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-      const installProcess = spawn(installCommand, ['install'], {
+      const installProcess = spawn('npm', ['install'], {
         cwd: workspacePath,
-        shell: process.platform === 'win32',
+        shell: true,
+        env: { ...process.env },
         stdio: 'pipe', // Use pipe instead of inherit to avoid blocking
       });
       
@@ -507,10 +515,9 @@ export class TestRunner {
    */
   private async installPlaywrightBrowsers(workspacePath: string): Promise<void> {
     console.log('[TestRunner] Installing Playwright browsers (this may take a few minutes)...');
-    const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    const installProcess = spawn(command, ['playwright', 'install', 'chromium'], {
+    // Use the new runtime helper which handles bundled vs system runtime
+    const installProcess = runPlaywright(['install', 'chromium'], {
       cwd: workspacePath, // Run from workspace, but browsers install globally
-      shell: process.platform === 'win32',
       stdio: 'pipe',
     });
 
@@ -541,8 +548,12 @@ export class TestRunner {
           resolve(); // Resolve instead of reject to allow test to continue
         }
       });
-      installProcess.on('error', (error) => {
-        console.warn('[TestRunner] Failed to run playwright install:', error.message);
+      installProcess.on('error', (error: any) => {
+        if (error.code === 'ENOENT' || error.message?.includes('ENOENT')) {
+          console.warn('[TestRunner] Playwright install failed: System command line is restricted. This often happens on corporate devices.');
+        } else {
+          console.warn('[TestRunner] Failed to run playwright install:', error.message);
+        }
         console.warn('[TestRunner] You may need to run: npx playwright install');
         resolve(); // Resolve instead of reject
       });
@@ -910,7 +921,6 @@ export default defineConfig({
     
     try {
       // Run allure generate command
-      const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
       const args = [
         'allure',
         'generate',
@@ -920,9 +930,10 @@ export default defineConfig({
         `allure-report/${runId}`,
       ];
 
-      const generateProcess = spawn(command, args, {
+      const generateProcess = spawn('npx', args, {
         cwd: workspacePath,
-        shell: process.platform === 'win32',
+        shell: true,
+        env: { ...process.env },
         stdio: 'pipe',
       });
 

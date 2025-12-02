@@ -203,6 +203,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Playwright environment
   playwrightCheckEnv: (request: { workspacePath: string }) => ipcRenderer.invoke('playwright:checkEnv', request),
   playwrightInstall: (request: { workspacePath: string }) => ipcRenderer.invoke('playwright:install', request),
+  playwrightRuntimeHealth: (request: { workspacePath: string }) => ipcRenderer.invoke('playwright:runtimeHealth', request),
 
   // RAG Chat
   ragChat: (request: { workspacePath: string; testName: string; messages: Array<{ role: string; content: string }> }) => ipcRenderer.invoke('rag:chat', request),

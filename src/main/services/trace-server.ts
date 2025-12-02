@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
 import { TraceOpenRequest, TraceOpenResponse, ReportOpenRequest, ReportOpenResponse } from '../../types/v1.5';
+import { runPlaywright } from '../utils/playwrightRuntime';
 
 /**
  * Service for hosting Playwright trace and report viewers
@@ -39,22 +40,30 @@ export class TraceServer {
         };
       }
 
-      // Spawn show-trace command with port 0 (auto-assign)
-      const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+      // Use the new runtime helper for show-trace command
       const args = [
-        'playwright',
         'show-trace',
         tracePath,
         '--port=0',
       ];
 
-      this.traceProcess = spawn(command, args, {
-        shell: process.platform === 'win32',
+      this.traceProcess = runPlaywright(args, {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
       // Parse output to find port
       return new Promise((resolve) => {
+        // Handle spawn errors
+        this.traceProcess!.on('error', (error: any) => {
+          let errorMessage = error.message || 'Failed to open trace';
+          if (error.code === 'ENOENT' || error.message?.includes('ENOENT')) {
+            errorMessage = 'System command line is restricted. This often happens on corporate devices. Please ensure Node.js and npm/npx are accessible.';
+          }
+          resolve({
+            success: false,
+            error: errorMessage,
+          });
+        });
         let output = '';
         
         this.traceProcess!.stdout?.on('data', (data) => {

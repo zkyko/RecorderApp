@@ -5,6 +5,7 @@ import { BrowserWindow } from 'electron';
 import { CodegenStartRequest, CodegenStartResponse, CodegenStopResponse, CodegenCodeUpdate } from '../../types/v1.5';
 import { CodegenParser } from './codegen-parser';
 import { RecordedStep } from '../../types';
+import { runPlaywright } from '../utils/playwrightRuntime';
 
 /**
  * Service for launching and managing Playwright Codegen
@@ -40,11 +41,9 @@ export class CodegenService {
       // Set output path
       this.outputPath = path.join(tmpDir, 'codegen-output.ts');
 
-      // Build codegen command
+      // Build codegen command arguments
       // Note: Playwright codegen uses --load-storage, not --storage-state
-      const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
       const args = [
-        'playwright',
         'codegen',
         request.envUrl,
       ];
@@ -57,19 +56,19 @@ export class CodegenService {
       // Add output path
       args.push('--output', this.outputPath);
 
-      console.log('[CodegenService] Starting codegen with command:', command, args.join(' '));
+      console.log('[CodegenService] Starting codegen with args:', args.join(' '));
 
-      // Spawn process - use 'inherit' stdio so browser window shows up
-      // In Electron, we need to let the process have its own console/display
-      this.currentProcess = spawn(command, args, {
-        shell: process.platform === 'win32',
+      // Use the new runtime helper which handles bundled vs system runtime
+      // Use 'inherit' stdio so browser window shows up
+      this.currentProcess = runPlaywright(args, {
+        cwd: request.workspacePath,
         stdio: 'inherit', // This allows the browser window to display
         detached: false,
       });
 
-      // Handle process errors
-      this.currentProcess.on('error', (error) => {
-        console.error('[CodegenService] Process error:', error);
+      // Handle process errors (error messages from runPlaywright are already user-friendly)
+      this.currentProcess.on('error', (error: any) => {
+        console.error('[CodegenService] Process error:', error.message || error);
       });
 
       // Start watching the output file for live updates

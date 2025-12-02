@@ -230,5 +230,13 @@ export interface ElectronAPI {
     error?: string;
     logPath?: string;
   }>;
+  playwrightRuntimeHealth: (request: { workspacePath: string }) => Promise<{
+    success: boolean;
+    nodeVersion?: string;
+    playwrightVersion?: string;
+    browsers?: string[];
+    runtimeType?: string;
+    error?: string;
+  }>;
 }
 

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { spawn, SpawnOptions } from 'child_process';
 import { safeRemoveSync } from './utils/file-utils';
+import { runPlaywright, runPlaywrightOnce, getRuntimeInfo, hasBundledRuntime, getBundledRuntimePaths, getNodeVersion, getInstalledBrowsers } from './utils/playwrightRuntime';
 import { SessionManager } from '../core/session/session-manager';
 import { BrowserManager } from '../core/playwright/browser-manager';
 import { RecorderEngine } from '../core/recorder/recorder-engine';
@@ -934,44 +935,75 @@ export class IPCBridge {
       cliAvailable?: boolean;
       browsersInstalled?: boolean;
       error?: string;
-      details?: { version?: string; browsersDir?: string };
+      details?: { version?: string; browsersDir?: string; runtimeType?: string };
     }> => {
       try {
         const projectRoot = this.findProjectRoot();
-        const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-        const args = ['playwright', '--version'];
-
+        
+        // Get runtime info to show in UI
+        const runtimeInfo = getRuntimeInfo();
+        
         let cliAvailable = false;
         let version: string | undefined;
 
         try {
-          const result = await this.spawnOnce(command, args, { cwd: projectRoot });
+          // Use the new runtime helper which handles bundled vs system
+          const result = await runPlaywrightOnce(['--version'], { 
+            cwd: projectRoot,
+            timeout: 10000,
+          });
           if (result.exitCode === 0) {
             cliAvailable = true;
             const line = result.stdout.trim().split('\n')[0]?.trim();
             version = line || undefined;
           }
         } catch (e: any) {
-          // CLI not available or failed - we'll surface this as not available
+          // CLI not available or failed
           return {
             success: true,
             cliAvailable: false,
             browsersInstalled: false,
-            error: e.message || 'Playwright CLI is not available. Please ensure Node.js and npx are accessible.',
+            error: e.message || 'Playwright CLI is not available.',
+            details: {
+              runtimeType: runtimeInfo.type,
+            },
           };
         }
 
-        // Heuristic: browsers are installed if the .local-browsers directory exists and is non-empty
-        const browsersDir = path.join(projectRoot, 'node_modules', 'playwright', '.local-browsers');
+        // Check for browsers - try bundled runtime location first, then project location
         let browsersInstalled = false;
-        try {
-          if (fs.existsSync(browsersDir)) {
-            const entries = fs.readdirSync(browsersDir);
-            browsersInstalled = entries.length > 0;
+        let browsersDir: string | undefined;
+        
+        if (hasBundledRuntime()) {
+          // Check bundled runtime browsers location
+          const runtimePaths = getBundledRuntimePaths();
+          if (runtimePaths) {
+            browsersDir = runtimePaths.browsersPath;
+            try {
+              if (fs.existsSync(browsersDir)) {
+                const entries = fs.readdirSync(browsersDir);
+                browsersInstalled = entries.length > 0;
+              }
+            } catch {
+              // Ignore filesystem errors
+            }
           }
-        } catch {
-          // Ignore filesystem errors; treat as not installed
-          browsersInstalled = false;
+        }
+        
+        // Also check project-level browser installation
+        if (!browsersInstalled) {
+          const projectBrowsersDir = path.join(projectRoot, 'node_modules', 'playwright', '.local-browsers');
+          try {
+            if (fs.existsSync(projectBrowsersDir)) {
+              const entries = fs.readdirSync(projectBrowsersDir);
+              if (entries.length > 0) {
+                browsersInstalled = true;
+                browsersDir = projectBrowsersDir;
+              }
+            }
+          } catch {
+            // Ignore filesystem errors
+          }
         }
 
         return {
@@ -981,6 +1013,7 @@ export class IPCBridge {
           details: {
             version,
             browsersDir,
+            runtimeType: runtimeInfo.type,
           },
         };
       } catch (error: any) {
@@ -998,55 +1031,119 @@ export class IPCBridge {
     }> => {
       try {
         const projectRoot = this.findProjectRoot();
-        const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-        const args = ['playwright', 'install'];
-
+        
         // Ensure tmp directory exists under workspace for logs
         const tmpDir = path.join(request.workspacePath, 'tmp');
         fs.mkdirSync(tmpDir, { recursive: true });
         const logPath = path.join(tmpDir, 'playwright-install.log');
 
-        const child = spawn(command, args, {
-          cwd: projectRoot,
-          shell: process.platform === 'win32',
-        });
-
         const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+        logStream.write(`Starting Playwright installation at ${new Date().toISOString()}\n`);
+        
+        const runtimeInfo = getRuntimeInfo();
+        logStream.write(`Runtime type: ${runtimeInfo.type}\n`);
 
-        child.stdout?.on('data', (data) => {
-          logStream.write(data);
-        });
-
-        child.stderr?.on('data', (data) => {
-          logStream.write(data);
-        });
-
-        const exitCode: number = await new Promise((resolve, reject) => {
-          child.on('error', (err) => {
-            logStream.write(`\nProcess error: ${err.message}\n`);
-            logStream.end();
-            reject(err);
+        try {
+          // Use the new runtime helper which handles bundled vs system
+          const child = runPlaywright(['install'], {
+            cwd: projectRoot,
           });
-          child.on('close', (code) => {
-            logStream.write(`\nProcess exited with code ${code}\n`);
-            logStream.end();
-            resolve(code ?? 1);
-          });
-        });
 
-        if (exitCode !== 0) {
+          child.stdout?.on('data', (data) => {
+            logStream.write(data);
+          });
+
+          child.stderr?.on('data', (data) => {
+            logStream.write(data);
+          });
+
+          const exitCode: number = await new Promise((resolve, reject) => {
+            child.on('error', (err: any) => {
+              logStream.write(`\nProcess error: ${err.message}\n`);
+              logStream.write(`Error code: ${err.code || 'unknown'}\n`);
+              logStream.end();
+              reject(err);
+            });
+            child.on('close', (code) => {
+              logStream.write(`\nProcess exited with code ${code}\n`);
+              logStream.end();
+              resolve(code ?? 1);
+            });
+          });
+
+          if (exitCode !== 0) {
+            return {
+              success: false,
+              error: `Playwright install failed with exit code ${exitCode}. See log for details.`,
+              logPath,
+            };
+          }
+
+          return { success: true, logPath };
+        } catch (spawnError: any) {
+          logStream.write(`\nSpawn error: ${spawnError.message}\n`);
+          logStream.write(`Error code: ${spawnError.code || 'unknown'}\n`);
+          logStream.end();
+
+          // Error messages from runPlaywright are already user-friendly
           return {
             success: false,
-            error: `Playwright install failed with exit code ${exitCode}. See log for details.`,
+            error: spawnError.message || 'Playwright installation failed. See log for details.',
             logPath,
           };
         }
-
-        return { success: true, logPath };
       } catch (error: any) {
         return {
           success: false,
           error: error.message || 'Failed to install Playwright',
+        };
+      }
+    });
+
+    // Runtime Health - comprehensive runtime information
+    ipcMain.handle('playwright:runtimeHealth', async (_event, request: { workspacePath: string }): Promise<{
+      success: boolean;
+      nodeVersion?: string;
+      playwrightVersion?: string;
+      browsers?: string[];
+      runtimeType?: string;
+      error?: string;
+    }> => {
+      try {
+        const runtimeInfo = getRuntimeInfo();
+        
+        // Get Node version
+        const nodeVersion = await getNodeVersion();
+        
+        // Get Playwright version
+        let playwrightVersion: string | undefined;
+        try {
+          const result = await runPlaywrightOnce(['--version'], { 
+            cwd: request.workspacePath,
+            timeout: 10000,
+          });
+          if (result.exitCode === 0) {
+            const line = result.stdout.trim().split('\n')[0]?.trim();
+            playwrightVersion = line || undefined;
+          }
+        } catch {
+          // Playwright version not available
+        }
+        
+        // Get installed browsers
+        const browsers = getInstalledBrowsers();
+        
+        return {
+          success: true,
+          nodeVersion: nodeVersion || undefined,
+          playwrightVersion,
+          browsers: browsers.length > 0 ? browsers : undefined,
+          runtimeType: runtimeInfo.type,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message || 'Failed to get runtime health information',
         };
       }
     });
@@ -1287,6 +1384,7 @@ export class IPCBridge {
 
   /**
    * Spawn a one-off process and capture stdout/stderr until completion.
+   * Uses cross-platform spawning that works on restricted corporate systems.
    */
   private spawnOnce(command: string, args: string[], options: SpawnOptions & { cwd: string }): Promise<{
     stdout: string;
@@ -1296,7 +1394,8 @@ export class IPCBridge {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, {
         ...options,
-        shell: process.platform === 'win32',
+        shell: true,
+        env: { ...process.env, ...options.env },
       });
 
       let stdout = '';
@@ -1310,8 +1409,17 @@ export class IPCBridge {
         stderr += data.toString();
       });
 
-      child.on('error', (err) => {
-        reject(err);
+      child.on('error', (err: any) => {
+        // Enhance error message for ENOENT (common on restricted systems)
+        if (err.code === 'ENOENT' || err.message?.includes('ENOENT')) {
+          const enhancedError = new Error(
+            `Command not found (ENOENT): ${command}. This often happens on corporate devices with restricted command line access. Original error: ${err.message}`
+          );
+          (enhancedError as any).code = err.code;
+          reject(enhancedError);
+        } else {
+          reject(err);
+        }
       });
 
       child.on('close', (code) => {

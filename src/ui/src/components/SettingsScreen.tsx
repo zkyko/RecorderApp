@@ -48,6 +48,7 @@ import {
   Wrench,
   Eye,
   Key,
+  Activity,
 } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
@@ -130,8 +131,20 @@ const SettingsScreen: React.FC = () => {
     checking: boolean;
     lastError?: string;
     version?: string;
+    runtimeType?: string;
   }>({
     checking: false,
+  });
+
+  const [runtimeHealth, setRuntimeHealth] = useState<{
+    nodeVersion?: string;
+    playwrightVersion?: string;
+    browsers?: string[];
+    runtimeType?: string;
+    loading: boolean;
+    error?: string;
+  }>({
+    loading: false,
   });
 
   useEffect(() => {
@@ -140,6 +153,7 @@ const SettingsScreen: React.FC = () => {
       loadRecordingEngine();
       loadWorkspaceStats();
       checkPlaywrightEnv();
+      checkRuntimeHealth();
     }
     loadAIConfig();
     loadDevMode();
@@ -276,6 +290,7 @@ const SettingsScreen: React.FC = () => {
           browsersInstalled: response.browsersInstalled,
           lastError: response.error,
           version: response.details?.version,
+          runtimeType: response.details?.runtimeType,
         });
       } else {
         setPlaywrightStatus({
@@ -306,6 +321,7 @@ const SettingsScreen: React.FC = () => {
       if (response.success) {
         alert('Playwright installation completed successfully.');
         await checkPlaywrightEnv();
+        await checkRuntimeHealth();
       } else {
         alert(`Playwright installation failed: ${response.error || 'Unknown error'}`);
         setPlaywrightStatus((prev) => ({
@@ -321,6 +337,33 @@ const SettingsScreen: React.FC = () => {
         checking: false,
         lastError: error.message || 'Playwright installation failed',
       }));
+    }
+  };
+
+  const checkRuntimeHealth = async () => {
+    if (!workspacePath) return;
+    setRuntimeHealth((prev) => ({ ...prev, loading: true, error: undefined }));
+    try {
+      const response = await ipc.playwright.runtimeHealth({ workspacePath });
+      if (response.success) {
+        setRuntimeHealth({
+          nodeVersion: response.nodeVersion,
+          playwrightVersion: response.playwrightVersion,
+          browsers: response.browsers,
+          runtimeType: response.runtimeType,
+          loading: false,
+        });
+      } else {
+        setRuntimeHealth({
+          loading: false,
+          error: response.error || 'Failed to check runtime health',
+        });
+      }
+    } catch (error: any) {
+      setRuntimeHealth({
+        loading: false,
+        error: error.message || 'Failed to check runtime health',
+      });
     }
   };
 
@@ -985,6 +1028,15 @@ const SettingsScreen: React.FC = () => {
                       ? `Detected: ${playwrightStatus.version}`
                       : 'Version unknown (run Check environment)'}
                   </Text>
+                  {playwrightStatus.runtimeType && (
+                    <Text size="xs" c={playwrightStatus.runtimeType === 'bundled' ? 'green' : 'dimmed'}>
+                      {playwrightStatus.runtimeType === 'bundled' 
+                        ? '✓ Using bundled Playwright runtime (self-contained).'
+                        : playwrightStatus.runtimeType === 'system'
+                        ? 'Bundled runtime missing — falling back to system npx.'
+                        : 'Playwright cannot run because your system command-line tools are restricted.'}
+                    </Text>
+                  )}
                   {playwrightStatus.lastError && (
                     <Text size="xs" c="red">
                       {playwrightStatus.lastError}
@@ -1012,6 +1064,86 @@ const SettingsScreen: React.FC = () => {
                   Install / Repair Playwright
                 </Button>
               </Group>
+            </Card>
+
+            {/* Runtime Health Section */}
+            <Card padding="md" radius="md" withBorder mt="lg">
+              <Group gap="xs" mb="md">
+                <Activity size={18} />
+                <Text fw={500}>Runtime Health</Text>
+              </Group>
+              <Text size="sm" c="dimmed" mb="sm">
+                Detailed information about your runtime environment including Node.js, Playwright, and installed browsers.
+              </Text>
+
+              {runtimeHealth.loading ? (
+                <Group justify="center" py="md">
+                  <Loader size="sm" />
+                  <Text size="sm" c="dimmed">Checking runtime health...</Text>
+                </Group>
+              ) : runtimeHealth.error ? (
+                <Text size="sm" c="red" py="md">
+                  {runtimeHealth.error}
+                </Text>
+              ) : (
+                <Stack gap="md">
+                  <div className="runtime-health-grid">
+                    <div className="runtime-health-item">
+                      <Text size="xs" c="dimmed" mb={4}>Node.js Version</Text>
+                      <Text size="sm" fw={500}>
+                        {runtimeHealth.nodeVersion || (
+                          <Text component="span" c="dimmed" fs="italic">Not detected</Text>
+                        )}
+                      </Text>
+                    </div>
+                    <div className="runtime-health-item">
+                      <Text size="xs" c="dimmed" mb={4}>Playwright Version</Text>
+                      <Text size="sm" fw={500}>
+                        {runtimeHealth.playwrightVersion || (
+                          <Text component="span" c="dimmed" fs="italic">Not detected</Text>
+                        )}
+                      </Text>
+                    </div>
+                    <div className="runtime-health-item">
+                      <Text size="xs" c="dimmed" mb={4}>Runtime Type</Text>
+                      <Badge
+                        color={runtimeHealth.runtimeType === 'bundled' ? 'green' : runtimeHealth.runtimeType === 'system' ? 'blue' : 'gray'}
+                        variant="light"
+                      >
+                        {runtimeHealth.runtimeType === 'bundled'
+                          ? 'Bundled'
+                          : runtimeHealth.runtimeType === 'system'
+                          ? 'System'
+                          : 'Unknown'}
+                      </Badge>
+                    </div>
+                    <div className="runtime-health-item">
+                      <Text size="xs" c="dimmed" mb={4}>Installed Browsers</Text>
+                      {runtimeHealth.browsers && runtimeHealth.browsers.length > 0 ? (
+                        <Group gap={4}>
+                          {runtimeHealth.browsers.map((browser) => (
+                            <Badge key={browser} color="green" variant="light" size="sm">
+                              {browser}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Text size="sm" c="orange" fs="italic">No browsers detected</Text>
+                      )}
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="light"
+                    size="xs"
+                    leftSection={<RefreshCw size={14} />}
+                    onClick={checkRuntimeHealth}
+                    disabled={!workspacePath || runtimeHealth.loading}
+                  >
+                    Refresh Runtime Health
+                  </Button>
+                </Stack>
+              )}
             </Card>
           </div>
             </Stack>

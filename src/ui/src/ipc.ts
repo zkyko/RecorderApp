@@ -260,7 +260,7 @@ export const ipc = {
       cliAvailable?: boolean;
       browsersInstalled?: boolean;
       error?: string;
-      details?: { version?: string; browsersDir?: string };
+      details?: { version?: string; browsersDir?: string; runtimeType?: string };
     }> => {
       return getBackend()?.playwrightCheckEnv(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
@@ -270,6 +270,16 @@ export const ipc = {
       logPath?: string;
     }> => {
       return getBackend()?.playwrightInstall(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    runtimeHealth: (request: { workspacePath: string }): Promise<{
+      success: boolean;
+      nodeVersion?: string;
+      playwrightVersion?: string;
+      browsers?: string[];
+      runtimeType?: string;
+      error?: string;
+    }> => {
+      return getBackend()?.playwrightRuntimeHealth(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
   },
 

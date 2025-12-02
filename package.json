@@ -91,6 +91,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "playwright-runtime/",
+        "to": "playwright-runtime/",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
