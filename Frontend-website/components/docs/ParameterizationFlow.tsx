@@ -156,13 +156,13 @@ export function ParameterizationFlow() {
             <div className="px-4 py-3 bg-green-500/20 border border-green-500/50 rounded-lg">
               <div className="text-green-300 text-sm font-medium mb-2">Before</div>
               <div className="text-xs text-zinc-400 font-mono bg-zinc-900/50 p-2 rounded">
-                await page.getByRole('combobox', {'{'} name: 'Customer account' {'}'}).fill('100001')
+                {`await page.getByRole('combobox', { name: 'Customer account' }).fill('100001')`}
               </div>
             </div>
             <div className="px-4 py-3 bg-green-500/20 border border-green-500/50 rounded-lg">
               <div className="text-green-300 text-sm font-medium mb-2">After</div>
               <div className="text-xs text-zinc-400 font-mono bg-zinc-900/50 p-2 rounded">
-                await page.getByRole('combobox', {'{'} name: 'Customer account' {'}'}).fill(row.customerAccount)
+                {`await page.getByRole('combobox', { name: 'Customer account' }).fill(row.customerAccount)`}
               </div>
             </div>
           </div>

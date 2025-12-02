@@ -127,7 +127,7 @@ export default function LocatorSystemPage() {
                     Uses Playwright's role-based locators (button, combobox, textbox) with accessible names.
                   </p>
                   <div className="text-xs text-zinc-500 font-mono bg-zinc-900/50 p-2 rounded mt-2">
-                    page.getByRole('button', {'{'} name: 'OK' {'}'})
+                    {`page.getByRole('button', { name: 'OK' })`}
                   </div>
                 </div>
 

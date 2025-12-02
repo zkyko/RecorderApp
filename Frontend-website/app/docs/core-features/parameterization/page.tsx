@@ -199,11 +199,11 @@ export default function ParameterizationPage() {
                 <div className="space-y-2">
                   <div className="text-xs font-mono bg-zinc-900/50 p-2 rounded text-zinc-300">
                     <div className="text-zinc-500 mb-1">Before:</div>
-                    <div>await page.getByRole('combobox', {'{'} name: 'Customer account' {'}'}).fill('100001')</div>
+                    <div>{`await page.getByRole('combobox', { name: 'Customer account' }).fill('100001')`}</div>
                   </div>
                   <div className="text-xs font-mono bg-zinc-900/50 p-2 rounded text-zinc-300">
                     <div className="text-zinc-500 mb-1">After:</div>
-                    <div>await page.getByRole('combobox', {'{'} name: 'Customer account' {'}'}).fill(row.customerAccount)</div>
+                    <div>{`await page.getByRole('combobox', { name: 'Customer account' }).fill(row.customerAccount)`}</div>
                   </div>
                 </div>
               </div>
