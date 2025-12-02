@@ -133,7 +133,7 @@ export function ParameterizationFlow() {
             </div>
             <div className="px-4 py-3 bg-zinc-800/50 border border-cyan-500/30 rounded-lg">
               <div className="text-xs text-cyan-400 font-semibold mb-1">Output</div>
-              <div className="text-zinc-300 text-sm">Map{`<`}originalValue, paramName{`>`} passed to code generation</div>
+              <div className="text-zinc-300 text-sm">Map&lt;originalValue, paramName&gt; passed to code generation</div>
             </div>
           </div>
         </motion.div>

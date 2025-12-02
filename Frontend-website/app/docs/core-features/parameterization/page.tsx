@@ -167,7 +167,7 @@ export default function ParameterizationPage() {
                   <li>Displays all detected candidates with label, original value, and suggested name</li>
                   <li>User can select/deselect which values to parameterize</li>
                   <li>User can rename parameter names before mapping</li>
-                  <li>Creates a Map{`<`}originalValue, paramName{`>`} for code replacement</li>
+                  <li>Creates a Map&lt;originalValue, paramName&gt; for code replacement</li>
                 </ul>
               </div>
 
