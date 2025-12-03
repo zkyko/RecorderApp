@@ -1,4 +1,4 @@
-# D365 Auto-Recorder Release Script
+# QA Studio Release Script
 # Automates the process of creating a GitHub release
 
 param(
@@ -17,7 +17,8 @@ if ([string]::IsNullOrEmpty($Version)) {
 }
 
 $TagName = "v$Version"
-$ReleaseTitle = "$TagName - D365 Auto-Recorder & POM Generator"
+# Human-friendly release title
+$ReleaseTitle = "QA Studio $TagName"
 $ReleaseZip = "release.zip"
 
 Write-Host "========================================" -ForegroundColor Cyan
@@ -134,19 +135,20 @@ if ($ghInstalled) {
     # Prepare release notes
     if ([string]::IsNullOrEmpty($ReleaseNotes)) {
         $ReleaseNotes = @"
-## D365 Auto-Recorder & POM Generator $TagName
+## QA Studio $TagName
 
 ### Installation
 1. Download \`$ReleaseZip\` from the assets below
 2. Extract to your desired location
-3. Run \`D365 Auto Recorder & POM Generator.exe\`
+3. Run \`QA Studio.exe\`
 4. Complete the first-run setup wizard
 
-### Features
-- Interactive recording of D365 user interactions
-- Automatic POM and test specification generation
-- Standalone Windows application (no Node.js required)
-- Persistent configuration and authentication
+### Highlights
+- Multi-workspace architecture (D365 + Web Demo)
+- BrowserStack Test Management integration for test cases and runs
+- One-click Jira defect creation from failed runs
+- Diagnostics screen for environment and integration checks
+- Bundled Playwright runtime with automatic updates
 
 See [README.md](README.md) for detailed documentation.
 "@

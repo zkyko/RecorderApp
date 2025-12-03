@@ -1,9 +1,9 @@
-# Package D365 Auto-Recorder as portable ZIP
+# Package QA Studio as portable ZIP
 # Run this after building with: npm run build:app
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "Packaging D365 Auto-Recorder as portable application..." -ForegroundColor Green
+Write-Host "Packaging QA Studio as portable application..." -ForegroundColor Green
 
 # Check if win-unpacked exists
 $unpackedPath = "release\win-unpacked"
@@ -13,9 +13,9 @@ if (-not (Test-Path $unpackedPath)) {
 }
 
 # Check if executable is running
-$exeName = "D365 Auto Recorder & POM Generator.exe"
+$exeName = "QA Studio.exe"
 $exePath = Join-Path $unpackedPath $exeName
-$processes = Get-Process | Where-Object { $_.ProcessName -like "*D365*" -or $_.MainWindowTitle -like "*D365*" }
+$processes = Get-Process | Where-Object { $_.ProcessName -like "*QA Studio*" -or $_.MainWindowTitle -like "*QA Studio*" }
 if ($processes) {
     Write-Host "Warning: The application may be running. Please close it first." -ForegroundColor Yellow
     Write-Host "Press any key to continue anyway, or Ctrl+C to cancel..."
@@ -23,7 +23,7 @@ if ($processes) {
 }
 
 # Create portable folder name
-$portableFolder = "D365-Auto-Recorder-portable"
+$portableFolder = "QA-Studio-Windows-x64-v$((Get-Content package.json | ConvertFrom-Json).version)"
 $portablePath = "release\$portableFolder"
 
 # Remove old portable folder if exists
