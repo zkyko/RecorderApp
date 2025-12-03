@@ -13,12 +13,6 @@ const versions = [
     windows: "https://github.com/zkyko/RecorderApp/releases/download/v2.0.0/QA-Studio-Windows-x64-v2.0.0.zip",
     windowsArm64: "https://github.com/zkyko/RecorderApp/releases/download/v2.0.0/QA-Studio-Windows-ARM64-v2.0.0.zip",
   },
-  {
-    version: "v1.7.0",
-    date: "December 2, 2025",
-    windows: "https://github.com/zkyko/RecorderApp/releases/download/v1.7.0/QA-Studio-Windows-x64-v1.7.0.zip",
-    windowsArm64: "https://github.com/zkyko/RecorderApp/releases/download/v1.7.0/QA-Studio-Windows-ARM64-v1.7.0.zip",
-  },
 ];
 
 export default function DownloadPage() {
