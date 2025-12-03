@@ -9,19 +9,35 @@ QA Studio is an Electron desktop application that orchestrates four collaboratin
 
 The `dist/` directory contains the compiled equivalents of those branches for packaged releases, while `Recordings/` stores runtime outputs (page registry, tests, data captures).
 
-### Workspace Architecture
-QA Studio uses a **workspace-based architecture** that makes it platform-agnostic and easily extensible:
+### Workspace Architecture (v2.0)
+QA Studio v2.0 uses a **workspace-based architecture** that makes it platform-agnostic and easily extensible:
 
-- **Current Support:** Microsoft Dynamics 365 (D365) workspace with optimized locator extraction algorithms
+- **Current Support:** 
+  - Microsoft Dynamics 365 (D365) workspace with optimized locator extraction algorithms
+  - Web Demo workspace demonstrating multi-workspace architecture
 - **Future Support:** Koerber, Salesforce, and other enterprise platforms will be added as separate workspaces
 - **Pluggable Design:** Each workspace contains platform-specific locator logic, page classification rules, and navigation heuristics
-- **Shared Infrastructure:** The recorder engine, code generation, and execution layers remain the same across all workspaces
+- **Shared Infrastructure:** The recorder engine, code generation, assertion engine, and execution layers remain the same across all workspaces
+- **Workspace Manager:** Central service (`src/main/services/workspace-manager.ts`) handles workspace switching, configuration loading, and path resolution
+
+**Workspace Structure:**
+```
+workspaces/
+├── d365/
+│   ├── workspace.json          # Workspace configuration
+│   ├── tests/specs/            # Test bundles
+│   ├── data/                    # Test data files
+│   └── locators/                # Locator status tracking
+└── web-demo/
+    └── ... (same structure)
+```
 
 To add support for a new platform, developers need to:
-1. Create platform-specific locator extraction algorithms
-2. Define platform-specific page classification rules
-3. Configure workspace settings and metadata
-4. Plug the new workspace into the system
+1. Create workspace directory under `workspaces/`
+2. Add `workspace.json` with platform configuration
+3. Create platform-specific locator extraction algorithms (if needed)
+4. Define platform-specific page classification rules (if needed)
+5. Register workspace in workspace manager
 
 The workspace system ensures that QA Studio can adapt to any enterprise application while maintaining a consistent user experience and code generation pipeline.
 
@@ -32,21 +48,27 @@ The workspace system ensures that QA Studio can adapt to any enterprise applicat
 | 2. Recorder attach | `src/core/recorder/recorder-engine.ts`, `src/core/recorder/event-listeners.ts` | Live `RecordedStep` stream | Injects DOM listeners + CDP hooks, applies spatial/nav heuristics, and enriches events with page identity. |
 | 3. Classification & Registry | `src/core/classification/page-classifier.ts`, `src/core/registry/page-registry.ts` | `PageIdentity`, `Recordings/page-registry.json` | Each navigation updates the registry with MI, captions, module tags, and inferred class names. |
 | 4. Locator intelligence | `src/core/locators/locator-extractor.ts`, `src/core/utils/identifiers.ts` | D365-specific selectors, sanitized IDs | Combines attribute probes (`data-dyn-controlname`, roles, spatial hints) to avoid brittle CSS. |
-| 5. Code generation | `src/main/services/codegen-parser.ts`, `src/generators/pom-generator.ts`, `src/generators/spec-generator.ts`, `src/generators/code-formatter.ts` | `d365/<module>/*.page.ts`, `Recordings/tests/*.spec.ts` | Parses steps, merges with existing classes via `ts-morph`, and emits formatted Playwright code. |
-| 6. Execution & feedback | `src/main/test-executor.ts`, `playwright*.config.ts`, `log/performance-report` | Run logs, screenshots, BrowserStack metadata | Supports local headed/headless runs, BrowserStack orchestration, and performance snapshots. |
-| 7. UI orchestration | `src/ui/src/components/*`, `src/ui/src/store` | Settings, timeline, diff viewers | React screens call main-process IPC endpoints to drive recording, review generated files, and trigger runs. |
+| 5. Code generation | `src/main/services/codegen-service.ts`, `src/generators/spec-generator.ts`, `src/generators/code-formatter.ts` | `<workspace>/tests/specs/*.spec.ts` | Parses steps, processes assertions, and emits formatted Playwright code with expect() calls. |
+| 6. Assertion processing | `src/generators/spec-generator.ts` | Assertion metadata in run summaries | Processes AssertStep entries, resolves parameterized values, and generates Playwright expect() calls. |
+| 7. Execution & feedback | `src/main/services/test-runner.ts`, `playwright*.config.ts`, `log/performance-report` | Run logs, screenshots, BrowserStack metadata | Supports local and BrowserStack Automate execution, with Test Management sync and performance snapshots. |
+| 8. Enterprise integrations | `src/main/services/browserstackTmService.ts`, `src/main/services/jiraService.ts` | BrowserStack TM test cases/runs, Jira defects | Syncs test cases and runs to BrowserStack TM, creates Jira defects from failed tests. |
+| 9. UI orchestration | `src/ui/src/components/*`, `src/ui/src/store` | Settings, timeline, diff viewers, workspace selector | React screens call main-process IPC endpoints to drive recording, review generated files, trigger runs, and manage workspaces. |
 
 ### Data Flow Snapshot
-1. **User hits “Record” in SettingsScreen (`src/ui/src/components/SettingsScreen.tsx`).**
-2. UI requests `main/index.ts` to spawn a Playwright session with D365 auth + module context.
+1. **User selects workspace and hits "Record" in SettingsScreen (`src/ui/src/components/SettingsScreen.tsx`).**
+2. UI requests `main/index.ts` to spawn a Playwright session with platform auth + workspace context.
 3. `RecorderEngine` attaches to the browser page, funneling DOM events -> `RecordedStep`.
 4. Each step enriches the `PageRegistryManager`, so subsequent generations know the canonical `pageId`, MI, and caption.
-5. When recording stops, the UI asks `codegen-parser.ts` to:
+5. User can add assertions via the step editor, creating `AssertStep` entries with parameterized expected values.
+6. When recording stops, the UI asks `codegen-service.ts` to:
    - Normalize steps (merge adjacent events, drop body-only locators).
-   - Feed them into `POMGenerator` and `SpecGenerator`.
-   - Format results and write to `Recordings/tests` + `dist/generators`.
-6. The UI presents side-by-side diffs so engineers can accept/reject artifacts before committing.
-7. Optional: `test-executor.ts` runs the new spec locally or via BrowserStack, streaming logs back into the UI console.
+   - Process assertion steps and resolve parameterized values.
+   - Feed them into `SpecGenerator` (and `POMGenerator` for D365).
+   - Format results and write to `<workspace>/tests/specs/`.
+7. The UI presents side-by-side diffs so engineers can accept/reject artifacts before committing.
+8. Optional: `test-runner.ts` runs the new spec locally or via BrowserStack Automate, streaming logs back into the UI console.
+9. On test completion: `browserstackTmService.ts` syncs test case and run to BrowserStack TM.
+10. On test failure: User can create Jira defect via `jiraService.ts` with pre-filled failure context.
 
 ### Branch-Specific Concerns
 - **Core branch:** TypeScript targeting browser contexts; prioritize lightweight dependencies and guard against leaking Node APIs.
@@ -61,9 +83,12 @@ The workspace system ensures that QA Studio can adapt to any enterprise applicat
 - **Testing:** `npm run test:ui` launches Playwright’s UI mode for spec debugging; BrowserStack credentials flow through `playwright.browserstack.config.ts`.
 
 ### Extension Map
-- Add a new D365 heuristic → extend `LocatorExtractor` or `PageClassifier`, then update `PageRegistryManager` to store any new metadata.
-- Introduce a new artifact (e.g., API contract) → create a generator in `src/generators/` and register it inside `codegen-parser.ts` so the UI can expose it as another export toggle.
-- Wire a new execution target → implement a runner in `src/main/test-executor.ts` and surface it as a selectable profile in the Settings screen.
+- **Add a new platform workspace:** Create workspace directory, add `workspace.json`, implement platform-specific locators/classification if needed, register in `workspace-manager.ts`.
+- **Add a new D365 heuristic:** Extend `LocatorExtractor` or `PageClassifier`, then update `PageRegistryManager` to store any new metadata.
+- **Add a new assertion type:** Extend `AssertionKind` type, add UI support in assertion editor, update `SpecGenerator` to emit corresponding Playwright expect() call.
+- **Introduce a new artifact:** Create a generator in `src/generators/` and register it inside `codegen-service.ts` so the UI can expose it as another export toggle.
+- **Wire a new execution target:** Implement a runner in `src/main/services/test-runner.ts` and surface it as a selectable profile in the Settings screen.
+- **Add a new integration:** Create a service in `src/main/services/` (e.g., `newIntegrationService.ts`), add IPC handlers in `bridge.ts`, and create UI components in `src/ui/src/components/`.
 
 Use this document as the “map of maps.” For contributor-level detail see `02-developer-guide.md`; for step-by-step UX flows see `03-user-guide.md`.
 

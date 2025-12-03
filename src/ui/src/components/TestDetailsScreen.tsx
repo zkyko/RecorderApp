@@ -43,6 +43,7 @@ import { TestSummary, TestMeta, TestRunMeta, DataRow, LocatorInfo } from '../../
 import RunModal from './RunModal';
 import TestDetailsLocatorsTab from './TestDetailsLocatorsTab';
 import DebugChatPanel from './DebugChatPanel';
+import JiraCreateDefectModal from './JiraCreateDefectModal';
 import EnhancedStepsTab from './EnhancedStepsTab';
 import './TestDetailsScreen.css';
 
@@ -61,6 +62,34 @@ const TestDetailsScreen: React.FC = () => {
   const [runModalOpened, setRunModalOpened] = useState(false);
   const [chatDrawerOpened, setChatDrawerOpened] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [jiraModalOpened, setJiraModalOpened] = useState(false);
+  const [selectedRun, setSelectedRun] = useState<TestRunMeta | null>(null);
+
+  const analytics = React.useMemo(() => {
+    if (!runs || runs.length === 0) {
+      return null;
+    }
+    const total = runs.length;
+    const passed = runs.filter(r => r.status === 'passed').length;
+    const failed = runs.filter(r => r.status === 'failed').length;
+    const sorted = [...runs].sort(
+      (a, b) =>
+        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
+    const lastRun = sorted[0];
+    const durations = runs
+      .filter(r => r.startedAt && r.finishedAt)
+      .map(
+        r =>
+          new Date(r.finishedAt!).getTime() -
+          new Date(r.startedAt).getTime()
+      );
+    const avgMs =
+      durations.length > 0
+        ? durations.reduce((a, b) => a + b, 0) / durations.length
+        : 0;
+    return { total, passed, failed, lastRun, avgMs };
+  }, [runs]);
 
   useEffect(() => {
     if (testName && workspacePath) {
@@ -346,6 +375,74 @@ const TestDetailsScreen: React.FC = () => {
         </Group>
       </Card>
 
+      {/* Test Links / Status */}
+      {testMeta && (
+        <Card padding="lg" radius="md" withBorder mb="md">
+          <Text fw={600} mb="sm">Test Links / Status</Text>
+          <Stack gap="sm">
+            <div>
+              <Text size="sm" fw={500} mb={4}>BrowserStack Test Management</Text>
+              {testMeta.browserstack?.tmTestCaseId && testMeta.browserstack.tmTestCaseUrl ? (
+                <Group gap="xs">
+                  <Text size="sm">
+                    Test Case: <Code>{testMeta.browserstack.tmTestCaseId}</Code>
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => ipc.system?.openExternal?.(testMeta.browserstack!.tmTestCaseUrl!)}
+                  >
+                    View in BrowserStack TM
+                  </Button>
+                </Group>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  Not linked to BrowserStack Test Management yet.
+                </Text>
+              )}
+            </div>
+
+            <div>
+              <Text size="sm" fw={500} mb={4}>Jira</Text>
+              {testMeta.jira?.issueKey && testMeta.jira.issueUrl ? (
+                <Group gap="xs">
+                  <Text size="sm">
+                    Defect: <Code>{testMeta.jira.issueKey}</Code>
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => ipc.system?.openExternal?.(testMeta.jira!.issueUrl!)}
+                  >
+                    View in Jira
+                  </Button>
+                </Group>
+              ) : (
+                <Group gap="xs">
+                  <Text size="sm" c="dimmed">No Jira defect linked yet.</Text>
+                  {testSummary.lastStatus === 'failed' && runs.some(r => r.status === 'failed') && (
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      color="red"
+                      onClick={() => {
+                        const latestFailed = [...runs].find(r => r.status === 'failed');
+                        if (latestFailed) {
+                          setSelectedRun(latestFailed);
+                          setJiraModalOpened(true);
+                        }
+                      }}
+                    >
+                      Create defect
+                    </Button>
+                  )}
+                </Group>
+              )}
+            </div>
+          </Stack>
+        </Card>
+      )}
+
       {/* Tabs */}
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
@@ -426,13 +523,33 @@ const TestDetailsScreen: React.FC = () => {
                       {testSummary.lastStatus === 'never_run' ? 'Never run' : testSummary.lastStatus}
                     </Badge>
                   </div>
-                  {runs.length > 0 && runs[0].finishedAt && runs[0].startedAt && (
-                    <div>
-                      <Text size="sm" c="dimmed">Last Run Duration</Text>
-                      <Text size="xl" fw={700}>
-                        {Math.round((new Date(runs[0].finishedAt).getTime() - new Date(runs[0].startedAt).getTime()) / 1000)}s
-                      </Text>
-                    </div>
+                  {analytics && (
+                    <>
+                      <div>
+                        <Text size="sm" c="dimmed">Runs</Text>
+                        <Text size="xl" fw={700}>
+                          {analytics.total} total — {analytics.passed} passed, {analytics.failed} failed
+                        </Text>
+                      </div>
+                      <div>
+                        <Text size="sm" c="dimmed">Last Run</Text>
+                        <Text size="sm">
+                          {analytics.lastRun.status}{' '}
+                          {analytics.lastRun.finishedAt && analytics.lastRun.startedAt
+                            ? `(${Math.round(
+                                (new Date(analytics.lastRun.finishedAt).getTime() -
+                                  new Date(analytics.lastRun.startedAt).getTime()) / 1000
+                              )}s)`
+                            : ''}
+                        </Text>
+                      </div>
+                      <div>
+                        <Text size="sm" c="dimmed">Avg duration</Text>
+                        <Text size="sm">
+                          {analytics.avgMs ? `${Math.round(analytics.avgMs / 1000)}s` : 'N/A'}
+                        </Text>
+                      </div>
+                    </>
                   )}
                 </Group>
               </div>
@@ -510,7 +627,15 @@ const TestDetailsScreen: React.FC = () => {
 
         {/* Runs Tab */}
         <Tabs.Panel value="runs" pt="md">
-          <RunsTab runs={runs} testName={testName!} />
+          <RunsTab
+            runs={runs}
+            testName={testName!}
+            testMeta={testMeta}
+            onCreateJiraDefect={(run) => {
+              setSelectedRun(run);
+              setJiraModalOpened(true);
+            }}
+          />
         </Tabs.Panel>
 
         {/* Export Tab */}
@@ -545,6 +670,16 @@ const TestDetailsScreen: React.FC = () => {
           </div>
         )}
       </Drawer>
+
+      <JiraCreateDefectModal
+        opened={jiraModalOpened}
+        onClose={() => {
+          setJiraModalOpened(false);
+          setSelectedRun(null);
+        }}
+        run={selectedRun}
+        testName={testName || ''}
+      />
     </div>
   );
 };
@@ -999,7 +1134,12 @@ const TraceTab: React.FC<{ runs: TestRunMeta[]; testName: string; workspacePath:
 };
 
 // Runs Tab Component
-const RunsTab: React.FC<{ runs: TestRunMeta[]; testName: string }> = ({ runs, testName }) => {
+const RunsTab: React.FC<{
+  runs: TestRunMeta[];
+  testName: string;
+  testMeta?: TestMeta | null;
+  onCreateJiraDefect?: (run: TestRunMeta) => void;
+}> = ({ runs, testName, testMeta, onCreateJiraDefect }) => {
   const navigate = useNavigate();
 
   const getStatusColor = (status: string) => {
@@ -1073,6 +1213,47 @@ const RunsTab: React.FC<{ runs: TestRunMeta[]; testName: string }> = ({ runs, te
                         >
                           Report
                         </Button>
+                      )}
+                      {run.browserstack?.dashboardUrl && (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => ipc.system?.openExternal?.(run.browserstack!.dashboardUrl!)}
+                        >
+                          View in BrowserStack
+                        </Button>
+                      )}
+                      {testMeta?.browserstack?.tmTestCaseUrl && (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => ipc.system?.openExternal?.(testMeta.browserstack!.tmTestCaseUrl!)}
+                        >
+                          View in BrowserStack TM
+                        </Button>
+                      )}
+                      {testMeta?.jira?.issueUrl ? (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="red"
+                          onClick={() => ipc.system?.openExternal?.(testMeta.jira!.issueUrl!)}
+                        >
+                          View Jira Defect
+                        </Button>
+                      ) : (
+                        run.status === 'failed' &&
+                        onCreateJiraDefect && (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="red"
+                            leftSection={<Bug size={14} />}
+                            onClick={() => onCreateJiraDefect(run)}
+                          >
+                            Create Defect
+                          </Button>
+                        )
                       )}
                     </Group>
                   </Table.Td>

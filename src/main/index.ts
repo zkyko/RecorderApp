@@ -7,6 +7,7 @@ import { IPCBridge } from './bridge';
 import { ConfigManager } from './config-manager';
 import { TestExecutor } from './test-executor';
 import { WorkspaceManager } from './services/workspace-manager';
+import { UpdaterService } from './services/updaterService';
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +40,7 @@ let ipcBridge: IPCBridge;
 let configManager: ConfigManager;
 let testExecutor: TestExecutor;
 let workspaceManager: WorkspaceManager;
+let updaterService: UpdaterService | null = null;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -464,6 +466,12 @@ app.whenReady().then(async () => {
 
   // Create window (this will set mainWindow and update the bridge)
   createWindow();
+
+  // Initialize updater service after window is created
+  if (mainWindow) {
+    updaterService = new UpdaterService(mainWindow);
+    updaterService.registerHandlers();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

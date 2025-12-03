@@ -193,6 +193,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     settingsGetBrowserStack: (request: { workspacePath: string }) => ipcRenderer.invoke('settings:getBrowserStack', request),
     settingsUpdateBrowserStack: (request: { workspacePath: string; settings: any }) => ipcRenderer.invoke('settings:updateBrowserStack', request),
     clearBrowserStackTMSession: () => ipcRenderer.invoke('browserstack:clearTMSession'),
+    settingsGetJiraConfig: () => ipcRenderer.invoke('settings:getJiraConfig'),
+    settingsUpdateJiraConfig: (request: { baseUrl: string; email: string; apiToken: string; projectKey: string }) => ipcRenderer.invoke('settings:updateJiraConfig', request),
+    clearJiraSession: () => ipcRenderer.invoke('jira:clearSession'),
   settingsGetRecordingEngine: (request: { workspacePath: string }) => ipcRenderer.invoke('settings:getRecordingEngine', request),
   settingsUpdateRecordingEngine: (request: { workspacePath: string; recordingEngine: string }) => ipcRenderer.invoke('settings:updateRecordingEngine', request),
   settingsGetAIConfig: () => ipcRenderer.invoke('settings:getAIConfig'),
@@ -217,5 +220,59 @@ contextBridge.exposeInMainWorld('electronAPI', {
   devRebuildWorkspaceStructure: (request: { workspacePath: string }) => ipcRenderer.invoke('dev:rebuildWorkspaceStructure', request),
   devGetRawConfig: () => ipcRenderer.invoke('dev:getRawConfig'),
   devGetStorageStatePath: () => ipcRenderer.invoke('dev:getStorageStatePath'),
+
+  // ============================================================================
+  // v2.0: Electron Self Test / Diagnostics
+  // ============================================================================
+  electronTestRunAll: () => ipcRenderer.invoke('electronTest:runAll'),
+
+  // ============================================================================
+  // v2.0: Auto-updater
+  // ============================================================================
+  updaterCheck: () => ipcRenderer.invoke('updater:check'),
+  updaterDownload: () => ipcRenderer.invoke('updater:download'),
+  updaterInstall: () => ipcRenderer.invoke('updater:install'),
+  onUpdaterEvent: (callback: (event: string, data?: any) => void) => {
+    ipcRenderer.on('update-checking', () => callback('checking'));
+    ipcRenderer.on('update-available', (_event, data) => callback('available', data));
+    ipcRenderer.on('update-not-available', (_event, data) => callback('not-available', data));
+    ipcRenderer.on('update-error', (_event, data) => callback('error', data));
+    ipcRenderer.on('update-download-progress', (_event, data) => callback('download-progress', data));
+    ipcRenderer.on('update-downloaded', (_event, data) => callback('downloaded', data));
+  },
+  removeUpdaterListeners: () => {
+    ipcRenderer.removeAllListeners('update-checking');
+    ipcRenderer.removeAllListeners('update-available');
+    ipcRenderer.removeAllListeners('update-not-available');
+    ipcRenderer.removeAllListeners('update-error');
+    ipcRenderer.removeAllListeners('update-download-progress');
+    ipcRenderer.removeAllListeners('update-downloaded');
+  },
+
+  // ============================================================================
+  // v2.0: Jira Integration
+  // ============================================================================
+  jiraTestConnection: () => ipcRenderer.invoke('jira:testConnection'),
+  jiraCreateIssue: (request: {
+    summary: string;
+    description: string;
+    issueType?: string;
+    customFields?: Record<string, any>;
+    labels?: string[];
+  }) => ipcRenderer.invoke('jira:createIssue', request),
+
+  // ============================================================================
+  // v2.0: BrowserStack Test Management
+  // ============================================================================
+  browserstackTmCreateTestCase: (request: { name: string; description?: string; tags?: string[] }) => ipcRenderer.invoke('browserstackTm:createTestCase', request),
+  browserstackTmPublishTestRun: (request: {
+    testCaseId: string;
+    status: 'passed' | 'failed' | 'skipped';
+    duration?: number;
+    error?: string;
+    sessionId?: string;
+    buildId?: string;
+    dashboardUrl?: string;
+  }) => ipcRenderer.invoke('browserstackTm:publishTestRun', request),
 });
 

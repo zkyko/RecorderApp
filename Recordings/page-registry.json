@@ -1,12 +1,10 @@
 {
   "UnknownPage": {
     "pageId": "UnknownPage",
-    "cmp": "FH",
-    "caption": "Action center",
+    "caption": "Unknown Page",
     "type": "details",
-    "routePath": "/?cmp=FH",
-    "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH",
-    "className": "ActionCenterPage",
+    "url": "about:blank",
+    "className": "UnknownPagePage",
     "filePath": "Recordings\\pages\\d365\\unknown.page.js"
   },
   "Dashboard--Page": {
@@ -96,5 +94,21 @@
     "url": "https://fourhands-test.sandbox.operations.dynamics.com/?cmp=FH&mi=InventoryServiceFailedSoftReservationCenter",
     "className": "ActionCenterPage",
     "filePath": "Recordings/pages/d365/failed-soft-reservation-center--.page.js"
+  },
+  "FourHands|WholesaleHomeFurnitureThatInspiresPage": {
+    "pageId": "FourHands|WholesaleHomeFurnitureThatInspiresPage",
+    "caption": "Four Hands | Wholesale Home Furniture That Inspires",
+    "type": "details",
+    "url": "https://fh-test-fourhandscom.azurewebsites.net/",
+    "className": "FourHandsWholesaleHomeFurnitureThatInspiresPage",
+    "filePath": "Recordings\\pages\\d365\\four-hands|-wholesale-home-furniture-that-inspires.page.js"
+  },
+  "CustomerLogin|FourHandsPage": {
+    "pageId": "CustomerLogin|FourHandsPage",
+    "caption": "Access Your Account",
+    "type": "details",
+    "url": "https://fh-test-fourhandscom.azurewebsites.net/login",
+    "className": "AccessYourAccountPage",
+    "filePath": "Recordings\\pages\\d365\\customer-login|-four-hands.page.js"
   }
 }

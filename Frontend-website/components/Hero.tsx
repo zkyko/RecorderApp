@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export function Hero() {
   const [basePath, setBasePath] = useState('');
@@ -57,28 +58,20 @@ export function Hero() {
             className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg border border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-300 shimmer relative"
             asChild
           >
-            <a 
-              href="https://github.com/zkyko/RecorderApp/releases/download/v1.7.0/QA-Studio-Windows-x64-v1.7.0.zip"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <Link href="/download">
               <Download className="mr-2 h-5 w-5 relative z-10" />
-              <span className="relative z-10">Download for Windows x64 (.zip)</span>
-            </a>
+              <span className="relative z-10">Download v2.0</span>
+            </Link>
           </Button>
           <Button 
             size="lg" 
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg border border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-300"
+            variant="outline"
+            className="bg-transparent hover:bg-zinc-800 text-white px-8 py-6 text-lg border border-zinc-700 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all duration-300"
             asChild
           >
-            <a 
-              href="https://github.com/zkyko/RecorderApp/releases/download/v1.7.0/QA-Studio-Windows-ARM64-v1.7.0.zip"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Download className="mr-2 h-5 w-5" />
-              Download for Windows ARM64 (.zip)
-            </a>
+            <Link href="/docs/getting-started">
+              View Docs
+            </Link>
           </Button>
         </motion.div>
         

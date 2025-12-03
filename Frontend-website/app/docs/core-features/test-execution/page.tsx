@@ -166,7 +166,7 @@ export default function TestExecutionPage() {
               <div className="p-4 bg-violet-500/10 border border-violet-500/30 rounded-lg">
                 <h4 className="font-semibold text-white mb-2 flex items-center gap-2">
                   <Cloud className="w-5 h-5 text-violet-400" />
-                  BrowserStack Execution
+                  BrowserStack Automate Execution
                 </h4>
                 <p className="text-sm text-zinc-400 mb-3">
                   Runs tests on BrowserStack cloud infrastructure:
@@ -248,6 +248,7 @@ export default function TestExecutionPage() {
                   <li>Failure artifacts: _failure.json files with screenshots and error context</li>
                   <li>Allure results: allure-results/ directory for HTML report generation</li>
                   <li>Console output: Streamed to UI in real-time</li>
+                  <li>Assertion metadata: Captured for integration with BrowserStack TM and Jira (v2.0)</li>
                 </ul>
               </div>
             </CardContent>
@@ -301,6 +302,12 @@ export default function TestExecutionPage() {
                 className="px-4 py-2 border border-blue-500/50 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors text-sm font-medium"
               >
                 Locator System
+              </Link>
+              <Link
+                href="/docs/advanced/enterprise-integrations"
+                className="px-4 py-2 border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-sm font-medium"
+              >
+                Enterprise Integrations
               </Link>
             </div>
           </div>

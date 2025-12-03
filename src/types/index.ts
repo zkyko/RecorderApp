@@ -2,6 +2,16 @@
  * Core type definitions for QA Studio
  */
 
+export type AssertionKind =
+  | 'toHaveText'
+  | 'toContainText'
+  | 'toBeVisible'
+  | 'toHaveURL'
+  | 'toHaveTitle'
+  | 'toBeChecked'
+  | 'toHaveValue'
+  | 'toHaveAttribute';
+
 export interface RecordingSession {
   id: string;
   flowName: string;
@@ -15,10 +25,10 @@ export interface RecordingSession {
 
 export interface RecordedStep {
   pageId: string; // e.g. "SalesOrderPage"
-  action: 'click' | 'fill' | 'select' | 'navigate' | 'wait' | 'custom' | 'comment';
+  action: 'click' | 'fill' | 'select' | 'navigate' | 'wait' | 'custom' | 'comment' | 'assert';
   description: string; // human-readable
-  locator?: LocatorDefinition; // Optional for custom/comment steps
-  value?: string; // for fills/selects, wait time, or comment text
+  locator?: LocatorDefinition; // Optional for custom/comment/assert steps
+  value?: string; // for fills/selects, wait time, comment text, or assertion expected value
   order: number;
   timestamp: Date;
   // Sanitized identifiers for code generation
@@ -31,6 +41,12 @@ export interface RecordedStep {
   pageType?: 'list' | 'details' | 'dialog' | 'workspace' | 'unknown';
   // Custom action type (for action === 'custom')
   customAction?: 'waitForD365';
+  // Assertion-specific fields (for action === 'assert')
+  assertion?: AssertionKind;
+  targetKind?: 'locator' | 'page'; // 'locator' uses fieldName/methodName, 'page' asserts page-level properties
+  target?: string; // POM locator name or 'page'
+  expected?: string; // literal value or {{param}} syntax
+  customMessage?: string; // Optional custom assertion message
 }
 
 export type LocatorDefinition =

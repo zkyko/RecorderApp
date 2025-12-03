@@ -788,5 +788,31 @@ export const mockElectronAPI: ElectronAPI = {
   async devGetStorageStatePath() {
     throw new DesktopOnlyError();
   },
+
+  // ============================================================================
+  // v2.0: Auto-updater
+  // ============================================================================
+  async updaterCheck() {
+    await delay(100);
+    // Mock - no-op in demo
+  },
+
+  async updaterDownload() {
+    await delay(100);
+    // Mock - no-op in demo
+  },
+
+  async updaterInstall() {
+    throw new DesktopOnlyError();
+  },
+
+  onUpdaterEvent(callback: (event: string, data?: any) => void) {
+    // Mock - no-op for event listeners in demo
+    // In real app, this would listen to Electron autoUpdater events
+  },
+
+  removeUpdaterListeners() {
+    // Mock - no-op
+  },
 };
 

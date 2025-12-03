@@ -277,6 +277,15 @@ export class SpecGenerator {
         continue;
       }
 
+      // Handle assertion steps
+      if (step.action === 'assert' && step.assertion) {
+        const assertionCode = this.generateAssertionCode(step, pageInstances.get(step.pageId) || 'page');
+        if (assertionCode) {
+          content += `      ${assertionCode}\n`;
+        }
+        continue;
+      }
+
       // Handle page transitions with POM.goto() if available
       if (step.pageId !== currentPageId) {
         const pageEntry = this.pageRegistry.getPage(step.pageId);
@@ -305,7 +314,6 @@ export class SpecGenerator {
     }
 
     content += `\n`;
-    content += `      // TODO: add assertions manually\n`;
     content += `    });\n`;
     content += `  }\n`;
     content += `});\n`;
@@ -314,6 +322,92 @@ export class SpecGenerator {
     content = content.replace(/;;+/g, ';');
 
     return content;
+  }
+
+  /**
+   * Generate assertion code from an assert step
+   */
+  private generateAssertionCode(step: RecordedStep, instanceName: string): string | null {
+    if (step.action !== 'assert' || !step.assertion) {
+      return null;
+    }
+
+    const assertion = step.assertion;
+    const targetKind = step.targetKind || 'locator';
+    const expected = step.expected || step.value || '';
+    const customMessage = step.customMessage;
+
+    // Resolve the target locator or page
+    let target: string;
+    if (targetKind === 'page') {
+      target = 'page';
+    } else {
+      // Use locator from step - resolve from POM if fieldName/methodName available
+      if (step.fieldName && instanceName !== 'page') {
+        // Try to get locator from POM instance
+        target = `${instanceName}.${step.fieldName}`;
+      } else if (step.locator) {
+        // Build locator from LocatorDefinition
+        target = this.buildLocatorFromDefinition(step.locator, instanceName);
+      } else {
+        // Fallback to page locator
+        target = 'page.locator(\'body\')';
+      }
+    }
+
+    // Resolve expected value (support {{param}} syntax)
+    let expectedValue: string;
+    if (expected.startsWith('{{') && expected.endsWith('}}')) {
+      // Parameterized value - extract field name
+      const paramName = expected.slice(2, -2).trim();
+      expectedValue = `data.${this.toCamelCase(paramName)}`;
+    } else {
+      // Literal value
+      expectedValue = `'${this.escapeString(expected)}'`;
+    }
+
+    // Build expect call
+    let expectCall = `await expect(${target})`;
+    
+    // Add custom message if provided
+    if (customMessage) {
+      expectCall += `, '${this.escapeString(customMessage)}'`;
+    }
+    
+    expectCall += `.${assertion}(${expectedValue});`;
+
+    return expectCall;
+  }
+
+  /**
+   * Build Playwright locator from LocatorDefinition
+   */
+  private buildLocatorFromDefinition(locator: any, instanceName: string): string {
+    if (!locator || !locator.strategy) {
+      return `${instanceName}.locator('body')`;
+    }
+
+    switch (locator.strategy) {
+      case 'role':
+        return `${instanceName}.getByRole('${locator.role}', { name: '${this.escapeString(locator.name)}' })`;
+      case 'label':
+        return `${instanceName}.getByLabel('${this.escapeString(locator.text)}')`;
+      case 'placeholder':
+        return `${instanceName}.getByPlaceholder('${this.escapeString(locator.text)}')`;
+      case 'text':
+        const exact = locator.exact ? ', { exact: true }' : '';
+        return `${instanceName}.getByText('${this.escapeString(locator.text)}'${exact})`;
+      case 'testid':
+        return `${instanceName}.getByTestId('${this.escapeString(locator.value)}')`;
+      case 'd365-controlname':
+        return `${instanceName}.locator('[data-dyn-controlname="${this.escapeString(locator.controlName)}"]')`;
+      case 'css':
+        return `${instanceName}.locator('${this.escapeString(locator.selector)}')`;
+      case 'xpath':
+        return `${instanceName}.locator('xpath=${this.escapeString(locator.expression)}')`;
+      default:
+        return `${instanceName}.locator('body')`;
+    }
   }
 
   /**
@@ -326,8 +420,8 @@ export class SpecGenerator {
       return `// Navigation to ${step.pageId} (handled by initial page.goto())`;
     }
 
-    // Custom, wait, and comment steps are handled in the main loop, not here
-    if (step.action === 'custom' || step.action === 'wait' || step.action === 'comment') {
+    // Custom, wait, comment, and assert steps are handled in the main loop, not here
+    if (step.action === 'custom' || step.action === 'wait' || step.action === 'comment' || step.action === 'assert') {
       return ''; // Should not reach here, but return empty string as fallback
     }
 
@@ -740,11 +834,26 @@ export class SpecGenerator {
     specFilePath: string
   ): string {
     const relativeDataPath = this.buildRelativeImportPath(specFilePath, dataFilePath);
-    const meta = {
-      name: testName,
+
+    // Generate a stable slug from test name to use as part of the internal id
+    const slug = testName
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
+
+    const meta: any = {
+      // Core identity
+      id: slug,
+      testName,
       module: module || undefined,
+
+      // Paths / timestamps
       createdAt: new Date().toISOString(),
       dataPath: relativeDataPath,
+
+      // Integration placeholders – populated later by services
+      browserstack: {},
+      jira: {},
     };
     return JSON.stringify(meta, null, 2);
   }

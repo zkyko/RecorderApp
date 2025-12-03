@@ -18,6 +18,8 @@ const ParameterMappingScreen: React.FC = () => {
   const [module, setModule] = useState('');
   const [loading, setLoading] = useState(false);
   const [isRegenerate, setIsRegenerate] = useState(false);
+  const [syncingTm, setSyncingTm] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const state = location.state as {
@@ -154,6 +156,57 @@ const ParameterMappingScreen: React.FC = () => {
             style={{ flex: 1 }}
           />
         </Group>
+      </Card>
+
+      <Card padding="lg" radius="md" withBorder mb="md">
+        <Group justify="space-between" mb="xs">
+          <Text fw={600}>BrowserStack Test Management</Text>
+          <Button
+            size="xs"
+            variant="light"
+            loading={syncingTm}
+            disabled={!testName || !workspacePath}
+            onClick={async () => {
+              if (!testName || !workspacePath) return;
+              setSyncingTm(true);
+              setSyncMessage(null);
+              try {
+                const result = await ipc.browserstackTm.syncTestCaseForBundle({ workspacePath, testName });
+                if (result.success) {
+                  setSyncMessage('BrowserStack TM test case synced successfully.');
+                } else {
+                  setSyncMessage(result.error || 'Failed to sync with BrowserStack TM.');
+                }
+              } catch (error: any) {
+                setSyncMessage(error.message || 'Failed to sync with BrowserStack TM.');
+              } finally {
+                setSyncingTm(false);
+              }
+            }}
+          >
+            Sync with BrowserStack TM
+          </Button>
+        </Group>
+        <Group gap="sm" mb="xs">
+          <Text size="sm" c="dimmed">Project:</Text>
+          <Text size="sm">PR-26 – StudioAPP</Text>
+        </Group>
+        <Group gap="sm" mb="xs">
+          <Text size="sm" c="dimmed">Suite:</Text>
+          <Text size="sm">TestManagement For StudioAPP</Text>
+        </Group>
+        <Text size="sm" c="dimmed">
+          Not linked yet. A new test case will be created when you click <strong>Generate Test</strong>.
+        </Text>
+        {syncMessage && (
+          <Text
+            size="xs"
+            mt="xs"
+            c={syncMessage.toLowerCase().includes('success') ? 'teal' : 'red'}
+          >
+            {syncMessage}
+          </Text>
+        )}
       </Card>
 
       <Card padding="lg" radius="md" withBorder mb="md">

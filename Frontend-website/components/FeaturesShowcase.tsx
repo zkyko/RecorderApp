@@ -19,6 +19,10 @@ import {
   GitBranch,
   CheckCircle2,
   PlayCircle,
+  CheckSquare,
+  Globe,
+  FileCheck,
+  Download,
 } from "lucide-react";
 
 interface Feature {
@@ -65,6 +69,40 @@ const features: Feature[] = [
       "Real-time code preview",
       "Integrated with locator library",
       "Follows same workflow as manual recording"
+    ]
+  },
+  {
+    title: "Universal Assertion Engine",
+    description: "First-class assertion support with locator and page-level checks. Add assertions to any step with parameterized expected values using {{param}} syntax. Supports toHaveText, toContainText, toBeVisible, toHaveURL, toHaveTitle, toBeChecked, toHaveValue, and toHaveAttribute.",
+    icon: CheckSquare,
+    gradient: "from-green-500 to-emerald-500",
+    iconColor: "text-green-400",
+    iconBg: "bg-green-500/20",
+    category: "development",
+    unique: true,
+    highlights: [
+      "Locator and page-level assertions",
+      "Parameterized expected values",
+      "Custom assertion messages",
+      "Integrated into step editor",
+      "Workspace-agnostic design"
+    ]
+  },
+  {
+    title: "Multi-Workspace Support",
+    description: "Switch between D365 and Web Demo workspaces seamlessly. Each workspace has its own flows, data files, and configuration while sharing the same unified architecture. Demonstrates the extensibility of QA Studio's workspace system.",
+    icon: Globe,
+    gradient: "from-indigo-500 to-purple-500",
+    iconColor: "text-indigo-400",
+    iconBg: "bg-indigo-500/20",
+    category: "development",
+    unique: true,
+    highlights: [
+      "Workspace switcher UI",
+      "Unified architecture across workspaces",
+      "Workspace-specific configs",
+      "Shared recorder and generators",
+      "Easy to add new workspaces"
     ]
   },
   {
@@ -162,8 +200,8 @@ const features: Feature[] = [
     ]
   },
   {
-    title: "BrowserStack Integration",
-    description: "Execute tests locally or scale to the cloud with one click. Run tests across multiple browsers and platforms without infrastructure setup.",
+    title: "BrowserStack Automate",
+    description: "Execute tests locally or scale to the cloud with one click. Run tests across multiple browsers and platforms without infrastructure setup. Automatic config generation and credential management.",
     icon: Cloud,
     gradient: "from-rose-500 to-pink-500",
     iconColor: "text-rose-400",
@@ -177,8 +215,42 @@ const features: Feature[] = [
     ]
   },
   {
-    title: "Dev Mode Tools",
-    description: "Advanced developer controls for workspace management, temp file cleanup, statistics, and raw config access. Built for power users.",
+    title: "BrowserStack Test Management",
+    description: "Sync test cases and runs to BrowserStack TM automatically. Create test cases from flows, publish run results with assertion details, and track test health across your organization.",
+    icon: FileCheck,
+    gradient: "from-purple-500 to-violet-500",
+    iconColor: "text-purple-400",
+    iconBg: "bg-purple-500/20",
+    category: "execution",
+    unique: true,
+    highlights: [
+      "Automatic test case creation",
+      "Run result publishing",
+      "Assertion metadata sync",
+      "Test health tracking",
+      "REST API integration"
+    ]
+  },
+  {
+    title: "Jira Integration",
+    description: "One-click defect creation from failed test runs. Pre-fills test failure details, repro steps, assertion expected vs actual, and BrowserStack session links. Uses your Jira field schema for proper formatting.",
+    icon: Shield,
+    gradient: "from-blue-600 to-indigo-600",
+    iconColor: "text-blue-400",
+    iconBg: "bg-blue-600/20",
+    category: "execution",
+    unique: true,
+    highlights: [
+      "One-click defect creation",
+      "Pre-filled failure details",
+      "Custom field mapping",
+      "BrowserStack session links",
+      "Connection verification"
+    ]
+  },
+  {
+    title: "Dev Mode Tools & Diagnostics",
+    description: "Advanced developer controls for workspace management, temp file cleanup, diagnostics, statistics, and raw config access. Built for power users.",
     icon: Zap,
     gradient: "from-yellow-500 to-amber-500",
     iconColor: "text-yellow-400",
@@ -187,8 +259,25 @@ const features: Feature[] = [
     highlights: [
       "Workspace statistics",
       "Temp file cleanup",
+      "Diagnostics / Self Test screen",
       "Raw config JSON viewer",
       "Workspace structure rebuild"
+    ]
+  },
+  {
+    title: "Electron Auto-Updates",
+    description: "Automatic updates via GitHub Releases. Get notified when updates are available, see download progress, and restart with one click to install. No more manual installer downloads.",
+    icon: Download,
+    gradient: "from-teal-500 to-cyan-500",
+    iconColor: "text-teal-400",
+    iconBg: "bg-teal-500/20",
+    category: "development",
+    highlights: [
+      "Automatic update detection",
+      "Download progress tracking",
+      "One-click restart to install",
+      "GitHub Releases integration",
+      "Seamless update experience"
     ]
   },
 ];

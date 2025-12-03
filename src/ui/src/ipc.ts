@@ -211,8 +211,8 @@ export const ipc = {
     list: (): Promise<WorkspaceListResponse> => {
       return getBackend()?.workspacesList() || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
-    create: (name: string, type?: WorkspaceType): Promise<WorkspaceCreateResponse> => {
-      return getBackend()?.workspacesCreate({ name, type }) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    create: (request: WorkspaceCreateRequest): Promise<WorkspaceCreateResponse> => {
+      return getBackend()?.workspacesCreate(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
     getCurrent: (): Promise<WorkspaceGetCurrentResponse> => {
       return getBackend()?.workspacesGetCurrent() || Promise.resolve({ success: false, error: 'Electron API not available' });
@@ -294,6 +294,15 @@ export const ipc = {
     clearBrowserStackTMSession: (): Promise<{ success: boolean; error?: string }> => {
       return getBackend()?.clearBrowserStackTMSession() || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    getJiraConfig: (): Promise<{ success: boolean; config?: { baseUrl?: string; email?: string; projectKey?: string }; error?: string }> => {
+      return getBackend()?.settingsGetJiraConfig() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateJiraConfig: (request: { baseUrl: string; email: string; apiToken: string; projectKey: string }): Promise<{ success: boolean; error?: string }> => {
+      return getBackend()?.settingsUpdateJiraConfig(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    clearJiraSession: (): Promise<{ success: boolean; error?: string }> => {
+      return getBackend()?.clearJiraSession() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
     getRecordingEngine: (request: SettingsGetRecordingEngineRequest): Promise<SettingsGetRecordingEngineResponse> => {
       return getBackend()?.settingsGetRecordingEngine(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
@@ -340,6 +349,76 @@ export const ipc = {
     },
     removeListeners: (): void => {
       getBackend()?.removeLocatorBrowseListeners();
+    },
+  },
+
+  // ============================================================================
+  // v2.0: Auto-updater
+  // ============================================================================
+  updater: {
+    check: (): Promise<void> => {
+      return getBackend()?.updaterCheck() || Promise.resolve();
+    },
+    download: (): Promise<void> => {
+      return getBackend()?.updaterDownload() || Promise.resolve();
+    },
+    install: (): Promise<void> => {
+      return getBackend()?.updaterInstall() || Promise.resolve();
+    },
+    onEvent: (callback: (event: string, data?: any) => void): void => {
+      getBackend()?.onUpdaterEvent(callback);
+    },
+    removeListeners: (): void => {
+      getBackend()?.removeUpdaterListeners();
+    },
+  },
+
+  // ============================================================================
+  // v2.0: Jira Integration
+  // ============================================================================
+  jira: {
+    testConnection: (): Promise<{ success: boolean; projectName?: string; error?: string }> => {
+      return getBackend()?.jiraTestConnection() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    createIssue: (request: {
+      summary: string;
+      description: string;
+      issueType?: string;
+      customFields?: Record<string, any>;
+      labels?: string[];
+    }): Promise<{ success: boolean; issueKey?: string; issueUrl?: string; error?: string }> => {
+      return getBackend()?.jiraCreateIssue(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    createDefectFromRun: (context: import('../../types/v1.5').JiraDefectContext): Promise<{
+      success: boolean;
+      issueKey?: string;
+      issueUrl?: string;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraCreateDefectFromRun(context) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // ============================================================================
+  // v2.0: BrowserStack Test Management
+  // ============================================================================
+  browserstackTm: {
+    createTestCase: (request: { name: string; description?: string; tags?: string[] }): Promise<{ success: boolean; testCaseId?: string; error?: string }> => {
+      return getBackend()?.browserstackTmCreateTestCase(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    publishTestRun: (request: {
+      testCaseId: string;
+      status: 'passed' | 'failed' | 'skipped';
+      duration?: number;
+      error?: string;
+      sessionId?: string;
+      buildId?: string;
+      dashboardUrl?: string;
+    }): Promise<{ success: boolean; testRunId?: string; error?: string }> => {
+      return getBackend()?.browserstackTmPublishTestRun(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    syncTestCaseForBundle: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; error?: string }> => {
+      return getBackend()?.browserstackTmSyncTestCaseForBundle(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
   },
 };

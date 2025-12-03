@@ -37,16 +37,21 @@ export function ArchitectureDiagram() {
           <div className="w-0.5 h-8 bg-gradient-to-b from-blue-500/50 to-purple-500/50"></div>
         </div>
 
-        {/* Recorded Steps */}
+        {/* Recorded Steps with Assertions (v2.0) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="mb-6 flex justify-center"
+          className="mb-6"
         >
-          <div className="px-4 py-3 sm:px-6 sm:py-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-purple-300 text-xs sm:text-sm font-medium">
-            Recorded Steps (RecordedStep[])
+          <div className="flex flex-col items-center gap-2">
+            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-purple-300 text-xs sm:text-sm font-medium">
+              Recorded Steps (RecordedStep[])
+            </div>
+            <div className="px-3 py-2 sm:px-4 sm:py-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-300 text-xs sm:text-sm text-center">
+              + Assertions (AssertStep) - v2.0
+            </div>
           </div>
         </motion.div>
 
@@ -64,7 +69,7 @@ export function ArchitectureDiagram() {
           className="mb-6"
         >
           <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Code Processing Layer</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <div className="px-3 py-2 sm:px-4 sm:py-3 bg-zinc-800/50 border border-white/20 rounded-lg text-zinc-300 text-xs sm:text-sm text-center">
               LocatorCleanupService
             </div>
@@ -74,8 +79,11 @@ export function ArchitectureDiagram() {
             <div className="px-3 py-2 sm:px-4 sm:py-3 bg-zinc-800/50 border border-white/20 rounded-lg text-zinc-300 text-xs sm:text-sm text-center">
               D365WaitInjector
             </div>
+            <div className="px-3 py-2 sm:px-4 sm:py-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-300 text-xs sm:text-sm text-center">
+              AssertionEngine (v2.0)
+            </div>
           </div>
-          <p className="text-xs text-zinc-500 mt-2 text-center">Cleans locators, detects parameters, injects D365-specific waits</p>
+          <p className="text-xs text-zinc-500 mt-2 text-center">Cleans locators, detects parameters, injects waits, processes assertions</p>
         </motion.div>
 
         {/* Arrow down */}
@@ -152,16 +160,26 @@ export function ArchitectureDiagram() {
           className="mb-6"
         >
           <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Test Execution Layer</h3>
-          <div className="flex gap-4 items-center justify-center flex-wrap">
-            <div className="px-3 py-2 sm:px-4 sm:py-3 bg-zinc-800/50 border border-white/20 rounded-lg text-zinc-300 text-xs sm:text-sm">
-              TestRunner
+          <div className="space-y-3">
+            <div className="flex gap-4 items-center justify-center flex-wrap">
+              <div className="px-3 py-2 sm:px-4 sm:py-3 bg-zinc-800/50 border border-white/20 rounded-lg text-zinc-300 text-xs sm:text-sm">
+                TestRunner
+              </div>
+              <div className="text-zinc-500 text-xl sm:text-2xl">→</div>
+              <div className="px-3 py-2 sm:px-4 sm:py-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-300 text-xs sm:text-sm font-medium">
+                Playwright Runner
+              </div>
             </div>
-            <div className="text-zinc-500 text-xl sm:text-2xl">→</div>
-            <div className="px-3 py-2 sm:px-4 sm:py-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-300 text-xs sm:text-sm font-medium">
-              Playwright Runner
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mt-3">
+              <div className="px-3 py-2 sm:px-4 sm:py-3 bg-violet-500/20 border border-violet-500/50 rounded-lg text-violet-300 text-xs sm:text-sm text-center">
+                Local Execution
+              </div>
+              <div className="px-3 py-2 sm:px-4 sm:py-3 bg-violet-500/20 border border-violet-500/50 rounded-lg text-violet-300 text-xs sm:text-sm text-center">
+                BrowserStack Automate
+              </div>
             </div>
           </div>
-          <p className="text-xs text-zinc-500 mt-2 text-center">Executes generated test specs (local or BrowserStack)</p>
+          <p className="text-xs text-zinc-500 mt-2 text-center">Executes generated test specs with assertion validation</p>
         </motion.div>
 
         {/* Arrow down */}
@@ -178,7 +196,7 @@ export function ArchitectureDiagram() {
           className="mb-6"
         >
           <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Output & Feedback</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="px-3 py-2 sm:px-4 sm:py-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg text-yellow-300 text-xs sm:text-sm text-center">
               Test Results
               <br />
@@ -188,6 +206,29 @@ export function ArchitectureDiagram() {
               Failure Forensics
               <br />
               <span className="text-[10px] sm:text-xs text-yellow-400">_failure.json files</span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Enterprise Integrations (v2.0) */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.65 }}
+          className="mb-6"
+        >
+          <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">Enterprise Integrations (v2.0)</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="px-3 py-2 sm:px-4 sm:py-3 bg-indigo-500/20 border border-indigo-500/50 rounded-lg text-indigo-300 text-xs sm:text-sm text-center">
+              BrowserStack TM
+              <br />
+              <span className="text-[10px] sm:text-xs text-indigo-400">Test case sync & run publishing</span>
+            </div>
+            <div className="px-3 py-2 sm:px-4 sm:py-3 bg-blue-500/20 border border-blue-500/50 rounded-lg text-blue-300 text-xs sm:text-sm text-center">
+              Jira Integration
+              <br />
+              <span className="text-[10px] sm:text-xs text-blue-400">Defect creation from failures</span>
             </div>
           </div>
         </motion.div>
@@ -239,8 +280,13 @@ export function ArchitectureDiagram() {
 
         {/* UI Layer (Side note) */}
         <div className="mt-8 pt-6 border-t border-white/10">
-          <div className="text-xs text-zinc-500 text-center">
-            <span className="text-purple-400 font-semibold">UI Layer:</span> React components (RecordScreen, StepEditorScreen, TestLibrary, SettingsScreen, etc.) orchestrate all layers via Electron IPC
+          <div className="text-xs text-zinc-500 text-center space-y-2">
+            <div>
+              <span className="text-purple-400 font-semibold">UI Layer:</span> React components (RecordScreen, StepEditorScreen, TestLibrary, SettingsScreen, etc.) orchestrate all layers via Electron IPC
+            </div>
+            <div className="text-[10px] sm:text-xs">
+              <span className="text-green-400 font-semibold">v2.0 Features:</span> Multi-Workspace Support (D365, Web Demo), Universal Assertion Engine, BrowserStack TM & Jira Integration, Electron Auto-Updates
+            </div>
           </div>
         </div>
       </div>

@@ -54,7 +54,13 @@ export class SpecUpdater {
    */
   private getSpecPath(workspacePath: string, testName: string): string {
     const fileName = this.specGenerator.flowNameToFileName(testName);
-    return path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
+    // Prefer D365 bundle path, but fall back to web bundle path for FH Web workspaces
+    const d365Path = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
+    if (fs.existsSync(d365Path)) {
+      return d365Path;
+    }
+    const webPath = path.join(workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.spec.ts`);
+    return webPath;
   }
 
   /**

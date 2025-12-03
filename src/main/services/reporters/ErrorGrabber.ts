@@ -234,6 +234,9 @@ export class ErrorGrabber implements Reporter {
     // Extract failed locator from error message
     const failedLocator = this.extractFailedLocator(errorMessage, stackTrace);
 
+    // Extract assertion failure information
+    const assertionFailure = this.extractAssertionFailure(errorMessage, stackTrace);
+
     // Build failure artifact
     const artifact: FailureArtifact = {
       testName,
@@ -258,6 +261,9 @@ export class ErrorGrabber implements Reporter {
     }
     if (failedLocator) {
       artifact.failedLocator = failedLocator;
+    }
+    if (assertionFailure) {
+      artifact.assertionFailure = assertionFailure;
     }
 
     return artifact;
@@ -386,6 +392,62 @@ export class ErrorGrabber implements Reporter {
   }
 
   /**
+   * Extract assertion failure information from error message
+   * Parses Playwright assertion errors like:
+   * - "expect(locator).toHaveText(expected)" failed
+   * - "expect(page).toHaveURL(expected)" failed
+   */
+  private extractAssertionFailure(errorMessage: string, stackTrace: string): {
+    assertionType: string;
+    target: string;
+    expected?: string;
+    actual?: string;
+  } | undefined {
+    // Pattern 1: expect(...).toHaveText(...) failed
+    // Pattern 2: expect(...).toBeVisible() failed
+    // Pattern 3: expect(...).toHaveURL(...) failed
+    const assertionPatterns = [
+      /expect\(([^)]+)\)\.(toHaveText|toContainText|toBeVisible|toHaveURL|toHaveTitle|toBeChecked|toHaveValue|toHaveAttribute)\(([^)]*)\)/i,
+      /expect\(([^)]+)\)\.(toHaveText|toContainText|toBeVisible|toHaveURL|toHaveTitle|toBeChecked|toHaveValue|toHaveAttribute)\(\)/i,
+    ];
+
+    for (const pattern of assertionPatterns) {
+      const match = errorMessage.match(pattern) || stackTrace.match(pattern);
+      if (match) {
+        const target = match[1].trim();
+        const assertionType = match[2];
+        
+        // Try to extract expected and actual values from error message
+        let expected: string | undefined;
+        let actual: string | undefined;
+
+        // Look for "Expected: ..." and "Received: ..." patterns
+        const expectedMatch = errorMessage.match(/Expected[:\s]+(?:'|"|`)?([^'"`\n]+)(?:'|"|`)?/i);
+        if (expectedMatch) {
+          expected = expectedMatch[1].trim();
+        } else if (match[3]) {
+          // Use the value from the assertion call
+          expected = match[3].replace(/['"]/g, '').trim();
+        }
+
+        const actualMatch = errorMessage.match(/Received[:\s]+(?:'|"|`)?([^'"`\n]+)(?:'|"|`)?/i);
+        if (actualMatch) {
+          actual = actualMatch[1].trim();
+        }
+
+        return {
+          assertionType,
+          target,
+          expected,
+          actual,
+        };
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
    * Parse locator string and extract type and key
    * Examples:
    * - "getByRole('button', { name: 'OK' })" -> type: 'role', key: "role:page.getByRole('button', { name: 'OK' })"
@@ -460,6 +522,12 @@ interface FailureArtifact {
     locator: string;
     type: string;
     locatorKey: string;
+  };
+  assertionFailure?: {
+    assertionType: string;
+    target: string;
+    expected?: string;
+    actual?: string;
   };
 }
 

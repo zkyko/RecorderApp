@@ -2,9 +2,25 @@
 
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bug, Video, Database, Cloud } from "lucide-react";
+import { Bug, Video, Database, Cloud, CheckSquare, Globe, FileCheck, Shield } from "lucide-react";
 
 const features = [
+  {
+    title: "Universal Assertion Engine",
+    description: "First-class assertion support with locator and page-level checks. Parameterized expected values using {{param}} syntax for data-driven validation.",
+    icon: CheckSquare,
+    gradient: "from-green-500 to-emerald-500",
+    iconColor: "text-green-400",
+    iconBg: "bg-green-500/20",
+  },
+  {
+    title: "Multi-Workspace Support",
+    description: "Switch between D365 and Web Demo workspaces seamlessly. Unified architecture that adapts to any platform with workspace-specific configurations.",
+    icon: Globe,
+    gradient: "from-indigo-500 to-purple-500",
+    iconColor: "text-indigo-400",
+    iconBg: "bg-indigo-500/20",
+  },
   {
     title: "The AI Forensics Engine",
     description: "When a test fails, our RAG agent analyzes the .spec.ts code alongside the failure logs to explain why it failed—turning 30 minutes of debugging into 30 seconds.",
@@ -30,8 +46,8 @@ const features = [
     iconBg: "bg-cyan-500/20",
   },
   {
-    title: "BrowserStack Integration",
-    description: "Execute locally or scale to the cloud with one click.",
+    title: "BrowserStack & Jira Integration",
+    description: "Execute locally or scale to the cloud with one click. Sync to BrowserStack TM and create Jira defects automatically from failed tests.",
     icon: Cloud,
     gradient: "from-purple-500 to-pink-500",
     iconColor: "text-purple-400",
@@ -58,7 +74,7 @@ export function Features() {
           </p>
         </motion.div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (

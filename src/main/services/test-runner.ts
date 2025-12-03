@@ -8,6 +8,32 @@ import { TestRunRequest, TestRunEvent, TestRunMeta, RunIndex, TestMeta } from '.
 import { getReporterPath, getReporterSourcePath } from '../utils/path-resolver';
 import { LocatorMaintenanceService } from './locator-maintenance';
 import { runPlaywright } from '../utils/playwrightRuntime';
+import { BrowserStackTMService } from './browserstackTmService';
+
+interface AssertionSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  firstFailureMessage?: string;
+}
+
+interface RunResultForTM {
+  workspacePath: string;
+  testName: string;
+  status: 'passed' | 'failed' | 'skipped';
+  durationMs: number;
+  assertionSummary: AssertionSummary;
+  bsSessionId?: string;
+  bsSessionUrl?: string;
+  screenshotPath?: string;
+  tracePath?: string;
+  playwrightReportPath?: string;
+  environment?: {
+    browser?: string;
+    os?: string;
+    executionProfile?: 'local' | 'browserstack';
+  };
+}
 
 /**
  * Service for running Playwright tests with streaming output
@@ -17,10 +43,12 @@ export class TestRunner {
   private currentProcess: ChildProcess | null = null;
   private mainWindow: BrowserWindow | null = null;
   private locatorMaintenance: LocatorMaintenanceService | null = null;
+  private browserStackTMService: BrowserStackTMService;
 
-  constructor(mainWindow: BrowserWindow | null, locatorMaintenance?: LocatorMaintenanceService) {
+  constructor(mainWindow: BrowserWindow | null, locatorMaintenance?: LocatorMaintenanceService, browserStackTMService?: BrowserStackTMService) {
     this.mainWindow = mainWindow;
     this.locatorMaintenance = locatorMaintenance || null;
+    this.browserStackTMService = browserStackTMService || new BrowserStackTMService(new (require('../config-manager').ConfigManager)());
   }
 
 
@@ -57,10 +85,15 @@ export class TestRunner {
 
     // Try each variation in the new bundle structure first
     for (const fileName of fileNameVariations) {
-      // New bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
-      const bundleSpecPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
-      if (fs.existsSync(bundleSpecPath)) {
-        return bundleSpecPath;
+      // New bundle structure: tests/<platform>/specs/<TestName>/<TestName>.spec.ts
+      const d365BundleSpecPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
+      if (fs.existsSync(d365BundleSpecPath)) {
+        return d365BundleSpecPath;
+      }
+
+      const webBundleSpecPath = path.join(workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.spec.ts`);
+      if (fs.existsSync(webBundleSpecPath)) {
+        return webBundleSpecPath;
       }
 
       // Old module structure: tests/d365/<TestName>/<TestName>.spec.ts
@@ -219,9 +252,34 @@ export class TestRunner {
       
       console.log('[TestRunner] Spawned process, PID:', this.currentProcess.pid);
 
+      // Collect BrowserStack metadata from output
+      let browserstackMetadata: {
+        sessionId?: string;
+        buildId?: string;
+        dashboardUrl?: string;
+      } = {};
+
       // Handle stdout
       this.currentProcess.stdout?.on('data', (data) => {
         const output = data.toString();
+        
+        // Parse BrowserStack session information from output
+        if (request.runMode === 'browserstack') {
+          // Look for BrowserStack session URLs and IDs in output
+          const sessionMatch = output.match(/browserstack\.com\/automate\/builds\/([^\/]+)\/sessions\/([^\s\)]+)/i);
+          if (sessionMatch) {
+            browserstackMetadata.buildId = sessionMatch[1];
+            browserstackMetadata.sessionId = sessionMatch[2];
+            browserstackMetadata.dashboardUrl = `https://automate.browserstack.com/builds/${sessionMatch[1]}/sessions/${sessionMatch[2]}`;
+          }
+          
+          // Alternative pattern: session ID in logs
+          const sessionIdMatch = output.match(/session[_\s]id[:\s=]+([a-f0-9-]+)/i);
+          if (sessionIdMatch && !browserstackMetadata.sessionId) {
+            browserstackMetadata.sessionId = sessionIdMatch[1];
+          }
+        }
+        
         this.emitEvent(runId, {
           type: 'log',
           runId,
@@ -233,6 +291,17 @@ export class TestRunner {
       // Handle stderr
       this.currentProcess.stderr?.on('data', (data) => {
         const error = data.toString();
+        
+        // Also check stderr for BrowserStack metadata
+        if (request.runMode === 'browserstack') {
+          const sessionMatch = error.match(/browserstack\.com\/automate\/builds\/([^\/]+)\/sessions\/([^\s\)]+)/i);
+          if (sessionMatch) {
+            browserstackMetadata.buildId = sessionMatch[1];
+            browserstackMetadata.sessionId = sessionMatch[2];
+            browserstackMetadata.dashboardUrl = `https://automate.browserstack.com/builds/${sessionMatch[1]}/sessions/${sessionMatch[2]}`;
+          }
+        }
+        
         this.emitEvent(runId, {
           type: 'error',
           runId,
@@ -257,6 +326,30 @@ export class TestRunner {
         // Generate Allure report
         const allureReportPath = await this.generateAllureReport(request.workspacePath, runId);
 
+        // Load assertion failures from failure artifact if test failed
+        let assertionFailures: Array<{ assertionType: string; target: string; expected?: string; actual?: string; line?: number }> | undefined;
+        if (status === 'failed') {
+          try {
+            const bundlePath = path.join(request.workspacePath, 'tests', 'd365', 'specs', testName);
+            const failureFilePath = path.join(bundlePath, `${testName}_failure.json`);
+            if (fs.existsSync(failureFilePath)) {
+              const failureContent = fs.readFileSync(failureFilePath, 'utf-8');
+              const failureData = JSON.parse(failureContent);
+              if (failureData.assertionFailure) {
+                assertionFailures = [{
+                  assertionType: failureData.assertionFailure.assertionType,
+                  target: failureData.assertionFailure.target,
+                  expected: failureData.assertionFailure.expected,
+                  actual: failureData.assertionFailure.actual,
+                  line: failureData.error?.location?.line,
+                }];
+              }
+            }
+          } catch (error: any) {
+            console.warn(`[TestRunner] Failed to load assertion failures: ${error.message}`);
+          }
+        }
+
         // Update run metadata - always set tracePaths (empty array if none found)
         const updatedRunMeta: TestRunMeta = {
           ...runMeta,
@@ -264,9 +357,53 @@ export class TestRunner {
           finishedAt,
           tracePaths: tracePaths.length > 0 ? tracePaths : [], // Always set, even if empty
           allureReportPath: allureReportPath || undefined,
+          // Add BrowserStack metadata if available
+          browserstack: request.runMode === 'browserstack' && Object.keys(browserstackMetadata).length > 0
+            ? browserstackMetadata
+            : undefined,
+          // Add assertion failures if available
+          assertionFailures,
         };
         this.saveRunMeta(request.workspacePath, updatedRunMeta);
-        
+
+        // Prepare BrowserStack TM run payload
+        try {
+          const assertionFailures = updatedRunMeta.assertionFailures || [];
+          const firstFailure = assertionFailures[0];
+
+          const assertionSummary: AssertionSummary = {
+            total: assertionFailures.length,
+            passed: assertionFailures.length === 0 && status === 'passed' ? 1 : 0,
+            failed: assertionFailures.length,
+            firstFailureMessage: firstFailure
+              ? `${firstFailure.assertionType} on ${firstFailure.target}: expected ${firstFailure.expected}, actual ${firstFailure.actual}`
+              : undefined,
+          };
+
+          const runResultForTM: RunResultForTM = {
+            workspacePath: request.workspacePath,
+            testName,
+            status,
+            durationMs: new Date(finishedAt).getTime() - new Date(startedAt).getTime(),
+            assertionSummary,
+            bsSessionId: updatedRunMeta.browserstack?.sessionId,
+            bsSessionUrl: updatedRunMeta.browserstack?.dashboardUrl,
+            screenshotPath: undefined,
+            tracePath: (updatedRunMeta.tracePaths && updatedRunMeta.tracePaths[0]) || undefined,
+            playwrightReportPath: updatedRunMeta.allureReportPath || updatedRunMeta.reportPath,
+            environment: {
+              executionProfile: request.runMode === 'browserstack' ? 'browserstack' : 'local',
+            },
+          };
+
+          const bundleDir = this.getBundleDirForTest(request.workspacePath, testName);
+          if (bundleDir) {
+            await this.browserStackTMService.publishRunFromBundle(bundleDir, runResultForTM as any);
+          }
+        } catch (e: any) {
+          console.warn('[TestRunner] Failed to publish run to BrowserStack TM:', e.message);
+        }
+
         // Update TestMeta with last run status and timestamp
         this.updateTestMeta(request.workspacePath, testName, status, finishedAt, runId);
         
@@ -1134,6 +1271,41 @@ export default defineConfig({
   }
 
   /**
+   * Resolve bundle directory for a given test name based on meta.json location.
+   * Uses the same slugging and fallback logic as updateTestMeta.
+   */
+  private getBundleDirForTest(workspacePath: string, testName: string): string | null {
+    try {
+      const fileName = testName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+      // New bundle structure: tests/d365/specs/<TestName>/<TestName>.meta.json
+      let metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+
+      if (!fs.existsSync(metaPath)) {
+        // Old module structure: tests/d365/<TestName>/<TestName>.meta.json
+        const oldModulePath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.meta.json`);
+        if (fs.existsSync(oldModulePath)) {
+          metaPath = oldModulePath;
+        } else {
+          // Even older structure: tests/<TestName>.meta.json
+          const oldFlatPath = path.join(workspacePath, 'tests', `${fileName}.meta.json`);
+          if (fs.existsSync(oldFlatPath)) {
+            metaPath = oldFlatPath;
+          } else {
+            // If no meta file exists, fall back to new bundle structure
+            metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+          }
+        }
+      }
+
+      return path.dirname(metaPath);
+    } catch (e: any) {
+      console.warn('[TestRunner] Failed to resolve bundle directory for test:', testName, e.message);
+      return null;
+    }
+  }
+
+  /**
    * Process failure artifacts and update locator status for failed locators
    */
   private async processFailureArtifacts(workspacePath: string, testName: string): Promise<void> {
@@ -1143,8 +1315,14 @@ export default defineConfig({
     }
 
     try {
-      // Resolve bundle path: tests/d365/specs/<TestName>/
-      const bundlePath = path.join(workspacePath, 'tests', 'd365', 'specs', testName);
+      // Resolve bundle path: prefer new bundle structure for D365 and Web workspaces
+      let bundlePath = path.join(workspacePath, 'tests', 'd365', 'specs', testName);
+      if (!fs.existsSync(bundlePath)) {
+        const webBundlePath = path.join(workspacePath, 'tests', 'web', 'specs', testName);
+        if (fs.existsSync(webBundlePath)) {
+          bundlePath = webBundlePath;
+        }
+      }
       const failureFilePath = path.join(bundlePath, `${testName}_failure.json`);
 
       if (!fs.existsSync(failureFilePath)) {
@@ -1178,6 +1356,12 @@ export default defineConfig({
         console.log(`[TestRunner] Successfully marked locator as failing: ${locatorKey}`);
       } else {
         console.log(`[TestRunner] Failure artifact does not contain failed locator info`);
+      }
+
+      // Extract assertion failures and store in run metadata
+      if (failureData.assertionFailure) {
+        console.log(`[TestRunner] Found assertion failure: ${failureData.assertionFailure.assertionType}`);
+        // This will be stored in the run metadata when we update it
       }
     } catch (error: any) {
       // Don't fail the test run if we can't process failure artifacts

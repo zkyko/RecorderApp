@@ -36,11 +36,9 @@ interface AppLayoutProps {
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const location = useLocation();
 
-  // Check if we're in demo mode (MantineProvider already provided by layout)
+  // Check if we're in demo mode
   const isDemoMode = typeof window !== 'undefined' && !window.electronAPI;
 
-  // In demo mode, don't wrap in MantineProvider again (it's in the layout)
-  // In Electron mode, provide MantineProvider
   const content = (
     <div className="app-layout">
       <Sidebar />
@@ -54,17 +52,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     </div>
   );
 
-  if (isDemoMode) {
-    // Demo mode: MantineProvider is in the Next.js layout
-    return (
-      <>
-        <Notifications position="top-right" zIndex={1000} />
-        {content}
-      </>
-    );
-  }
-
-  // Electron mode: provide MantineProvider here
+  // Always provide MantineProvider because HashRouter creates a separate React tree
+  // In demo mode, the Next.js layout also has MantineProvider, but HashRouter
+  // components need their own provider in the same tree
   return (
     <MantineProvider theme={darkTheme} defaultColorScheme="dark">
       <Notifications position="top-right" zIndex={1000} />

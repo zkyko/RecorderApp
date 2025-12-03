@@ -14,8 +14,8 @@ const engineFeatures = [
     iconBg: "bg-blue-500/20",
   },
   {
-    title: "Universal Compatibility",
-    description: "The same engine that conquers D365 is ready for the rest of your ecosystem. Record end-to-end flows across Salesforce, Koerber WMS, and custom E-Commerce frontends.",
+    title: "Multi-Workspace Support",
+    description: "Switch seamlessly between D365 and Web Demo workspaces. The same unified architecture adapts to any platform—currently supporting D365 and Web Demo, with Salesforce and Koerber WMS coming soon.",
     icon: Globe,
     gradient: "from-violet-500 to-purple-500",
     iconColor: "text-violet-400",

@@ -21,6 +21,9 @@ release-zips/
 # Generated runtime files (created during prebuild)
 runtime/
 
+# Bundled Playwright runtime (large, generated during build)
+playwright-runtime/
+
 # Build artifacts (optional - uncomment if build/ contains only generated files)
 # build/
 

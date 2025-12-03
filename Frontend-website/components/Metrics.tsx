@@ -19,9 +19,9 @@ const metrics = [
     gradient: "from-green-500 to-emerald-500",
   },
   {
-    value: "100% Coverage",
-    label: "Unified testing for ERP (D365), CRM (Salesforce), and WMS (Koerber)",
-    sublabel: "One tool for your entire ecosystem",
+    value: "Multi-Platform",
+    label: "Workspace-based architecture supporting D365, Web Demo, and more",
+    sublabel: "One tool, multiple enterprise platforms",
     icon: CheckCircle2,
     gradient: "from-purple-500 to-pink-500",
   },

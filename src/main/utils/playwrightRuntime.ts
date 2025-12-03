@@ -139,6 +139,16 @@ export function getBundledRuntimePaths(): PlaywrightRuntimePaths | null {
   // For bundled runtime, browsers should be in ms-playwright/ subdirectory
   const browsersPath = path.join(runtimeBase, 'ms-playwright');
   
+  // Log runtime paths in packaged builds for debugging
+  if (app.isPackaged) {
+    console.log('[PlaywrightRuntime] Bundled runtime detected:');
+    console.log('[PlaywrightRuntime]   runtimeRoot:', runtimeBase);
+    console.log('[PlaywrightRuntime]   nodePath:', nodePath);
+    console.log('[PlaywrightRuntime]   cliPath:', cliPath);
+    console.log('[PlaywrightRuntime]   browsersPath:', browsersPath);
+    console.log('[PlaywrightRuntime]   process.resourcesPath:', process.resourcesPath);
+  }
+  
   return {
     nodePath,
     cliPath,

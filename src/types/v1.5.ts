@@ -164,6 +164,18 @@ export interface TestRunMeta {
   reportPath?: string;        // workspace-relative path to HTML report (deprecated, use allureReportPath)
   allureReportPath?: string;  // workspace-relative path to Allure report (e.g. "allure-report/<runId>/index.html")
   source?: 'local' | 'browserstack';  // v1.6: where the run executed
+  browserstack?: {            // v2.0: BrowserStack Automate metadata
+    sessionId?: string;
+    buildId?: string;
+    dashboardUrl?: string;
+  };
+  assertionFailures?: Array<{  // v2.0: Assertion failure details
+    assertionType: string;
+    target: string;
+    expected?: string;
+    actual?: string;
+    line?: number;
+  }>;
 }
 
 export interface RunIndex {
@@ -221,10 +233,29 @@ export interface ReportOpenResponse {
 }
 
 // ============================================================================
+// v2.0: Jira Defect Creation from Run Context
+// ============================================================================
+
+export interface JiraDefectContext {
+  workspacePath: string;
+  workspaceId?: string;
+  testName: string;
+  module?: string;
+  status: 'failed';
+  firstFailureMessage?: string;
+  browserStackSessionUrl?: string;
+  browserStackTmTestCaseUrl?: string;
+  browserStackTmRunUrl?: string;
+  screenshotPath?: string;
+  tracePath?: string;
+  playwrightReportPath?: string;
+}
+
+// ============================================================================
 // Workspace Metadata
 // ============================================================================
 
-export type WorkspaceType = "d365" | "salesforce" | "generic";
+export type WorkspaceType = "d365" | "salesforce" | "generic" | "web-demo";
 
 export const CURRENT_WORKSPACE_VERSION = "1.5.0";
 
@@ -290,14 +321,45 @@ export interface WorkspaceConfig {
   environments?: string[]; // v2; current env might just be default
 }
 
+// ============================================================================
+// Test Metadata (v2.0 – extended for BrowserStack TM + Jira)
+// ============================================================================
+
+export interface BrowserStackMeta {
+  tmProjectId?: string;     // e.g. "PR-26"
+  tmTestCaseId?: string;    // e.g. "TC-123"
+  tmTestCaseUrl?: string;   // Deep link to BS TM test case
+}
+
+export interface JiraMeta {
+  issueKey?: string;        // e.g. "QST-42"
+  issueUrl?: string;        // Deep link to Jira issue
+}
+
 export interface TestMeta {
+  /**
+   * Stable internal identifier for this test.
+   * Recommended format: "<workspaceId>/<slug>" where slug is derived from testName.
+   */
+  id?: string;
+
+  // Human-facing identity
   testName: string;       // e.g. "SalesOrder"
   module?: string;        // "Sales", "WMS", etc.
   tags?: string[];        // e.g. ["smoke", "o2c"]
+
+  // Workspace context
+  workspaceId?: string;
+
+  // Timestamps / status
   createdAt: string;
   updatedAt?: string;
   lastRunAt?: string;
   lastStatus?: 'never_run' | 'passed' | 'failed';
+
+  // Integrations
+  browserstack?: BrowserStackMeta;
+  jira?: JiraMeta;
 }
 
 // ============================================================================

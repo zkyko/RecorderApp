@@ -31,7 +31,7 @@ const docCategories = [
   },
   {
     title: "Advanced",
-    description: "AI Vision, Complete Solution, LangChain Integration",
+    description: "Assertion Engine, Enterprise Integrations, Auto-Updates, RAG Architecture, AI Vision",
     icon: Sparkles,
     href: "/docs/advanced",
   },

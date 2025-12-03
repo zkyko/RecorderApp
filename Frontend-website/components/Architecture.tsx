@@ -18,9 +18,9 @@ export function Architecture() {
             QA Studio System Architecture
           </h2>
           <p className="text-lg sm:text-xl text-zinc-400 max-w-3xl mx-auto leading-relaxed">
-            QA Studio is an Electron desktop application with a modular architecture. The system flows from recording user interactions, 
-            through code generation, to test execution, and finally AI-powered debugging. Each layer builds upon the previous one, 
-            creating a complete automation workbench for D365.
+            QA Studio is an Electron desktop application with a modular, workspace-based architecture. The system flows from recording user interactions, 
+            through code generation with assertion support, to test execution (local or BrowserStack), and finally AI-powered debugging. 
+            Each layer builds upon the previous one, creating a complete automation workbench that adapts to multiple enterprise platforms.
           </p>
         </motion.div>
 

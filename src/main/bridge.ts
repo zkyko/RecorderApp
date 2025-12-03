@@ -24,8 +24,11 @@ import { TraceServer } from './services/trace-server';
 import { WorkspaceManager } from './services/workspace-manager';
 import { LocatorMaintenanceService } from './services/locator-maintenance';
 import { RAGService } from './services/rag-service';
+import { JiraService } from './services/jiraService';
+import { BrowserStackTMService } from './services/browserstackTmService';
 import { SpecUpdater } from './services/spec-updater';
 import { LocatorBrowserService } from './services/locator-browser-service';
+import { runAllElectronTests } from '../ElectronTest';
 import {
   CodegenStartRequest,
   LocatorCleanupRequest,
@@ -78,6 +81,7 @@ import {
   RecorderStartRequest,
   RecorderStartResponse,
   RecorderStopResponse,
+  JiraDefectContext,
 } from '../types/v1.5';
 
 /**
@@ -107,6 +111,8 @@ export class IPCBridge {
   private ragService: RAGService;
   private specUpdater: SpecUpdater;
   private locatorBrowser: LocatorBrowserService;
+  private jiraService: JiraService;
+  private browserstackTmService: BrowserStackTMService;
 
   constructor(configManager: ConfigManager, workspaceManager: WorkspaceManager, mainWindow: BrowserWindow | null = null) {
     this.configManager = configManager;
@@ -126,13 +132,15 @@ export class IPCBridge {
     this.recorderService.setMainWindow(mainWindow);
     this.locatorCleanupService = new LocatorCleanupService();
     this.parameterDetector = new ParameterDetector();
-    this.specWriter = new SpecWriter(workspaceManager);
+    this.specWriter = new SpecWriter(workspaceManager, new BrowserStackTMService(configManager));
     this.dataWriter = new DataWriter();
     this.traceServer = new TraceServer();
     this.locatorMaintenance = new LocatorMaintenanceService();
     this.ragService = new RAGService(configManager);
     this.specUpdater = new SpecUpdater();
     this.locatorBrowser = new LocatorBrowserService();
+    this.jiraService = new JiraService(configManager);
+    this.browserstackTmService = new BrowserStackTMService(configManager);
     this.locatorBrowser.setMainWindow(mainWindow);
   }
 
@@ -141,7 +149,7 @@ export class IPCBridge {
    */
   setMainWindow(window: BrowserWindow | null): void {
     this.mainWindow = window;
-    this.testRunner = new TestRunner(window);
+    this.testRunner = new TestRunner(window, this.locatorMaintenance, this.browserstackTmService);
     this.codegenService.setMainWindow(window);
     if (this.recorderService) {
       this.recorderService.setMainWindow(window);
@@ -834,6 +842,49 @@ export class IPCBridge {
       }
     });
 
+    // Jira Configuration handlers
+    ipcMain.handle('settings:getJiraConfig', async (): Promise<{ success: boolean; config?: { baseUrl?: string; email?: string; projectKey?: string }; error?: string }> => {
+      try {
+        const config = this.configManager.getJiraConfig();
+        return {
+          success: true,
+          config: {
+            baseUrl: config.baseUrl || '',
+            email: config.email || '',
+            projectKey: config.projectKey || '',
+          },
+        };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get Jira config' };
+      }
+    });
+
+    ipcMain.handle('settings:updateJiraConfig', async (_, request: { baseUrl: string; email: string; apiToken: string; projectKey: string }): Promise<{ success: boolean; error?: string }> => {
+      try {
+        this.configManager.setJiraConfig({
+          baseUrl: request.baseUrl,
+          email: request.email,
+          apiToken: request.apiToken,
+          projectKey: request.projectKey,
+        });
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update Jira config' };
+      }
+    });
+
+    // Jira Session Management
+    ipcMain.handle('jira:clearSession', async (): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const { session } = require('electron');
+        const jiraSession = session.fromPartition('persist:jira');
+        await jiraSession.clearStorageData();
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to clear Jira session' };
+      }
+    });
+
     // AI Configuration handlers (stored in electron-store via ConfigManager)
     ipcMain.handle('settings:getAIConfig', async (): Promise<{ success: boolean; config?: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }; error?: string }> => {
       try {
@@ -864,6 +915,84 @@ export class IPCBridge {
         return { success: true, response };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to chat with AI' };
+      }
+    });
+
+    // ============================================================================
+    // v2.0: Jira Integration
+    // ============================================================================
+    ipcMain.handle('jira:testConnection', async (): Promise<{ success: boolean; projectName?: string; error?: string }> => {
+      try {
+        return await this.jiraService.testConnection();
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to test Jira connection' };
+      }
+    });
+
+    ipcMain.handle('jira:createIssue', async (_, request: {
+      summary: string;
+      description: string;
+      issueType?: string;
+      customFields?: Record<string, any>;
+      labels?: string[];
+    }): Promise<{ success: boolean; issueKey?: string; issueUrl?: string; error?: string }> => {
+      try {
+        const result = await this.jiraService.createIssue(request);
+        return { success: true, ...result };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to create Jira issue' };
+      }
+    });
+
+    // ============================================================================
+    // v2.0: BrowserStack Test Management
+    // ============================================================================
+    ipcMain.handle('browserstackTm:createTestCase', async (_, request: {
+      name: string;
+      description?: string;
+      tags?: string[];
+    }): Promise<{ success: boolean; testCaseId?: string; error?: string }> => {
+      try {
+        const result = await this.browserstackTmService.createOrUpdateTestCase({
+          name: request.name,
+          description: request.description,
+          tags: request.tags,
+        });
+        return { success: true, testCaseId: result.testCaseId };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to create BrowserStack test case' };
+      }
+    });
+
+    ipcMain.handle('browserstackTm:publishTestRun', async (_, request: {
+      testCaseId: string;
+      status: 'passed' | 'failed' | 'skipped';
+      duration?: number;
+      error?: string;
+      sessionId?: string;
+      buildId?: string;
+      dashboardUrl?: string;
+    }): Promise<{ success: boolean; testRunId?: string; error?: string }> => {
+      try {
+        const result = await this.browserstackTmService.publishTestRun(
+          request.testCaseId,
+          {
+            testCaseId: request.testCaseId,
+            status: request.status,
+            duration: request.duration,
+            error: request.error,
+            sessionId: request.sessionId,
+            buildId: request.buildId,
+          },
+          {
+            sessionId: request.sessionId,
+            buildId: request.buildId,
+            dashboardUrl: request.dashboardUrl,
+          }
+        );
+        return { success: true, testRunId: result.testRunId };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to publish BrowserStack test run' };
       }
     });
 
@@ -1038,10 +1167,35 @@ export class IPCBridge {
         const logPath = path.join(tmpDir, 'playwright-install.log');
 
         const logStream = fs.createWriteStream(logPath, { flags: 'a' });
-        logStream.write(`Starting Playwright installation at ${new Date().toISOString()}\n`);
+        
+        // Helper to safely write to log stream
+        const safeWrite = (data: string | Buffer) => {
+          try {
+            if (!logStream.writableEnded && !logStream.destroyed) {
+              logStream.write(data);
+            }
+          } catch (err) {
+            // Ignore write errors after stream is closed
+            console.error('[Bridge] Log stream write error:', err);
+          }
+        };
+        
+        // Helper to safely end log stream
+        const safeEnd = () => {
+          try {
+            if (!logStream.writableEnded && !logStream.destroyed) {
+              logStream.end();
+            }
+          } catch (err) {
+            // Ignore end errors
+            console.error('[Bridge] Log stream end error:', err);
+          }
+        };
+        
+        safeWrite(`Starting Playwright installation at ${new Date().toISOString()}\n`);
         
         const runtimeInfo = getRuntimeInfo();
-        logStream.write(`Runtime type: ${runtimeInfo.type}\n`);
+        safeWrite(`Runtime type: ${runtimeInfo.type}\n`);
 
         try {
           // Use the new runtime helper which handles bundled vs system
@@ -1050,23 +1204,23 @@ export class IPCBridge {
           });
 
           child.stdout?.on('data', (data) => {
-            logStream.write(data);
+            safeWrite(data);
           });
 
           child.stderr?.on('data', (data) => {
-            logStream.write(data);
+            safeWrite(data);
           });
 
           const exitCode: number = await new Promise((resolve, reject) => {
             child.on('error', (err: any) => {
-              logStream.write(`\nProcess error: ${err.message}\n`);
-              logStream.write(`Error code: ${err.code || 'unknown'}\n`);
-              logStream.end();
+              safeWrite(`\nProcess error: ${err.message}\n`);
+              safeWrite(`Error code: ${err.code || 'unknown'}\n`);
+              safeEnd();
               reject(err);
             });
             child.on('close', (code) => {
-              logStream.write(`\nProcess exited with code ${code}\n`);
-              logStream.end();
+              safeWrite(`\nProcess exited with code ${code}\n`);
+              safeEnd();
               resolve(code ?? 1);
             });
           });
@@ -1081,9 +1235,9 @@ export class IPCBridge {
 
           return { success: true, logPath };
         } catch (spawnError: any) {
-          logStream.write(`\nSpawn error: ${spawnError.message}\n`);
-          logStream.write(`Error code: ${spawnError.code || 'unknown'}\n`);
-          logStream.end();
+          safeWrite(`\nSpawn error: ${spawnError.message}\n`);
+          safeWrite(`Error code: ${spawnError.code || 'unknown'}\n`);
+          safeEnd();
 
           // Error messages from runPlaywright are already user-friendly
           return {
@@ -1360,6 +1514,123 @@ export class IPCBridge {
         return { success: true, path: storagePath };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to get storage state path' };
+      }
+    });
+
+    // ============================================================================
+    // v2.0: Electron Self Test / Diagnostics
+    // ============================================================================
+    ipcMain.handle('electronTest:runAll', async () => {
+      return await runAllElectronTests();
+    });
+
+    // v2.0: Jira defect creation from run context
+    this.registerJiraDefectHandlers();
+
+    // v2.0: BrowserStack TM – explicit sync for a given test bundle
+    ipcMain.handle(
+      'browserstackTm:syncTestCaseForBundle',
+      async (_event, args: { workspacePath: string; testName: string }) => {
+        try {
+          const { workspacePath, testName } = args;
+          const fileName = testName
+            .toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+
+          // Reuse the same lookup strategy as TestRunner.updateTestMeta
+          let metaPath = path.join(
+            workspacePath,
+            'tests',
+            'd365',
+            'specs',
+            fileName,
+            `${fileName}.meta.json`
+          );
+
+          if (!fs.existsSync(metaPath)) {
+            const oldModulePath = path.join(
+              workspacePath,
+              'tests',
+              'd365',
+              fileName,
+              `${fileName}.meta.json`
+            );
+            if (fs.existsSync(oldModulePath)) {
+              metaPath = oldModulePath;
+            } else {
+              const oldFlatPath = path.join(
+                workspacePath,
+                'tests',
+                `${fileName}.meta.json`
+              );
+              if (fs.existsSync(oldFlatPath)) {
+                metaPath = oldFlatPath;
+              } else {
+                return { success: false, error: 'meta.json not found for this test' };
+              }
+            }
+          }
+
+          const bundleDir = path.dirname(metaPath);
+          await this.browserstackTmService.syncTestCaseForBundle(bundleDir);
+
+          return { success: true };
+        } catch (error: any) {
+          return {
+            success: false,
+            error: error.message || 'Failed to sync with BrowserStack TM',
+          };
+        }
+      }
+    );
+  }
+
+  /**
+   * v2.0: Create Jira defect from a failed run context
+   */
+  private registerJiraDefectHandlers(): void {
+    ipcMain.handle('jira:createDefectFromRun', async (_event, context: JiraDefectContext) => {
+      try {
+        const summaryBase = `Failed automated test: ${context.testName}`;
+        const summary = context.workspaceId ? `${summaryBase} [${context.workspaceId}]` : summaryBase;
+
+        const description =
+          context.firstFailureMessage ||
+          'Automated test failure. See artifacts and links below for more details.';
+
+        const result = await this.jiraService.createDefect({
+          summary,
+          description,
+          testMeta: {
+            workspacePath: context.workspacePath,
+            workspaceId: context.workspaceId,
+            testName: context.testName,
+            module: context.module,
+            id: context.workspaceId ? `${context.workspaceId}/${context.testName}` : context.testName,
+          },
+          links: {
+            browserStackSessionUrl: context.browserStackSessionUrl,
+            browserStackTmTestCaseUrl: context.browserStackTmTestCaseUrl,
+            browserStackTmRunUrl: context.browserStackTmRunUrl,
+          },
+          attachments: {
+            screenshotPath: context.screenshotPath,
+            tracePath: context.tracePath,
+            playwrightReportPath: context.playwrightReportPath,
+          },
+        });
+
+        return {
+          success: true,
+          issueKey: result.issueKey,
+          issueUrl: result.issueUrl,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message || 'Failed to create Jira defect',
+        };
       }
     });
   }
@@ -1819,6 +2090,12 @@ export class IPCBridge {
       const metaJsonPath = path.join(bundleDir, `${fileName}.meta.json`);
       fs.writeFileSync(metaJsonPath, metaJsonContent, 'utf-8');
       console.log(`Generated: ${metaJsonPath}`);
+
+      // Ensure BrowserStack TM test case exists for this bundle (v2.0 demo)
+      // Fire-and-forget; we don't need to block code generation on this.
+      this.browserstackTmService.ensureTestCaseForBundle(bundleDir).catch((e: any) => {
+        console.warn('[IPCBridge] Failed to sync BrowserStack TM test case:', e.message);
+      });
 
       // Generate and write meta.md
       const metaMdContent = this.specGenerator.generateMetaMd(

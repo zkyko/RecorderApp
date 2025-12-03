@@ -1,6 +1,6 @@
 {
   "name": "qa-studio",
-  "version": "1.7.0",
+  "version": "2.0.0",
   "description": "D365 QA Studio - Playwright-Powered Test Recorder, Locator Cleaner, Runner, and Debugger",
   "main": "dist/main/index.js",
   "scripts": {
@@ -10,11 +10,12 @@
     "build:app": "npm run build:all",
     "prebuild": "npm run build:clean && node -e \"const fs = require('fs'); const path = require('path'); const src = 'dist/main/services/reporters/ErrorGrabber.js'; const destDir = 'runtime/reporters'; const dest = path.join(destDir, 'ErrorGrabber.js'); if (fs.existsSync(src)) { fs.mkdirSync(destDir, { recursive: true }); fs.copyFileSync(src, dest); console.log('Copied ErrorGrabber.js to runtime/reporters/'); } else { console.log('ErrorGrabber.js not found, skipping copy'); }\"",
     "build:clean": "node -e \"const fs = require('fs-extra'); const dir = 'runtime/reporters'; if (fs.existsSync(dir)) { try { fs.removeSync(dir); } catch (e) { if (e.code === 'EBUSY') { console.warn('Directory locked, retrying in 500ms...'); const start = Date.now(); while (Date.now() - start < 500) {} try { fs.removeSync(dir); } catch (e2) { console.error('Failed after retry:', e2.message); throw e2; } } else { throw e; } } }\"",
-    "build:win": "npm run build:app && npm run prebuild && electron-builder --win --x64",
-    "build:win:arm64": "npm run build:app && npm run prebuild && electron-builder --win --arm64",
-    "build:mac": "npm run build:app && npm run prebuild && electron-builder --mac",
-    "dist:mac": "npm run build:app && npm run prebuild && electron-builder --mac --dir",
-    "dist:win:arm64": "npm run build:app && npm run prebuild && electron-builder --win --arm64 --dir",
+    "setup:runtime": "node scripts/setup-bundled-runtime.js",
+    "build:win": "npm run build:app && npm run prebuild && npm run setup:runtime && electron-builder --win --x64",
+    "build:win:arm64": "npm run build:app && npm run prebuild && npm run setup:runtime && electron-builder --win --arm64",
+    "build:mac": "npm run build:app && npm run prebuild && npm run setup:runtime && electron-builder --mac",
+    "dist:mac": "npm run build:app && npm run prebuild && npm run setup:runtime && electron-builder --mac --dir",
+    "dist:win:arm64": "npm run build:app && npm run prebuild && npm run setup:runtime && electron-builder --win --arm64 --dir",
     "package:releases": "bash scripts/package-releases.sh",
     "release:github": "bash scripts/create-github-release.sh",
     "start": "electron dist/main/index.js",
@@ -23,10 +24,10 @@
     "dev:ui": "cd src/ui && npm run dev",
     "dev:watch": "tsc --watch",
     "install:all": "npm install && cd src/ui && npm install",
-    "dist": "npm run build:app && electron-builder",
-    "dist:win": "npm run build:app && electron-builder --win --dir",
-    "dist:win:portable": "npm run build:app && electron-builder --win portable",
-    "dist:win:safe": "powershell -ExecutionPolicy Bypass -File scripts/clean-release.ps1 && npm run build:app && electron-builder --win --dir",
+    "dist": "npm run build:app && npm run setup:runtime && electron-builder",
+    "dist:win": "npm run build:app && npm run setup:runtime && electron-builder --win --dir",
+    "dist:win:portable": "npm run build:app && npm run setup:runtime && electron-builder --win portable",
+    "dist:win:safe": "powershell -ExecutionPolicy Bypass -File scripts/clean-release.ps1 && npm run build:app && npm run setup:runtime && electron-builder --win --dir",
     "package:portable": "powershell -ExecutionPolicy Bypass -File scripts/package-portable.ps1",
     "release": "powershell -ExecutionPolicy Bypass -File scripts/create-release.ps1",
     "release:skip-build": "powershell -ExecutionPolicy Bypass -File scripts/create-release.ps1 -SkipBuild",
@@ -49,6 +50,7 @@
     "@mantine/notifications": "^8.3.9",
     "dotenv": "^16.3.1",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.1.7",
     "fs-extra": "^11.3.2",
     "lucide-react": "^0.555.0",
     "playwright": "^1.40.0",
@@ -118,6 +120,11 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "zkyko",
+      "repo": "RecorderApp"
     }
   }
 }

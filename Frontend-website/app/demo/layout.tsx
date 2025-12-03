@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { MantineProvider, createTheme } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import { BackendProvider } from '@/lib/mock-backend/BackendProvider';
@@ -51,8 +50,8 @@ export default function DemoLayout({
 
   return (
     <MantineProvider theme={darkTheme} defaultColorScheme="dark">
-      <Notifications position="top-right" zIndex={1000} />
       <BackendProvider backend={mockElectronAPI}>
+        {/* Notifications is provided by AppLayout to ensure it's in the HashRouter tree */}
         {!bannerDismissed && (
           <DemoBanner onDismiss={() => setBannerDismissed(true)} />
         )}

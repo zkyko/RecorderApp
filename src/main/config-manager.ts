@@ -16,6 +16,10 @@ interface ConfigSchema {
   aiModel?: string;
   aiBaseUrl?: string;
   devMode?: boolean; // Developer mode for advanced controls
+  jiraBaseUrl?: string;
+  jiraEmail?: string;
+  jiraApiToken?: string;
+  jiraProjectKey?: string;
 }
 
 /**
@@ -265,5 +269,45 @@ export class ConfigManager {
    */
   setDevMode(enabled: boolean): void {
     this.storeAccess.set('devMode', enabled);
+  }
+
+  /**
+   * Get Jira configuration
+   */
+  getJiraConfig(): {
+    baseUrl: string | undefined;
+    email: string | undefined;
+    apiToken: string | undefined;
+    projectKey: string | undefined;
+  } {
+    return {
+      baseUrl: this.storeAccess.get('jiraBaseUrl') || undefined,
+      email: this.storeAccess.get('jiraEmail') || undefined,
+      apiToken: this.storeAccess.get('jiraApiToken') || undefined,
+      projectKey: this.storeAccess.get('jiraProjectKey') || undefined,
+    };
+  }
+
+  /**
+   * Set Jira configuration
+   */
+  setJiraConfig(config: {
+    baseUrl?: string;
+    email?: string;
+    apiToken?: string;
+    projectKey?: string;
+  }): void {
+    if (config.baseUrl !== undefined) {
+      this.storeAccess.set('jiraBaseUrl', config.baseUrl);
+    }
+    if (config.email !== undefined) {
+      this.storeAccess.set('jiraEmail', config.email);
+    }
+    if (config.apiToken !== undefined) {
+      this.storeAccess.set('jiraApiToken', config.apiToken);
+    }
+    if (config.projectKey !== undefined) {
+      this.storeAccess.set('jiraProjectKey', config.projectKey);
+    }
   }
 }

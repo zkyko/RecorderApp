@@ -2,14 +2,42 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
 import Link from "next/link";
-import { ArrowLeft, Brain, Layers, Link2 } from "lucide-react";
+import { ArrowLeft, Brain, Layers, Link2, CheckSquare, Shield, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
-const advancedDocs = [
+const advancedDocs: Array<{
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  href: string;
+  badge?: string;
+}> = [
   {
     title: "RAG Architecture",
     description: "How QA Studio's Retrieval-Augmented Generation system enables intelligent test failure diagnosis",
     icon: Brain,
     href: "/docs/advanced/rag-architecture",
+  },
+  {
+    title: "Assertion Engine",
+    description: "Universal assertion support integrated into flows and code generation with parameterized expected values",
+    icon: CheckSquare,
+    href: "/docs/advanced/assertion-engine",
+    badge: "v2.0",
+  },
+  {
+    title: "Enterprise Integrations",
+    description: "BrowserStack Test Management and Jira integration architecture for centralized test tracking and defect management",
+    icon: Shield,
+    href: "/docs/advanced/enterprise-integrations",
+    badge: "v2.0",
+  },
+  {
+    title: "Auto-Updates",
+    description: "Automatic updates via GitHub Releases using electron-updater with download progress and one-click installation",
+    icon: Download,
+    href: "/docs/advanced/auto-updates",
+    badge: "v2.0",
   },
   {
     title: "AI Test Generation Vision",
@@ -60,8 +88,15 @@ export default function AdvancedDocsPage() {
               <Link key={doc.title} href={doc.href}>
                 <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
                   <CardHeader>
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 mb-4">
-                      <Icon className="h-6 w-6 text-white" />
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500">
+                        <Icon className="h-6 w-6 text-white" />
+                      </div>
+                      {doc.badge && (
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+                          {doc.badge}
+                        </Badge>
+                      )}
                     </div>
                     <CardTitle>{doc.title}</CardTitle>
                   </CardHeader>

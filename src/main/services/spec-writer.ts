@@ -6,6 +6,7 @@ import { D365WaitInjector } from './d365-wait-injector';
 import { WorkspaceManager } from './workspace-manager';
 import { DataWriter } from './data-writer';
 import { SpecGenerator } from '../../generators/spec-generator';
+import { BrowserStackTMService } from './browserstackTmService';
 
 /**
  * Service for writing flat Playwright spec files
@@ -15,12 +16,14 @@ export class SpecWriter {
   private waitInjector: D365WaitInjector;
   private dataWriter: DataWriter;
   private specGenerator: SpecGenerator;
+  private browserStackTMService: BrowserStackTMService;
 
-  constructor(workspaceManager: WorkspaceManager) {
+  constructor(workspaceManager: WorkspaceManager, browserStackTMService: BrowserStackTMService) {
     this.workspaceManager = workspaceManager;
     this.waitInjector = new D365WaitInjector();
     this.dataWriter = new DataWriter();
     this.specGenerator = new SpecGenerator();
+    this.browserStackTMService = browserStackTMService;
   }
 
   /**
@@ -106,8 +109,11 @@ export async function waitForD365(page: Page): Promise<void> {
       const fileName = this.specGenerator.flowNameToFileName(request.testName);
       const formattedTestName = this.specGenerator.formatTestName(request.testName);
 
-      // Create bundle directory structure: tests/d365/specs/<TestName>/
-      const bundleDir = path.join(testsDir, 'd365', 'specs', fileName);
+      // Choose platform-specific subfolder based on workspace type
+      const platformDir = workspaceType === 'd365' ? 'd365' : 'web';
+
+      // Create bundle directory structure: tests/<platformDir>/specs/<TestName>/
+      const bundleDir = path.join(testsDir, platformDir, 'specs', fileName);
       fs.mkdirSync(bundleDir, { recursive: true });
 
       // Write spec file to bundle directory
@@ -115,14 +121,14 @@ export async function waitForD365(page: Page): Promise<void> {
       fs.writeFileSync(specPath, specContent, 'utf-8');
 
       // Fix data import path in spec content (from ../data/ to ../../data/)
-      // Since spec is now in tests/d365/specs/<TestName>/, data is at tests/d365/data/
+      // Since spec is now in tests/<platformDir>/specs/<TestName>/, data is at tests/<platformDir>/data/
       const fixedSpecContent = this.fixDataImportPath(specContent, specPath);
       if (fixedSpecContent !== specContent) {
         fs.writeFileSync(specPath, fixedSpecContent, 'utf-8');
       }
 
-      // Generate data file path (at tests/d365/data/<TestName>Data.json)
-      const dataDir = path.join(testsDir, 'd365', 'data');
+      // Generate data file path (at tests/<platformDir>/data/<TestName>Data.json)
+      const dataDir = path.join(testsDir, platformDir, 'data');
       const dataFilePath = path.join(dataDir, `${fileName}Data.json`);
 
       // Generate and write meta.json using SpecGenerator
@@ -144,6 +150,13 @@ export async function waitForD365(page: Page): Promise<void> {
       );
       const metaMdPath = path.join(bundleDir, `${fileName}.meta.md`);
       fs.writeFileSync(metaMdPath, metaMdContent, 'utf-8');
+
+      // Ensure BrowserStack TM test case is created/linked for this bundle (v2.0 demo)
+      try {
+        await this.browserStackTMService.ensureTestCaseForBundle(bundleDir);
+      } catch (e: any) {
+        console.warn('[SpecWriter] Failed to sync BrowserStack TM test case:', e.message);
+      }
 
       // Extract parameters from selectedParams or from the generated spec code
       let parameters: string[] = [];
@@ -169,7 +182,7 @@ export async function waitForD365(page: Page): Promise<void> {
       }
 
       // Create or update data file with parameter columns
-      // Data file should be at tests/d365/data/<TestName>Data.json
+      // Data file should be at tests/<platformDir>/data/<TestName>Data.json
       if (parameters.length > 0) {
         // Use the dataDir we already defined above
         fs.mkdirSync(dataDir, { recursive: true });
@@ -299,7 +312,7 @@ export async function waitForD365(page: Page): Promise<void> {
         updatedCode = `import data from '../../data/${fileName}Data.json';\n${updatedCode}`;
       }
 
-      // Normalize any legacy waitForD365 imports to the bundle-aware path.
+      // Normalize or strip waitForD365 usage based on workspace type.
       // Old specs (from earlier generators) might have:
       //   import { waitForD365 } from '../runtime/d365-waits';
       //   import { waitForD365 } from '../../runtime/d365-waits';
@@ -345,6 +358,14 @@ export async function waitForD365(page: Page): Promise<void> {
           // Remove the waitForTimeout, keep just waitForD365 + OK click
           return `${waitForD365}\n      ${okClick}`;
         });
+      } else {
+        // Non-D365 workspaces (e.g., FH Web) should not depend on D365 runtime helpers.
+        // 1) Remove any waitForD365 imports.
+        const waitImportRegex = /import\s+\{\s*waitForD365\s*\}\s+from\s+['"].*?d365-waits['"];?\s*\n?/g;
+        updatedCode = updatedCode.replace(waitImportRegex, '');
+
+        // 2) Remove standalone waitForD365 calls.
+        updatedCode = updatedCode.replace(/^\s*await\s+waitForD365\(page\);?\s*$/gm, '');
       }
 
       return updatedCode;

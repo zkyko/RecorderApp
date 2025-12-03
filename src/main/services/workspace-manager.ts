@@ -89,7 +89,20 @@ export class WorkspaceManager {
     fs.mkdirSync(workspacePath, { recursive: true });
 
     // Create workspace structure
-    const dirs = ['tests', 'data', 'traces', 'runs', 'reports', 'storage_state', 'tmp', 'allure-results', 'allure-report'];
+    const dirs = ['tests', 'data', 'traces', 'runs', 'reports', 'tmp', 'allure-results', 'allure-report'];
+    
+    // Add workspace-type-specific directories
+    if (defaultType === 'd365') {
+      dirs.push('storage_state', 'runtime');
+      // Create D365-specific structure: tests/d365/specs/
+      const d365SpecsDir = path.join(workspacePath, 'tests', 'd365', 'specs');
+      fs.mkdirSync(d365SpecsDir, { recursive: true });
+    } else if (defaultType === 'web-demo') {
+      // Web demo structure: tests/web-demo/
+      const webDemoSpecsDir = path.join(workspacePath, 'tests', 'web-demo');
+      fs.mkdirSync(webDemoSpecsDir, { recursive: true });
+    }
+    
     for (const dir of dirs) {
       fs.mkdirSync(path.join(workspacePath, dir), { recursive: true });
     }
@@ -97,6 +110,16 @@ export class WorkspaceManager {
     // Create workspace.json
     const now = new Date().toISOString();
     const appVersion = app.getVersion() || '1.5.0';
+    
+    // Set default settings based on workspace type
+    const settings: Record<string, unknown> = {};
+    if (defaultType === 'web-demo') {
+      // Default URL for web-demo workspaces
+      settings.baseUrl = 'https://fh-test-fourhandscom.azurewebsites.net/';
+    } else if (defaultType === 'd365') {
+      // D365 workspaces use d365Url from global config
+      settings.baseUrl = undefined; // Will use global d365Url
+    }
     
     const meta: Omit<WorkspaceMeta, 'workspacePath'> = {
       id,
@@ -107,6 +130,7 @@ export class WorkspaceManager {
       lastOpenedWith: appVersion,
       createdAt: now,
       updatedAt: now,
+      settings: Object.keys(settings).length > 0 ? settings : undefined,
     };
 
     await this.saveWorkspaceMeta({

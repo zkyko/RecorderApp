@@ -11,7 +11,7 @@ import './RecordScreen.css';
 
 const RecordScreen: React.FC = () => {
   const navigate = useNavigate();
-  const { workspacePath } = useWorkspaceStore();
+  const { workspacePath, currentWorkspace } = useWorkspaceStore();
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -129,28 +129,45 @@ const RecordScreen: React.FC = () => {
     setLastCodeUpdateAt(null);
 
     try {
-      const config = await (window as any).electronAPI?.getConfig();
-      if (!config?.d365Url) {
-        setError('D365 URL not configured');
-        return;
+      const electronAPI = (window as any).electronAPI;
+      const config = await electronAPI?.getConfig();
+
+      // Determine environment URL based on workspace type
+      let envUrlToUse: string | null = null;
+      let storageStatePath: string | undefined;
+
+      if (currentWorkspace?.type === 'web-demo') {
+        // FH Web workspace: use workspace-specific baseUrl
+        const settings = (currentWorkspace.settings || {}) as { baseUrl?: string };
+        envUrlToUse = settings.baseUrl || 'https://fh-test-fourhandscom.azurewebsites.net/';
+        // Web workspaces typically don't require D365 storage state
+        storageStatePath = undefined;
+      } else {
+        // D365 / other workspaces: fall back to global D365 URL + storage state
+        if (!config?.d365Url) {
+          setError('D365 URL not configured');
+          return;
+        }
+
+        envUrlToUse = config.d365Url;
+
+        // Get storage state path - check config first, then try default location
+        storageStatePath = config.storageStatePath;
+        if (!storageStatePath) {
+          // Try to get from config manager's default location
+          const fullConfig = await electronAPI?.getConfig();
+          storageStatePath = fullConfig?.storageStatePath;
+        }
+
+        // If still no path, try default workspace location
+        if (!storageStatePath && workspacePath) {
+          // Construct path manually (can't use Node.js path in browser)
+          const defaultPath = `${workspacePath}/storage_state/d365.json`;
+          storageStatePath = defaultPath;
+        }
       }
 
-      setEnvUrl(config.d365Url);
-
-      // Get storage state path - check config first, then try default location
-      let storageStatePath = config.storageStatePath;
-      if (!storageStatePath) {
-        // Try to get from config manager's default location
-        const fullConfig = await (window as any).electronAPI?.getConfig();
-        storageStatePath = fullConfig?.storageStatePath;
-      }
-
-      // If still no path, try default workspace location
-      if (!storageStatePath && workspacePath) {
-        // Construct path manually (can't use Node.js path in browser)
-        const defaultPath = `${workspacePath}/storage_state/d365.json`;
-        storageStatePath = defaultPath;
-      }
+      setEnvUrl(envUrlToUse);
 
       // If using Playwright Codegen, make sure Playwright CLI is available
       if (recordingEngine === 'playwright') {
@@ -165,13 +182,13 @@ const RecordScreen: React.FC = () => {
       let response;
       if (recordingEngine === 'playwright') {
         response = await ipc.codegen.start({
-          envUrl: config.d365Url,
+          envUrl: envUrlToUse || '',
           workspacePath,
           storageStatePath: storageStatePath || '',
         });
       } else {
         response = await ipc.recorder.start({
-          envUrl: config.d365Url,
+          envUrl: envUrlToUse || '',
           workspacePath,
           storageStatePath: storageStatePath || '',
         });
@@ -343,7 +360,9 @@ const RecordScreen: React.FC = () => {
             </Group>
             <Text fw={600} size="xl">Record Flow</Text>
             <Text c="dimmed" size="sm" mb="sm">
-              Launch a browser, capture your D365 flow, then move into cleanup and parameterization.
+              {currentWorkspace?.type === 'web-demo'
+                ? 'Launch a browser, capture your FH web journey, then move into cleanup and parameterization.'
+                : 'Launch a browser, capture your D365 flow, then move into cleanup and parameterization.'}
             </Text>
             <Group gap="md">
               {envUrl && (
@@ -421,7 +440,11 @@ const RecordScreen: React.FC = () => {
                 </Button>
               </Group>
               <List spacing="xs" size="sm" c="dimmed">
-                <List.Item>Launch the recorder and run through your D365 scenario.</List.Item>
+                <List.Item>
+                  {currentWorkspace?.type === 'web-demo'
+                    ? 'Launch the recorder and run through your FH web scenario.'
+                    : 'Launch the recorder and run through your D365 scenario.'}
+                </List.Item>
                 <List.Item>Stop recording to review steps and cleanup locators.</List.Item>
                 <List.Item>Parameterize inputs and generate the final Playwright test.</List.Item>
               </List>

@@ -1,6 +1,6 @@
 # QA Studio - D365 Test Automation Platform
 
-[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A comprehensive Electron desktop application for Dynamics 365 Finance & Operations test automation. QA Studio combines intelligent recording, code generation, test execution, and AI-powered debugging into a single unified platform.
@@ -14,8 +14,12 @@ QA Studio transforms the D365 test automation workflow by providing:
 - **📦 Test Bundle Architecture** - Self-contained test artifacts with rich metadata
 - **🔍 Smart Locator Extraction** - Automatically generates stable, maintainable selectors
 - **📄 Code Generation** - Produces production-ready Playwright specs and Page Object Models
-- **▶️ Test Execution** - Built-in test runner with BrowserStack integration
+- **▶️ Test Execution** - Built-in test runner with BrowserStack Automate integration
 - **📊 Analytics & Reporting** - Performance metrics, trace viewing, and run history
+- **✅ Assertion Engine** - First-class assertion support with parameterized expected values
+- **🌐 Multi-Workspace Support** - D365 and Web Demo workspaces with unified architecture
+- **🔗 BrowserStack Test Management** - Sync test cases and runs to BrowserStack TM
+- **🎫 Jira Integration** - One-click defect creation with pre-filled test failure details
 
 ## ✨ Key Features
 
@@ -27,6 +31,13 @@ QA Studio transforms the D365 test automation workflow by providing:
 - **Page Object Model Generation** - Generates TypeScript POM classes with proper structure
 - **Test Specification Generation** - Creates data-driven Playwright test files ready for execution
 - **Parameter Detection** - Automatically identifies and parameterizes test data
+
+### Assertion Engine (v2.0)
+
+- **Universal Assertions** - Add assertions to any step with support for locator and page-level checks
+- **Assertion Types** - toHaveText, toContainText, toBeVisible, toHaveURL, toHaveTitle, toBeChecked, toHaveValue, toHaveAttribute
+- **Parameterized Expected Values** - Use `{{param}}` syntax to drive assertions from test data
+- **Custom Messages** - Add descriptive messages to assertions for better failure reporting
 
 ### AI-Powered Debugging (v1.5)
 
@@ -40,11 +51,19 @@ QA Studio transforms the D365 test automation workflow by providing:
 ### Test Execution & Management
 
 - **Local Test Runner** - Execute tests directly from the application
-- **BrowserStack Integration** - Run tests on cloud browsers with parallel execution
+- **BrowserStack Automate** - Run tests on cloud browsers with parallel execution (v2.0)
+- **BrowserStack Test Management** - Sync test cases and runs to BrowserStack TM project (v2.0)
 - **Test Library** - Centralized view of all tests with status tracking
 - **Run History** - Detailed execution logs, traces, and performance metrics
 - **Data-Driven Testing** - Manage test data sets with Excel import/export
 - **Locator Maintenance** - Update and validate locators across multiple tests
+
+### Integrations (v2.0)
+
+- **Jira Defect Creation** - One-click defect creation from failed test runs
+- **Connection Verification** - Test Jira and BrowserStack connections in Settings
+- **Field Schema Support** - Uses JiraRestAPI.json for proper field formatting
+- **Project QST** - Default Jira project for QA Studio test defects
 
 ### Developer Experience
 
@@ -74,8 +93,12 @@ Electron orchestration layer that manages system resources and IPC:
 
 - **Bridge** - IPC handlers connecting UI to backend services
 - **Config Manager** - Persistent configuration using `electron-store`
-- **Test Runner** - Executes Playwright tests with streaming output
+- **Test Runner** - Executes Playwright tests with streaming output (local and BrowserStack)
+- **Workspace Manager** - Manages multi-workspace architecture and switching
 - **RAG Service** - AI-powered debugging service with LLM integration
+- **BrowserStack TM Service** - Syncs test cases and runs to BrowserStack Test Management
+- **Jira Service** - Creates defects from failed test runs with pre-filled context
+- **Updater Service** - Handles automatic updates via GitHub Releases
 - **Spec Writer** - Generates test bundles with metadata and context files
 - **Path Resolver** - Handles file paths for both development and production
 
@@ -83,19 +106,23 @@ Electron orchestration layer that manages system resources and IPC:
 
 Pure functions that translate recorded steps into executable code:
 
-- **Spec Generator** - Creates Playwright test specifications
-- **POM Generator** - Generates Page Object Model classes
+- **Spec Generator** - Creates Playwright test specifications with assertion support
+- **POM Generator** - Generates Page Object Model classes (D365 workspace)
 - **Code Formatter** - Ensures consistent code style and structure
+- **Assertion Code Generation** - Emits Playwright `expect()` calls for assertion steps
 
 ### 4. Studio UI (`src/ui/`)
 
 Mantine/React frontend providing the user interface:
 
 - **Recording Interface** - Live recording with step timeline
+- **Workspace Selector** - Switch between D365, Web Demo, and other workspaces
+- **Step Editor** - Review and refine steps with assertion editor integration
 - **Test Library** - Browse and manage test collection
 - **Test Details** - View specs, data, locators, and run history
-- **Settings** - Configure environments, recording engine, and AI providers
+- **Settings** - Configure environments, integrations (BrowserStack, Jira), and AI providers
 - **Debug Chat** - AI-powered debugging assistant interface
+- **Jira Integration UI** - One-click defect creation from failed test runs
 
 ## 🚀 Quick Start
 
@@ -131,12 +158,15 @@ Mantine/React frontend providing the user interface:
 ### First Run Setup
 
 1. Launch the application
-2. Open **Settings** and configure:
-   - **D365 URL** - Your Finance & Operations environment URL
-   - **Authentication** - Sign in to D365 (authentication state is saved)
-   - **Default Module** - Choose your primary module (e.g., `Sales`, `Warehouse`)
+2. **Select or Create Workspace** - Choose D365 or Web Demo workspace, or create a new one
+3. Open **Settings** and configure:
+   - **Platform URL** - Your target environment URL (D365 tenant or web app)
+   - **Authentication** - Sign in to your platform (authentication state is saved)
+   - **Default Module** - Choose your primary module (e.g., `Sales`, `Warehouse`) for D365
+   - **BrowserStack** (Optional) - Configure credentials for cloud test execution
+   - **Jira** (Optional) - Configure for defect creation from failed tests
    - **AI Provider** (Optional) - Configure LLM for debugging features
-3. Start recording your first test flow
+4. Start recording your first test flow
 
 ## 📖 Usage Guide
 
@@ -157,8 +187,10 @@ Mantine/React frontend providing the user interface:
 
 - **Test Library** - View all tests with status badges (Never Run, Passed, Failed)
 - **Test Details** - Inspect spec code, edit test data, manage locators
-- **Run Tests** - Execute locally or on BrowserStack
+- **Add Assertions** - Use the assertion editor to add validation steps with parameterized expected values
+- **Run Tests** - Execute locally or on BrowserStack Automate
 - **View Results** - Check run history, traces, and performance metrics
+- **Create Jira Defects** - One-click defect creation from failed test runs (v2.0)
 
 ### AI-Powered Debugging
 
@@ -287,12 +319,34 @@ The Windows build is configured in `package.json`:
 - **Extra Resources:** `runtime/` folder (contains ErrorGrabber reporter)
 - **Icon:** Uses default Electron icon (custom icon can be added to `build/icon.ico`)
 
-## 🧪 Test Bundle Architecture
+## 🧪 Workspace & Test Bundle Architecture
+
+QA Studio v2.0 uses a **workspace-based architecture** that makes it platform-agnostic:
+
+### Workspace Structure
+
+```
+workspaces/
+├── d365/                    # D365 workspace
+│   ├── workspace.json       # Workspace configuration
+│   ├── tests/               # Test bundles
+│   │   └── specs/
+│   │       └── <TestName>/
+│   │           ├── <TestName>.spec.ts
+│   │           ├── <TestName>.meta.json
+│   │           └── <TestName>.meta.md
+│   ├── data/                # Test data files
+│   └── locators/            # Locator status tracking
+└── web-demo/                # Web Demo workspace
+    └── ... (same structure)
+```
+
+### Test Bundle Structure
 
 Starting with v1.5, tests are organized into "bundles" containing:
 
 ```
-tests/d365/specs/<TestName>/
+<workspace>/tests/specs/<TestName>/
 ├── <TestName>.spec.ts      # Executable Playwright code
 ├── <TestName>.meta.json    # Metadata (status, run history, data path)
 └── <TestName>.meta.md      # AI-readable context (locators, fixtures, code preview)
@@ -304,6 +358,7 @@ tests/d365/specs/<TestName>/
 - **AI-Ready** - Rich metadata for intelligent debugging
 - **Versioned** - Easy to track test evolution
 - **Portable** - Easy to share or archive tests
+- **Multi-Platform** - Workspace architecture supports D365, Web Demo, and future platforms
 
 ## 🔧 Configuration
 
@@ -317,12 +372,15 @@ Settings are stored using `electron-store`:
 
 ### Configuration Options
 
-- **D365 URL** - Finance & Operations environment
+- **Workspace Selection** - Choose active workspace (D365, Web Demo, etc.)
+- **Platform URL** - Target environment URL (D365 tenant or web app)
 - **Authentication State** - Saved browser storage state
 - **Recording Engine** - QA Studio Recorder or Playwright Codegen
 - **AI Provider** - LLM configuration for debugging
-- **BrowserStack** - Cloud testing credentials
-- **Workspace Path** - Default location for test files
+- **BrowserStack Automate** - Cloud testing credentials and project settings
+- **BrowserStack Test Management** - TM project ID and sync configuration
+- **Jira Integration** - Base URL, credentials, project key, and field mappings
+- **Auto-Updates** - GitHub Releases update channel configuration
 
 ## 📚 Documentation
 
@@ -367,9 +425,11 @@ Comprehensive documentation is available in the `docs/` directory:
 
 ### Tests Not Executing
 
-- Verify test bundle structure exists: `tests/d365/specs/<TestName>/`
+- Verify workspace is selected and active
+- Verify test bundle structure exists: `<workspace>/tests/specs/<TestName>/`
 - Check that spec file exists: `<TestName>.spec.ts`
 - Review test runner logs in the application console
+- For BrowserStack: Verify credentials and network connectivity
 
 ### AI Debugging Not Working
 
@@ -396,8 +456,19 @@ Built with:
 - [Mantine](https://mantine.dev/) - UI components
 - [TypeScript](https://www.typescriptlang.org/) - Type safety
 
+## 🔄 Auto-Updates (v2.0)
+
+QA Studio v2.0 includes automatic update functionality via GitHub Releases:
+
+- **Automatic Check** - App checks for updates on startup
+- **Download Progress** - Shows download progress in UI
+- **One-Click Install** - Restart to install updates
+- **Release Notes** - View what's new in each update
+
+Updates are delivered through GitHub Releases and use electron-updater for seamless installation.
+
 ---
 
-**Version:** 1.5.0  
-**Last Updated:** 2025
+**Version:** 2.0.0  
+**Last Updated:** December 2025
 

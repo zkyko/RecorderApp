@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Bug, Wrench, Zap, CheckCircle2 } from "lucide-react";
+import { EnrichedText } from "@/components/docs/EnrichedText";
 
 interface ChangelogEntry {
   version: string;
@@ -14,6 +15,26 @@ interface ChangelogEntry {
 }
 
 const changelog: ChangelogEntry[] = [
+  {
+    version: "2.0.0",
+    date: "December 2025",
+    type: "feature",
+    title: "Version 2.0 - Multi-Workspace, Assertion Engine & Enterprise Integrations",
+    description: "Major milestone release introducing universal assertion engine, multi-workspace support, BrowserStack Test Management, Jira integration, diagnostics, and a rock-solid foundation with stabilized runtime and auto-updates.",
+    items: [
+      "Universal Assertion Engine - First-class assertion support with locator and page-level checks (toHaveText, toContainText, toBeVisible, toHaveURL, toHaveTitle, toBeChecked, toHaveValue, toHaveAttribute)",
+      "Parameterized Assertions - Use {{param}} syntax to drive assertions from test data files for data-driven validation",
+      "Multi-Workspace Architecture - Web Demo workspace alongside D365, demonstrating unified architecture with workspace switching",
+      "BrowserStack Test Management Integration - Sync test cases and runs to BrowserStack TM with automatic test case creation and run publishing",
+      "Jira Defect Creation - One-click defect creation from failed test runs with pre-filled test failure details, repro steps, and BrowserStack session links",
+      "Diagnostics / Self Test Screen - Run environment, workspace, and integration health checks directly inside QA Studio",
+      "Stabilized Playwright Runtime - Fixed bundled runtime detection, removed hard dependency on cmd.exe, and improved error handling",
+      "Electron Auto-Updates - Automatic updates via GitHub Releases with download progress and one-click restart to install",
+      "Enhanced Logging - Fixed ERR_STREAM_WRITE_AFTER_END issues with proper stream lifecycle management",
+      "Workspace Selector UI - Easy switching between D365 and Web Demo workspaces with unified workflow",
+      "Assertion Step Editor - Visual assertion builder integrated into step editor with target picker and custom message support"
+    ]
+  },
   {
     version: "1.7.0",
     date: "December 1, 2025",
@@ -104,11 +125,14 @@ export function Changelog() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h2 className="text-2xl font-bold text-white">{entry.title}</h2>
-                    <Badge className={config.color}>
+                    <Badge variant="outline" className={config.color}>
                       {config.label}
                     </Badge>
                     {entry.date.includes("Upcoming") && (
-                      <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs animate-pulse">
+                      <Badge
+                        variant="outline"
+                        className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs animate-pulse"
+                      >
                         Coming Soon
                       </Badge>
                     )}
@@ -123,7 +147,7 @@ export function Changelog() {
             </div>
             
             <p className="text-zinc-300 mb-6 leading-relaxed">
-              {entry.description}
+              <EnrichedText text={entry.description} />
             </p>
             
             <div className="space-y-3">
@@ -134,7 +158,9 @@ export function Changelog() {
                 {entry.items.map((item, itemIndex) => (
                   <li key={itemIndex} className="flex items-start gap-3 text-zinc-300">
                     <CheckCircle2 className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
-                    <span className="leading-relaxed">{item}</span>
+                    <span className="leading-relaxed">
+                      <EnrichedText text={item} />
+                    </span>
                   </li>
                 ))}
               </ul>

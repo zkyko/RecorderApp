@@ -3,63 +3,97 @@
 This document explains how product owners, QA engineers, and analysts use QA Studio day-to-day. For deeper architectural context see `01-studio-architecture.md`; for contributor instructions see `02-developer-guide.md`.
 
 ### 1. Getting Ready
-- **Install & launch:** Run the packaged Electron app or `npm run dev` during previews.
-- **Select Workspace:** Choose your target platform workspace (currently D365 is available; Koerber and Salesforce coming soon).
+- **Install & launch:** Run the packaged Electron app or `npm run dev` during previews. The app will check for updates automatically (v2.0).
+- **Select or Create Workspace:** Choose your target platform workspace from the workspace selector:
+  - **D365** - Microsoft Dynamics 365 Finance & Operations (full POM support)
+  - **Web Demo** - Demo workspace showcasing multi-workspace architecture
+  - **Create New** - Create a custom workspace for your platform
 - **Configure environments:** Open the Settings screen and provide:
   - Platform-specific tenant URL and credentials (stored securely in `electron-store`).
-  - Default module (e.g., `Sales`, `Warehouse`) so generated files land under the workspace-specific path.
-  - Execution profile (Local Playwright, BrowserStack, or custom runner).
+  - Default module (e.g., `Sales`, `Warehouse`) for D365 workspace so generated files land under the workspace-specific path.
+  - Execution profile (Local Playwright, BrowserStack Automate).
+  - **BrowserStack credentials** (optional) - For cloud test execution and Test Management sync.
+  - **Jira integration** (optional) - For one-click defect creation from failed tests.
 - **Verify dependencies:** Use the "Diagnostics" card to ensure Playwright browsers, Node, and BrowserStack creds (if selected) are reachable.
 
-**Note:** QA Studio currently supports the D365 workspace. Additional workspaces for Koerber, Salesforce, and other platforms will be added in future releases. Each workspace uses platform-specific locator algorithms while sharing the same recording, code generation, and execution infrastructure.
+**Note:** QA Studio v2.0 supports D365 and Web Demo workspaces. Additional workspaces for Koerber, Salesforce, and other platforms will be added in future releases. Each workspace uses platform-specific locator algorithms while sharing the same recording, code generation, assertion engine, and execution infrastructure.
 
 ### 2. Recording a Flow
-1. Click **Start Recording**.
-2. Studio launches an embedded Playwright browser window pointing at your configured D365 environment.
-3. Interact with the application normally. The recorder:
+1. Ensure the correct workspace is selected (D365, Web Demo, etc.).
+2. Click **Start Recording**.
+3. Studio launches an embedded Playwright browser window pointing at your configured platform environment.
+4. Interact with the application normally. The recorder:
    - Captures clicks, fills, selects, and navigations.
-   - Applies D365-specific heuristics (navigation pane rules, spatial safety net) to produce stable locators.
+   - Applies platform-specific heuristics (navigation pane rules, spatial safety net) to produce stable locators.
    - Updates the shared page registry whenever you land on a new page or workspace.
-4. Use the mini-toolbar to insert checkpoints (assertions) or notes; they’ll appear as annotated steps in the timeline.
-5. Hit **Stop Recording** to close the session and push the captured steps into the code generator pipeline.
+5. **Add Assertions (v2.0):** Use the step editor or mini-toolbar to insert assertions:
+   - Select an assertion type (toHaveText, toContainText, toBeVisible, etc.)
+   - Choose target (locator or page-level)
+   - Enter expected value (use `{{param}}` syntax for parameterized assertions)
+   - Add optional custom message for better failure reporting
+6. Hit **Stop Recording** to close the session and push the captured steps into the code generator pipeline.
 
 ### 3. Reviewing Generated Assets
-After recording, the Review panel shows three tabs:
-- **Steps:** Raw timeline with metadata (pageId, locator strategy, action). You can drop unwanted steps before generation.
-- **Page Objects:** Generated files under `d365/<module>/<page>.page.ts`. Compare with existing versions; accept/reject per file.
-- **Specs:** Playwright test files written to `Recordings/tests/*.spec.ts`. Edit titles, data inputs, or tags inline.
+After recording, the Review panel shows:
+- **Steps:** Raw timeline with metadata (pageId, locator strategy, action, assertions). You can drop unwanted steps before generation.
+- **Assertions:** Review assertion steps with their expected values and parameterization. Edit assertions directly in the step editor.
+- **Specs:** Playwright test files written to `<workspace>/tests/specs/<TestName>/<TestName>.spec.ts`. Edit titles, data inputs, or tags inline.
 
 Tips:
 - Hover over a locator badge to see the extraction strategy (role, control name, text, etc.).
-- When multiple flows share a page, Studio merges locators and methods instead of duplicating the class.
+- Assertion steps show their expected values and whether they're parameterized.
+- When multiple flows share a page, Studio merges locators and methods instead of duplicating the class (D365 workspace).
+- For Web Demo and future workspaces, specs are generated without POM classes.
 
 ### 4. Running Tests
-1. Choose **Run Locally** for quick validation. Studio calls `src/main/test-executor.ts`, streams console logs, and captures screenshots/videos where configured.
-2. Choose **Run on BrowserStack** to validate across browsers. Provide credentials once in Settings; Studio injects them into `playwright.browserstack.config.ts`.
+1. Choose **Run Locally** for quick validation. Studio calls `test-runner.ts`, streams console logs, and captures screenshots/videos where configured.
+2. Choose **Run on BrowserStack Automate** (v2.0) to validate across browsers. Studio automatically:
+   - Generates `playwright.browserstack.config.ts` with your credentials
+   - Runs tests on cloud browsers
+   - Captures BrowserStack session IDs and dashboard URLs
+   - Syncs test case and run to BrowserStack Test Management (if configured)
 3. Inspect the **Run Output** panel:
    - Status timeline (queued → running → passed/failed)
    - Collapsible log lines with `[Recorder]`, `[Playwright]`, and `[BrowserStack]` tags
+   - Assertion results showing expected vs actual values
    - Link to `playwright-report/index.html` for deep dives
+   - BrowserStack session links (for cloud runs)
+4. **Create Jira Defect (v2.0):** If a test fails, click **Create Jira Defect** to:
+   - Pre-fill defect summary with test failure details
+   - Include reproduction steps from the test flow
+   - Add BrowserStack session link (if applicable)
+   - Map custom fields using JiraRestAPI.json schema
 
 ### 5. Iterating & Publishing
-- **Edit & regenerate:** If you tweak locators or method names manually, rerun generation to reconcile changes. Studio preserves custom code by parsing with `ts-morph`.
+- **Edit & regenerate:** If you tweak locators, assertions, or method names manually, rerun generation to reconcile changes. Studio preserves custom code by parsing with `ts-morph`.
+- **Parameterize assertions:** Use `{{param}}` syntax in assertion expected values to drive validation from test data files.
+- **Workspace switching:** Switch between workspaces seamlessly. Each workspace maintains its own tests, data, and configuration.
 - **Branch awareness:** Studio tags each session with the current Git branch. Keep `main` clean—record on feature branches and commit generated assets there.
-- **Export artifacts:** Use “Export Bundle” to zip POMs + specs + registry snapshot for sharing with other squads.
+- **Export artifacts:** Use "Export Bundle" to zip specs + registry snapshot for sharing with other squads.
+- **BrowserStack TM sync:** Test cases and runs are automatically synced to BrowserStack Test Management (if configured) for centralized tracking.
 
 ### 6. Troubleshooting
 | Symptom | Fix |
 | --- | --- |
 | No events captured | Ensure the recorder window has focus; if running headless, disable headless mode in Settings for debugging. |
-| Wrong module in file path | Update the Module selector before recording; paths are derived from that setting. |
-| Locator looks like `body` | Recorder discards non-interactive clicks; re-record with the navigation pane open or use the “Force Capture” hotkey. |
-| BrowserStack job stuck | Check network/proxy access first; then review `log/performance-report/modified-key-metrics.json` for hints. |
-| Spec fails on login | Verify credentials in Settings → Security, and confirm `config/default-config.json` matches your tenant’s redirects. |
+| Wrong module in file path | Update the Module selector before recording; paths are derived from that setting (D365 workspace). |
+| Locator looks like `body` | Recorder discards non-interactive clicks; re-record with the navigation pane open or use the "Force Capture" hotkey. |
+| Assertion not generating code | Verify assertion step has valid target (locator name or 'page') and expected value. Check SpecGenerator logs. |
+| BrowserStack job stuck | Check network/proxy access first; verify credentials in Settings → BrowserStack. Review `log/performance-report/modified-key-metrics.json` for hints. |
+| BrowserStack TM sync failing | Verify TM Project ID in Settings → BrowserStack Test Management. Check credentials and network connectivity. |
+| Jira defect creation failing | Test connection in Settings → Jira. Verify project key, API token, and custom field mappings in JiraRestAPI.json. |
+| Spec fails on login | Verify credentials in Settings → Security, and confirm workspace configuration matches your tenant's redirects. |
+| Workspace not loading | Check `workspaces/<id>/workspace.json` exists and is valid JSON. Verify workspace manager logs in main process console. |
 
 ### 7. Best Practices
-- Record the “happy path” first, then layer validations/assertions.
-- Keep recordings scoped (<30 steps) so generated specs stay readable; chain specs via shared POM methods instead of giant flows.
-- Reuse module folders: e.g., `d365/sales/SalesOrderList.page.ts` becomes the canonical class for all sales-order-related specs.
-- Commit both generated code and the updated `Recordings/page-registry.json` so teammates inherit the improved page identities.
+- **Workspace organization:** Use appropriate workspace for your platform. D365 for Finance & Operations, Web Demo for web applications.
+- **Recording:** Record the "happy path" first, then layer validations/assertions using the assertion editor.
+- **Assertions:** Use parameterized assertions (`{{param}}`) for data-driven validation. Add custom messages for better failure context.
+- **Scope:** Keep recordings scoped (<30 steps) so generated specs stay readable; chain specs via shared methods instead of giant flows.
+- **Reuse (D365):** Reuse module folders: e.g., `d365/sales/SalesOrderList.page.ts` becomes the canonical class for all sales-order-related specs.
+- **Version control:** Commit both generated code and the updated `Recordings/page-registry.json` so teammates inherit the improved page identities.
+- **BrowserStack:** Use BrowserStack Automate for cross-browser validation. Enable Test Management sync for centralized tracking.
+- **Jira integration:** Create defects immediately after test failures while context is fresh. Review pre-filled details before submitting.
 
 Once you’re comfortable with these flows, explore `00-product-vision.md` to understand where the product is headed and how your feedback shapes the roadmap.
 

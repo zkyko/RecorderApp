@@ -3,6 +3,7 @@ import { Navbar } from "@/components/Navbar";
 import Link from "next/link";
 import { ArrowLeft, Download, Settings, Key, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EnrichedText } from "@/components/docs/EnrichedText";
 
 export default function GettingStartedPage() {
   return (
@@ -86,9 +87,9 @@ export default function GettingStartedPage() {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <h4 className="font-semibold text-white mb-1">Configure Platform</h4>
+                    <h4 className="font-semibold text-white mb-1">Select Workspace</h4>
                     <p className="text-zinc-400 text-sm">
-                      Select your target platform workspace (currently D365 is available). Each workspace uses platform-specific locator algorithms.
+                      Choose your target <EnrichedText text="workspace" /> from the workspace selector. QA Studio v2.0 includes D365 and Web Demo <EnrichedText text="workspaces" />. Each workspace uses platform-specific <EnrichedText text="locator" /> algorithms while sharing the same infrastructure.
                     </p>
                   </div>
                 </div>
@@ -126,7 +127,7 @@ export default function GettingStartedPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                To use the AI Forensics Engine for intelligent test failure diagnosis, you'll need an API key from one of the supported providers.
+                To use the <EnrichedText text="RAG" />-powered AI Forensics Engine for intelligent test failure diagnosis, you'll need an API key from one of the supported providers.
               </p>
               
               <div className="space-y-4">
@@ -181,31 +182,34 @@ export default function GettingStartedPage() {
             <CardContent>
               <ol className="space-y-4 list-decimal list-inside text-zinc-300">
                 <li>
-                  <strong className="text-white">Create Workspace:</strong> Click "New Workspace" and choose a location for your test files
+                  <strong className="text-white">Select Workspace:</strong> Choose D365 or Web Demo workspace from the workspace selector
                 </li>
                 <li>
-                  <strong className="text-white">Configure Settings:</strong> Go to Settings → Authentication and log in to your platform
+                  <strong className="text-white">Configure Settings:</strong> Go to Settings and configure D365 URL, authentication, and optional integrations (BrowserStack, Jira, AI)
                 </li>
                 <li>
-                  <strong className="text-white">Start Recording:</strong> Navigate to the Record tab and click "Start Recording"
+                  <strong className="text-white">Start Recording:</strong> Click "Start Recording" and enter flow name and module
                 </li>
                 <li>
-                  <strong className="text-white">Interact with Your App:</strong> Perform your test scenario in the browser window
+                  <strong className="text-white">Interact with Your App:</strong> Perform your test scenario in the embedded browser window
                 </li>
                 <li>
-                  <strong className="text-white">Stop & Review:</strong> Click "Stop Recording" to review generated steps
+                  <strong className="text-white">Add Assertions (Optional):</strong> Use the mini-toolbar or step editor to add assertions for validation
                 </li>
                 <li>
-                  <strong className="text-white">Edit & Clean:</strong> Use the Step Editor to refine steps, then proceed to Locator Cleanup
+                  <strong className="text-white">Stop & Review:</strong> Click "Stop Recording" to review generated steps in the Step Editor
                 </li>
                 <li>
-                  <strong className="text-white">Parameterize:</strong> Set up test data parameters in the Parameter Mapping screen
+                  <strong className="text-white">Edit & Refine:</strong> Review steps, add/remove/reorder, and clean up locators
                 </li>
                 <li>
-                  <strong className="text-white">Save Test:</strong> Enter a test name and generate your final test spec
+                  <strong className="text-white">Parameterize (Optional):</strong> Set up test data parameters for data-driven testing
                 </li>
                 <li>
-                  <strong className="text-white">Run Tests:</strong> Execute your tests locally or on BrowserStack
+                  <strong className="text-white">Generate & Save:</strong> Generate your test spec and save to the test library
+                </li>
+                <li>
+                  <strong className="text-white">Run Tests:</strong> Execute locally or on BrowserStack Automate, view results and traces
                 </li>
               </ol>
             </CardContent>
@@ -231,10 +235,16 @@ export default function GettingStartedPage() {
                 Read Guides
               </Link>
               <Link
-                href="/docs/advanced/rag-architecture"
-                className="px-4 py-2 border border-violet-500/50 text-violet-400 hover:bg-violet-500/10 rounded-lg transition-colors text-sm font-medium"
+                href="/docs/advanced/assertion-engine"
+                className="px-4 py-2 border border-green-500/50 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors text-sm font-medium"
               >
-                RAG System Docs
+                Assertion Engine
+              </Link>
+              <Link
+                href="/docs/advanced/enterprise-integrations"
+                className="px-4 py-2 border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors text-sm font-medium"
+              >
+                Enterprise Integrations
               </Link>
             </div>
           </div>

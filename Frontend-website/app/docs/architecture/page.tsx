@@ -3,6 +3,7 @@ import { Navbar } from "@/components/Navbar";
 import Link from "next/link";
 import { ArrowLeft, Layers, Code2, Cpu, Monitor } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EnrichedText } from "@/components/docs/EnrichedText";
 
 export default function ArchitecturePage() {
   return (
@@ -84,7 +85,7 @@ export default function ArchitecturePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                QA Studio uses a <strong className="text-white">workspace-based architecture</strong> that makes it platform-agnostic and easily extensible.
+                QA Studio uses a <strong className="text-white"><EnrichedText text="workspace-based architecture" /></strong> that makes it platform-agnostic and easily extensible.
               </p>
               
               <div className="p-4 bg-violet-500/10 border border-violet-500/30 rounded-lg">
@@ -97,11 +98,17 @@ export default function ArchitecturePage() {
                 </ul>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-green-500/30">
-                  <h4 className="font-semibold text-white mb-2">Current: D365</h4>
+                  <h4 className="font-semibold text-white mb-2">D365 Workspace</h4>
                   <p className="text-sm text-zinc-400">
                     Optimized locator extraction for Microsoft Dynamics 365 with data-dyn-controlname priority, role-based selectors, and D365-specific heuristics.
+                  </p>
+                </div>
+                <div className="p-4 bg-zinc-800/50 rounded-lg border border-indigo-500/30">
+                  <h4 className="font-semibold text-white mb-2">Web Demo Workspace</h4>
+                  <p className="text-sm text-zinc-400">
+                    Demo workspace showcasing multi-workspace architecture. Uses same unified infrastructure as D365 with workspace-specific configurations.
                   </p>
                 </div>
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-blue-500/30">
@@ -178,9 +185,27 @@ export default function ArchitecturePage() {
                     <div className="relative">
                       <div className="absolute -left-6 w-3 h-3 rounded-full bg-rose-500 border-2 border-zinc-900"></div>
                       <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-                        <h4 className="font-semibold text-white mb-2">6. Execution & Feedback</h4>
+                        <h4 className="font-semibold text-white mb-2">6. Assertion Processing</h4>
                         <p className="text-sm text-zinc-400">
-                          Test executor runs specs locally or on BrowserStack, streams logs back to UI, and captures traces for debugging.
+                          Assertion engine processes assertion steps, resolves parameterized expected values from test data, and generates Playwright expect() calls.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute -left-6 w-3 h-3 rounded-full bg-pink-500 border-2 border-zinc-900"></div>
+                      <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                        <h4 className="font-semibold text-white mb-2">7. Execution & Feedback</h4>
+                        <p className="text-sm text-zinc-400">
+                          Test executor runs specs locally or on BrowserStack Automate, streams logs back to UI, captures traces, and syncs results to BrowserStack TM.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute -left-6 w-3 h-3 rounded-full bg-purple-500 border-2 border-zinc-900"></div>
+                      <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                        <h4 className="font-semibold text-white mb-2">8. Enterprise Integrations</h4>
+                        <p className="text-sm text-zinc-400">
+                          Failed tests trigger Jira defect creation with pre-filled details. Test cases and runs sync to BrowserStack Test Management for centralized tracking.
                         </p>
                       </div>
                     </div>
@@ -237,6 +262,89 @@ export default function ArchitecturePage() {
             </CardContent>
           </Card>
 
+          {/* v2.0 Features */}
+          <Card className="bg-zinc-900/50 border-zinc-800">
+            <CardHeader>
+              <CardTitle className="text-2xl">Version 2.0 Architecture Enhancements</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                  <h4 className="font-semibold text-white mb-2">Universal <EnrichedText text="Assertion Engine" /></h4>
+                  <p className="text-sm text-zinc-400 mb-2">
+                    <EnrichedText text="First-class assertion support integrated into the flow model and SpecGenerator. Supports locator and page-level assertions with parameterized expected values." />
+                  </p>
+                  <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                    <li>AssertStep type in flow model</li>
+                    <li>Visual assertion editor in step UI</li>
+                    <li>Parameterized expected values ({'{{param}}'})</li>
+                    <li>Workspace-agnostic design</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+                  <h4 className="font-semibold text-white mb-2">Multi-Workspace Support</h4>
+                  <p className="text-sm text-zinc-400 mb-2">
+                    Workspace switcher UI enables seamless switching between D365 and Web Demo workspaces. Each workspace maintains its own flows, data, and configs.
+                  </p>
+                  <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                    <li>Workspace selector in UI</li>
+                    <li>Workspace-specific baseUrl and configs</li>
+                    <li>Shared recorder and generators</li>
+                    <li>Unified workflow across workspaces</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                  <h4 className="font-semibold text-white mb-2">BrowserStack Test Management</h4>
+                  <p className="text-sm text-zinc-400 mb-2">
+                    REST API integration for syncing test cases and runs to BrowserStack TM. Automatic test case creation and run publishing with assertion metadata.
+                  </p>
+                  <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                    <li>createOrUpdateTestCase() service</li>
+                    <li>publishTestRun() with assertion details</li>
+                    <li>Project-based organization</li>
+                    <li>HTTP Basic auth integration</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <h4 className="font-semibold text-white mb-2">Jira Integration</h4>
+                  <p className="text-sm text-zinc-400 mb-2">
+                    One-click defect creation from failed test runs. Pre-fills test failure details, repro steps, and BrowserStack session links using custom field schema.
+                  </p>
+                  <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                    <li>createIssue() service</li>
+                    <li>Custom field mapping (JiraRestAPI.json)</li>
+                    <li>Pre-filled failure context</li>
+                    <li>Connection verification</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-teal-500/10 border border-teal-500/30 rounded-lg">
+                  <h4 className="font-semibold text-white mb-2">Stabilized Runtime</h4>
+                  <p className="text-sm text-zinc-400 mb-2">
+                    Fixed bundled Playwright runtime detection, removed hard dependency on cmd.exe, and improved error handling with proper stream lifecycle management.
+                  </p>
+                  <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                    <li>Bundled runtime detection</li>
+                    <li>runPlaywright() helper</li>
+                    <li>Improved error messages</li>
+                    <li>Stream lifecycle fixes</li>
+                  </ul>
+                </div>
+                <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                  <h4 className="font-semibold text-white mb-2">Electron Auto-Updates</h4>
+                  <p className="text-sm text-zinc-400 mb-2">
+                    Automatic updates via GitHub Releases using electron-updater. Download progress tracking and one-click restart to install.
+                  </p>
+                  <ul className="text-xs text-zinc-400 space-y-1 list-disc list-inside">
+                    <li>autoUpdater.checkForUpdatesAndNotify()</li>
+                    <li>GitHub Releases provider</li>
+                    <li>Download progress IPC events</li>
+                    <li>quitAndInstall() on ready</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Extension Points */}
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader>
@@ -253,6 +361,9 @@ export default function ArchitecturePage() {
                 <div>
                   <strong className="text-white">Wire a new execution target:</strong> Implement a runner in <code className="text-blue-400 bg-zinc-800 px-1 rounded">src/main/test-executor.ts</code> and surface it as a selectable profile in Settings.
                 </div>
+                <div>
+                  <strong className="text-white">Add a new integration:</strong> Create a service in <code className="text-blue-400 bg-zinc-800 px-1 rounded">src/main/services/</code> and expose via IPC handlers in bridge.ts.
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -266,6 +377,18 @@ export default function ArchitecturePage() {
                 className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors text-sm font-medium"
               >
                 RAG Architecture
+              </Link>
+              <Link
+                href="/docs/advanced/assertion-engine"
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+              >
+                Assertion Engine
+              </Link>
+              <Link
+                href="/docs/advanced/enterprise-integrations"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm font-medium"
+              >
+                Enterprise Integrations
               </Link>
               <Link
                 href="/docs/guides"

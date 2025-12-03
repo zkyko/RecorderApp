@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, Text, Button, Group, Stack, TextInput, Badge, ScrollArea, ActionIcon, Checkbox, Alert, Menu, Code } from '@mantine/core';
-import { ArrowRight, Trash2, Edit2, Check, X, Plus, Clock, MessageSquare } from 'lucide-react';
+import { ArrowRight, Trash2, Edit2, Check, X, Plus, Clock, MessageSquare, CheckCircle } from 'lucide-react';
 import { ipc } from '../ipc';
+import AssertionEditorModal, { AssertionStep } from './AssertionEditorModal';
+import { AssertionKind } from '../../../types';
 import './StepEditorScreen.css';
 
 interface RecordedStep {
   pageId: string;
-  action: 'click' | 'fill' | 'select' | 'navigate' | 'wait' | 'custom' | 'comment';
+  action: 'click' | 'fill' | 'select' | 'navigate' | 'wait' | 'custom' | 'comment' | 'assert';
   description: string;
   locator?: any;
   value?: string;
@@ -20,6 +22,12 @@ interface RecordedStep {
   cmp?: string;
   pageType?: 'list' | 'details' | 'dialog' | 'workspace' | 'unknown';
   customAction?: 'waitForD365'; // For custom action type
+  // Assertion fields
+  assertion?: AssertionKind;
+  targetKind?: 'locator' | 'page';
+  target?: string;
+  expected?: string;
+  customMessage?: string;
 }
 
 const StepEditorScreen: React.FC = () => {
@@ -30,6 +38,9 @@ const StepEditorScreen: React.FC = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editedValue, setEditedValue] = useState<string>('');
   const [showCleanupAlert, setShowCleanupAlert] = useState(false);
+  const [assertionModalOpen, setAssertionModalOpen] = useState(false);
+  const [assertionEditIndex, setAssertionEditIndex] = useState<number | null>(null);
+  const [availableLocators, setAvailableLocators] = useState<Array<{ fieldName?: string; methodName?: string; description?: string }>>([]);
 
   useEffect(() => {
     const state = location.state as { rawCode?: string; steps?: RecordedStep[] };
@@ -197,7 +208,13 @@ const StepEditorScreen: React.FC = () => {
     regenerateCode(newSteps);
   };
 
-  const handleInsertStep = (index: number, stepType: 'waitForD365' | 'wait' | 'comment') => {
+  const handleInsertStep = (index: number, stepType: 'waitForD365' | 'wait' | 'comment' | 'assert') => {
+    if (stepType === 'assert') {
+      setAssertionEditIndex(index);
+      setAssertionModalOpen(true);
+      return;
+    }
+
     const newStep: RecordedStep = {
       pageId: steps[index]?.pageId || 'unknown',
       action: stepType === 'comment' ? 'comment' : stepType === 'waitForD365' ? 'custom' : 'wait',
@@ -225,6 +242,66 @@ const StepEditorScreen: React.FC = () => {
     regenerateCode(newSteps);
   };
 
+  const handleSaveAssertion = (assertion: AssertionStep) => {
+    const index = assertionEditIndex !== null ? assertionEditIndex : steps.length;
+    const assertionLabels: Record<AssertionKind, string> = {
+      toHaveText: 'Has Text',
+      toContainText: 'Contains Text',
+      toBeVisible: 'Is Visible',
+      toHaveURL: 'Has URL',
+      toHaveTitle: 'Has Title',
+      toBeChecked: 'Is Checked',
+      toHaveValue: 'Has Value',
+      toHaveAttribute: 'Has Attribute',
+    };
+
+    const targetLabel = assertion.targetKind === 'page' ? 'page' : (assertion.target || 'element');
+    const expectedLabel = assertion.expected ? ` "${assertion.expected}"` : '';
+    const description = `Assert ${targetLabel} ${assertionLabels[assertion.assertion]}${expectedLabel}`;
+
+    const newStep: RecordedStep = {
+      pageId: steps[Math.max(0, index - 1)]?.pageId || 'unknown',
+      action: 'assert',
+      description,
+      order: index + 1,
+      timestamp: new Date(),
+      assertion: assertion.assertion,
+      targetKind: assertion.targetKind,
+      target: assertion.target,
+      expected: assertion.expected,
+      customMessage: assertion.customMessage,
+    };
+
+    const newSteps = [...steps];
+    if (assertionEditIndex !== null) {
+      // Editing existing assertion
+      newSteps[assertionEditIndex] = newStep;
+    } else {
+      // Adding new assertion
+      newSteps.splice(index, 0, newStep);
+      // Re-number all steps
+      newSteps.forEach((step, idx) => {
+        step.order = idx + 1;
+      });
+    }
+
+    setSteps(newSteps);
+    regenerateCode(newSteps);
+    setAssertionEditIndex(null);
+    // Update available locators
+    const locators: Array<{ fieldName?: string; methodName?: string; description?: string }> = [];
+    newSteps.forEach(step => {
+      if (step.fieldName || step.methodName) {
+        locators.push({
+          fieldName: step.fieldName,
+          methodName: step.methodName,
+          description: step.description,
+        });
+      }
+    });
+    setAvailableLocators(locators);
+  };
+
   const getActionBadgeColor = (action: string) => {
     switch (action) {
       case 'navigate': return 'blue';
@@ -234,6 +311,7 @@ const StepEditorScreen: React.FC = () => {
       case 'wait': return 'yellow';
       case 'custom': return 'cyan';
       case 'comment': return 'gray';
+      case 'assert': return 'violet';
       default: return 'gray';
     }
   };
@@ -318,6 +396,12 @@ const StepEditorScreen: React.FC = () => {
                     >
                       Add Comment
                     </Menu.Item>
+                    <Menu.Item
+                      leftSection={<CheckCircle size={14} />}
+                      onClick={() => handleInsertStep(0, 'assert')}
+                    >
+                      Add Assertion
+                    </Menu.Item>
                   </Menu.Dropdown>
                 </Menu>
               </Group>
@@ -336,6 +420,14 @@ const StepEditorScreen: React.FC = () => {
                         <Text size="sm" c="dimmed" style={{ wordBreak: 'break-all' }}>
                           {step.pageUrl}
                         </Text>
+                      )}
+                      {step.action === 'assert' && (
+                        <div style={{ marginTop: 8 }}>
+                          <Text size="sm" c="dimmed">
+                            <strong>Type:</strong> {step.assertion} | <strong>Target:</strong> {step.targetKind === 'page' ? 'page' : (step.target || 'element')}
+                            {step.expected && ` | <strong>Expected:</strong> ${step.expected}`}
+                          </Text>
+                        </div>
                       )}
                       {(step.action === 'fill' || step.action === 'select') && (
                         <div style={{ marginTop: 8 }}>
@@ -409,13 +501,27 @@ const StepEditorScreen: React.FC = () => {
                       )}
                     </div>
                   </Group>
-                  <ActionIcon
-                    color="red"
-                    variant="light"
-                    onClick={() => handleDelete(index)}
-                  >
-                    <Trash2 size={18} />
-                  </ActionIcon>
+                  <Group gap="xs">
+                    {step.action === 'assert' && (
+                      <ActionIcon
+                        color="blue"
+                        variant="light"
+                        onClick={() => {
+                          setAssertionEditIndex(index);
+                          setAssertionModalOpen(true);
+                        }}
+                      >
+                        <Edit2 size={18} />
+                      </ActionIcon>
+                    )}
+                    <ActionIcon
+                      color="red"
+                      variant="light"
+                      onClick={() => handleDelete(index)}
+                    >
+                      <Trash2 size={18} />
+                    </ActionIcon>
+                  </Group>
                 </Group>
                   </Card>
                   
@@ -446,15 +552,45 @@ const StepEditorScreen: React.FC = () => {
                     >
                       Add Comment
                     </Menu.Item>
-                    </Menu.Dropdown>
-                  </Menu>
-                  </Group>
+                    <Menu.Item
+                      leftSection={<CheckCircle size={14} />}
+                      onClick={() => handleInsertStep(index + 1, 'assert')}
+                    >
+                      Add Assertion
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
                 </React.Fragment>
               ))}
             </>
           )}
         </Stack>
       </ScrollArea>
+
+      <AssertionEditorModal
+        opened={assertionModalOpen}
+        onClose={() => {
+          setAssertionModalOpen(false);
+          setAssertionEditIndex(null);
+        }}
+        onSave={handleSaveAssertion}
+        existingStep={
+          assertionEditIndex !== null &&
+          assertionEditIndex >= 0 &&
+          assertionEditIndex < steps.length &&
+          steps[assertionEditIndex].action === 'assert'
+            ? {
+                assertion: steps[assertionEditIndex].assertion!,
+                targetKind: steps[assertionEditIndex].targetKind || 'locator',
+                target: steps[assertionEditIndex].target,
+                expected: steps[assertionEditIndex].expected,
+                customMessage: steps[assertionEditIndex].customMessage,
+              }
+            : null
+        }
+        availableLocators={availableLocators}
+      />
 
       <Group justify="space-between" mt="md">
         <Text size="sm" c="dimmed">

@@ -22,6 +22,8 @@ import SetupScreen from './components/SetupScreen';
 import LoginDialog from './components/LoginDialog';
 import MarketplaceScreen from './components/MarketplaceScreen';
 import BrowserStackTMScreen from './components/BrowserStackTMScreen';
+import JiraScreen from './components/JiraScreen';
+import DiagnosticsScreen from './components/DiagnosticsScreen';
 import { useWorkspaceStore } from './store/workspace-store';
 import { ipc } from './ipc';
 import { getBackend } from './ipc-backend';
@@ -29,7 +31,14 @@ import './App.css';
 
 function AppContent() {
   const navigate = useNavigate();
-  const { workspacePath, setWorkspacePath, currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
+  const {
+    workspacePath,
+    setWorkspacePath,
+    currentWorkspace,
+    setCurrentWorkspace,
+    isSwitchingWorkspace,
+    switchingToName,
+  } = useWorkspaceStore();
   const [showLogin, setShowLogin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [config, setConfig] = useState<any>(null);
@@ -47,11 +56,95 @@ function AppContent() {
     debugLogsRef.current = [...debugLogsRef.current.slice(-9), logMessage]; // Keep last 10 logs
   };
 
+  const formatBytes = (bytes?: number): string => {
+    if (!bytes || bytes <= 0) return 'unknown size';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+    return `${value.toFixed(1)} ${units[unitIndex]}`;
+  };
+
   useEffect(() => {
     addDebugLog('AppContent mounted');
     const backend = getBackend();
     addDebugLog(`Backend available: ${!!backend}`);
     loadCurrentWorkspace();
+    
+    // Set up auto-updater listeners
+    if (backend) {
+      ipc.updater.onEvent((event, data) => {
+        switch (event) {
+          case 'checking':
+            // Silent - just checking
+            break;
+          case 'available': {
+            const sizeLabel = data?.sizeBytes ? ` (~${formatBytes(data.sizeBytes)})` : '';
+            notifications.show({
+              id: 'update-available',
+              title: 'Update Available',
+              message: `Version ${data?.version} is available${sizeLabel}. Click to download.`,
+              color: 'blue',
+              autoClose: false,
+              onClick: () => {
+                ipc.updater.download();
+                notifications.show({
+                  id: 'update-downloading',
+                  title: 'Downloading Update',
+                  message: 'Preparing download...',
+                  color: 'blue',
+                  autoClose: false,
+                });
+              },
+            });
+            break;
+          }
+          case 'download-progress': {
+            const percent = data?.percent ?? 0;
+            const transferred = data?.transferred ? formatBytes(data.transferred) : '';
+            const total = data?.total ? formatBytes(data.total) : '';
+            const sizePart =
+              transferred && total ? ` (${transferred} of ${total})` : '';
+            notifications.update({
+              id: 'update-downloading',
+              title: 'Downloading Update',
+              message: `Downloading update... ${percent}%${sizePart}`,
+              color: 'blue',
+              autoClose: false,
+            });
+            break;
+          }
+          case 'downloaded':
+            notifications.show({
+              id: 'update-downloaded',
+              title: 'Update Ready',
+              message: 'Update downloaded. Restart to install?',
+              color: 'green',
+              autoClose: false,
+              onClick: () => {
+                ipc.updater.install();
+              },
+            });
+            break;
+          case 'error':
+            notifications.show({
+              id: 'update-error',
+              title: 'Update Error',
+              message: data?.message || 'Failed to check for updates',
+              color: 'red',
+              autoClose: 5000,
+            });
+            break;
+        }
+      });
+      
+      return () => {
+        ipc.updater.removeListeners();
+      };
+    }
   }, []);
 
   const checkStorageStateStatus = useCallback(async () => {
@@ -135,7 +228,13 @@ function AppContent() {
 
     try {
       addDebugLog('Calling backend.getConfig()');
-      const cfg = await backend.getConfig();
+      const cfg = await backend.getConfig() as {
+        recordingsDir: string;
+        d365Url?: string;
+        storageStatePath?: string;
+        isSetupComplete: boolean;
+        workspacePath?: string;
+      };
       addDebugLog(`Config loaded: isSetupComplete=${cfg?.isSetupComplete}`);
       setConfig(cfg);
       
@@ -207,7 +306,7 @@ function AppContent() {
         } else {
           addDebugLog('No workspace found, creating default');
           // No current workspace - create default
-          const createResponse = await ipc.workspaces.create('Default D365 Workspace', 'd365');
+          const createResponse = await ipc.workspaces.create({ name: 'Default D365 Workspace', type: 'd365' });
           addDebugLog(`create response: ${JSON.stringify(createResponse)}`);
           if (createResponse.success && createResponse.workspace) {
             await ipc.workspaces.setCurrent(createResponse.workspace.id);
@@ -344,6 +443,21 @@ function AppContent() {
 
   return (
     <div className="app">
+      {/* Workspace switching overlay */}
+      {isSwitchingWorkspace && (
+        <div className="workspace-switch-overlay">
+          <div className="workspace-switch-card">
+            <div className="workspace-switch-spinner" />
+            <div className="workspace-switch-text">
+              <div className="workspace-switch-title">Switching workspace…</div>
+              <div className="workspace-switch-subtitle">
+                {switchingToName ? `Loading "${switchingToName}"` : 'Applying environment settings'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Routes>
         <Route path="/setup" element={<SetupScreen onSetupComplete={handleSetupComplete} />} />
         <Route path="/login" element={<LoginDialog onLoginSuccess={handleLoginSuccess} />} />
@@ -366,7 +480,9 @@ function AppContent() {
           <Route path="/report/:runId" element={<ReportViewerScreen />} />
           <Route path="/report" element={<ReportDashboard />} />
           <Route path="/browserstack-tm" element={<BrowserStackTMScreen />} />
+          <Route path="/jira" element={<JiraScreen />} />
           <Route path="/marketplace" element={<MarketplaceScreen />} />
+          <Route path="/diagnostics" element={<DiagnosticsScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
         </Route>
       </Routes>

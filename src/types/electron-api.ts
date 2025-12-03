@@ -169,10 +169,10 @@ export interface ElectronAPI {
     Promise<{ success: boolean; run?: { runId: string; testName: string; specRelPath: string; status: 'passed' | 'failed' | 'skipped' | 'running'; startedAt: string; finishedAt?: string; tracePaths?: string[]; reportPath?: string; allureReportPath?: string }; error?: string }>;
 
   // Workspace management
-  workspacesList: () => Promise<{ success: boolean; workspaces?: Array<{ id: string; name: string; type: 'd365' | 'salesforce' | 'generic'; version: string; createdWith: string; lastOpenedWith: string; createdAt: string; updatedAt: string; workspacePath: string; settings?: Record<string, unknown> }>; error?: string }>;
-  workspacesCreate: (request: { name: string; type?: 'd365' | 'salesforce' | 'generic' }) => Promise<{ success: boolean; workspace?: { id: string; name: string; type: 'd365' | 'salesforce' | 'generic'; version: string; createdWith: string; lastOpenedWith: string; createdAt: string; updatedAt: string; workspacePath: string; settings?: Record<string, unknown> }; error?: string }>;
-  workspacesGetCurrent: () => Promise<{ success: boolean; workspace?: { id: string; name: string; type: 'd365' | 'salesforce' | 'generic'; version: string; createdWith: string; lastOpenedWith: string; createdAt: string; updatedAt: string; workspacePath: string; settings?: Record<string, unknown> } | null; error?: string }>;
-  workspacesSetCurrent: (request: { workspaceId: string }) => Promise<{ success: boolean; workspace?: { id: string; name: string; type: 'd365' | 'salesforce' | 'generic'; version: string; createdWith: string; lastOpenedWith: string; createdAt: string; updatedAt: string; workspacePath: string; settings?: Record<string, unknown> }; error?: string }>;
+  workspacesList: () => Promise<{ success: boolean; workspaces?: Array<{ id: string; name: string; type: 'd365' | 'salesforce' | 'generic' | 'web-demo'; version: string; createdWith: string; lastOpenedWith: string; createdAt: string; updatedAt: string; workspacePath: string; settings?: Record<string, unknown> }>; error?: string }>;
+  workspacesCreate: (request: { name: string; type?: 'd365' | 'salesforce' | 'generic' | 'web-demo' }) => Promise<{ success: boolean; workspace?: { id: string; name: string; type: 'd365' | 'salesforce' | 'generic' | 'web-demo'; version: string; createdWith: string; lastOpenedWith: string; createdAt: string; updatedAt: string; workspacePath: string; settings?: Record<string, unknown> }; error?: string }>;
+  workspacesGetCurrent: () => Promise<{ success: boolean; workspace?: { id: string; name: string; type: 'd365' | 'salesforce' | 'generic' | 'web-demo'; version: string; createdWith: string; lastOpenedWith: string; createdAt: string; updatedAt: string; workspacePath: string; settings?: Record<string, unknown> } | null; error?: string }>;
+  workspacesSetCurrent: (request: { workspaceId: string }) => Promise<{ success: boolean; workspace?: { id: string; name: string; type: 'd365' | 'salesforce' | 'generic' | 'web-demo'; version: string; createdWith: string; lastOpenedWith: string; createdAt: string; updatedAt: string; workspacePath: string; settings?: Record<string, unknown> }; error?: string }>;
 
   // v1.6: Test Details
   testGetSpec: (request: { workspacePath: string; testName: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
@@ -197,6 +197,9 @@ export interface ElectronAPI {
   settingsGetBrowserStack: (request: { workspacePath: string }) => Promise<{ success: boolean; settings?: { username: string; accessKey: string; project?: string; buildPrefix?: string }; error?: string }>;
   settingsUpdateBrowserStack: (request: { workspacePath: string; settings: { username: string; accessKey: string; project?: string; buildPrefix?: string } }) => Promise<{ success: boolean; error?: string }>;
   clearBrowserStackTMSession: () => Promise<{ success: boolean; error?: string }>;
+  settingsGetJiraConfig: () => Promise<{ success: boolean; config?: { baseUrl?: string; email?: string; projectKey?: string }; error?: string }>;
+  settingsUpdateJiraConfig: (request: { baseUrl: string; email: string; apiToken: string; projectKey: string }) => Promise<{ success: boolean; error?: string }>;
+  clearJiraSession: () => Promise<{ success: boolean; error?: string }>;
   settingsGetRecordingEngine: (request: { workspacePath: string }) => Promise<{ success: boolean; recordingEngine?: 'playwright' | 'qaStudio'; error?: string }>;
   settingsUpdateRecordingEngine: (request: { workspacePath: string; recordingEngine: 'playwright' | 'qaStudio' }) => Promise<{ success: boolean; error?: string }>;
   settingsGetAIConfig: () => Promise<{ success: boolean; config?: { provider?: 'openai' | 'deepseek' | 'custom'; apiKey?: string; model?: string; baseUrl?: string }; error?: string }>;
@@ -238,5 +241,40 @@ export interface ElectronAPI {
     runtimeType?: string;
     error?: string;
   }>;
+
+  // ============================================================================
+  // v2.0: Auto-updater
+  // ============================================================================
+  updaterCheck: () => Promise<void>;
+  updaterDownload: () => Promise<void>;
+  updaterInstall: () => Promise<void>;
+  onUpdaterEvent: (callback: (event: string, data?: any) => void) => void;
+  removeUpdaterListeners: () => void;
+
+  // ============================================================================
+  // v2.0: Jira Integration
+  // ============================================================================
+  jiraTestConnection: () => Promise<{ success: boolean; projectName?: string; error?: string }>;
+  jiraCreateIssue: (request: {
+    summary: string;
+    description: string;
+    issueType?: string;
+    customFields?: Record<string, any>;
+    labels?: string[];
+  }) => Promise<{ success: boolean; issueKey?: string; issueUrl?: string; error?: string }>;
+
+  // ============================================================================
+  // v2.0: BrowserStack Test Management
+  // ============================================================================
+  browserstackTmCreateTestCase: (request: { name: string; description?: string; tags?: string[] }) => Promise<{ success: boolean; testCaseId?: string; error?: string }>;
+  browserstackTmPublishTestRun: (request: {
+    testCaseId: string;
+    status: 'passed' | 'failed' | 'skipped';
+    duration?: number;
+    error?: string;
+    sessionId?: string;
+    buildId?: string;
+    dashboardUrl?: string;
+  }) => Promise<{ success: boolean; testRunId?: string; error?: string }>;
 }
 

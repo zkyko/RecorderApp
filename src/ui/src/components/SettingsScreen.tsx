@@ -55,6 +55,7 @@ import { useWorkspaceStore } from '../store/workspace-store';
 import { RecordingEngine, WorkspaceMeta } from '../../../types/v1.5';
 import LoginDialog from './LoginDialog';
 import { BrowserStackTM } from './BrowserStackTM';
+import { Bug } from 'lucide-react';
 // Using simple alerts for now - can be replaced with Mantine notifications if provider is set up
 import './SettingsScreen.css';
 
@@ -94,6 +95,14 @@ const SettingsScreen: React.FC = () => {
     buildPrefix: '',
   });
   const [testingConnection, setTestingConnection] = useState(false);
+  const [jiraSettings, setJiraSettings] = useState({
+    baseUrl: '',
+    email: '',
+    apiToken: '',
+    projectKey: '',
+  });
+  const [testingJiraConnection, setTestingJiraConnection] = useState(false);
+  const [jiraConnectionStatus, setJiraConnectionStatus] = useState<{ success: boolean; projectName?: string; message?: string } | null>(null);
   const [recordingEngine, setRecordingEngine] = useState<RecordingEngine>('qaStudio');
   const [savingRecordingEngine, setSavingRecordingEngine] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceMeta[]>([]);
@@ -116,7 +125,6 @@ const SettingsScreen: React.FC = () => {
   }>({});
   const [savingAIConfig, setSavingAIConfig] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>('authentication');
-  const [browserstackSubTab, setBrowserstackSubTab] = useState<string>('configuration');
   const [devMode, setDevMode] = useState(false);
   const [savingDevMode, setSavingDevMode] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -150,6 +158,7 @@ const SettingsScreen: React.FC = () => {
   useEffect(() => {
     if (workspacePath) {
       loadBrowserStackSettings();
+      loadJiraSettings();
       loadRecordingEngine();
       loadWorkspaceStats();
       checkPlaywrightEnv();
@@ -193,6 +202,92 @@ const SettingsScreen: React.FC = () => {
       alert(`Error: ${error.message || 'Failed to save settings'}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadJiraSettings = async () => {
+    try {
+      const response = await ipc.settings.getJiraConfig();
+      if (response.success && response.config) {
+        setJiraSettings({
+          baseUrl: response.config.baseUrl || 'https://fourhands.atlassian.net',
+          email: response.config.email || '',
+          // Don't load API token for security; user can re-enter or leave blank to keep existing
+          apiToken: '',
+          projectKey: response.config.projectKey || 'QST',
+        });
+      } else {
+        // Fallback if config is missing
+        setJiraSettings({
+          baseUrl: 'https://fourhands.atlassian.net',
+          email: '',
+          apiToken: '',
+          projectKey: 'QST',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load Jira settings:', error);
+      setJiraSettings(prev => ({
+        ...prev,
+        baseUrl: prev.baseUrl || 'https://fourhands.atlassian.net',
+        apiToken: '••••••••••••••••••••••••••••••••',
+        projectKey: prev.projectKey || 'QST',
+      }));
+    }
+  };
+
+  const handleSaveJira = async () => {
+    if (!jiraSettings.baseUrl || !jiraSettings.email || !jiraSettings.projectKey) {
+      alert('Base URL, Email, and Project Key are required');
+      return;
+    }
+    setLoading(true);
+    try {
+      // Only send apiToken if user entered one; otherwise leave undefined to keep existing
+      const apiTokenToSave = jiraSettings.apiToken && jiraSettings.apiToken.trim().length > 0
+        ? jiraSettings.apiToken.trim()
+        : undefined;
+
+      const response = await ipc.settings.updateJiraConfig({
+        baseUrl: jiraSettings.baseUrl,
+        email: jiraSettings.email,
+        apiToken: apiTokenToSave as any,
+        projectKey: jiraSettings.projectKey,
+      });
+      if (response.success) {
+        alert('Jira settings have been saved successfully.');
+        setJiraConnectionStatus(null); // Reset connection status
+      } else {
+        alert(`Failed to save settings: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to save settings'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestJiraConnection = async () => {
+    if (!jiraSettings.baseUrl || !jiraSettings.email || !jiraSettings.projectKey) {
+      alert('Please fill in Base URL, Email, and Project Key before testing connection');
+      return;
+    }
+    setTestingJiraConnection(true);
+    setJiraConnectionStatus(null);
+    try {
+      const result = await ipc.jira.testConnection();
+      setJiraConnectionStatus({
+        success: result.success,
+        projectName: result.projectName,
+        message: result.success ? `Connected to project: ${result.projectName}` : result.error || 'Connection failed',
+      });
+    } catch (error: any) {
+      setJiraConnectionStatus({
+        success: false,
+        message: error.message || 'Failed to test connection',
+      });
+    } finally {
+      setTestingJiraConnection(false);
     }
   };
 
@@ -683,7 +778,7 @@ const SettingsScreen: React.FC = () => {
       return;
     }
     try {
-      const response = await ipc.workspaces.create(name.trim());
+      const response = await ipc.workspaces.create({ name: name.trim() });
       if (response.success && response.workspace) {
         await loadWorkspaces();
         await handleWorkspaceChange(response.workspace.id);
@@ -770,6 +865,7 @@ const SettingsScreen: React.FC = () => {
             <Tabs.Tab value="recording">Recording</Tabs.Tab>
             <Tabs.Tab value="ai">AI Debugging</Tabs.Tab>
             <Tabs.Tab value="browserstack">BrowserStack</Tabs.Tab>
+            <Tabs.Tab value="jira" leftSection={<Bug size={16} />}>Jira</Tabs.Tab>
             {devMode && <Tabs.Tab value="developer" leftSection={<CodeIcon size={16} />}>Developer</Tabs.Tab>}
           </Tabs.List>
 
@@ -1067,7 +1163,13 @@ const SettingsScreen: React.FC = () => {
             </Card>
 
             {/* Runtime Health Section */}
-            <Card padding="md" radius="md" withBorder mt="lg">
+            <Card 
+              padding="md" 
+              radius="md" 
+              withBorder 
+              mt="lg"
+              style={{ backgroundColor: 'transparent' }}
+            >
               <Group gap="xs" mb="md">
                 <Activity size={18} />
                 <Text fw={500}>Runtime Health</Text>
@@ -1090,7 +1192,7 @@ const SettingsScreen: React.FC = () => {
                   <div className="runtime-health-grid">
                     <div className="runtime-health-item">
                       <Text size="xs" c="dimmed" mb={4}>Node.js Version</Text>
-                      <Text size="sm" fw={500}>
+                      <Text size="sm" fw={500} c="white">
                         {runtimeHealth.nodeVersion || (
                           <Text component="span" c="dimmed" fs="italic">Not detected</Text>
                         )}
@@ -1098,7 +1200,7 @@ const SettingsScreen: React.FC = () => {
                     </div>
                     <div className="runtime-health-item">
                       <Text size="xs" c="dimmed" mb={4}>Playwright Version</Text>
-                      <Text size="sm" fw={500}>
+                      <Text size="sm" fw={500} c="white">
                         {runtimeHealth.playwrightVersion || (
                           <Text component="span" c="dimmed" fs="italic">Not detected</Text>
                         )}
@@ -1229,76 +1331,141 @@ const SettingsScreen: React.FC = () => {
 
           {/* BrowserStack Settings Tab */}
           <Tabs.Panel value="browserstack" pt="md">
-            <Tabs value={browserstackSubTab} onChange={(value) => setBrowserstackSubTab(value || 'configuration')}>
-              <Tabs.List mb="md">
-                <Tabs.Tab value="configuration">Configuration</Tabs.Tab>
-                <Tabs.Tab value="test-management">Test Management</Tabs.Tab>
-              </Tabs.List>
+            <Stack gap="md">
+              <div>
+                <Group gap="xs" mb="md">
+                  <Cloud size={20} />
+                  <Text size="lg" fw={600}>BrowserStack Configuration</Text>
+                </Group>
+                <Text size="sm" c="dimmed" mb="md">
+                  Configure BrowserStack credentials and defaults for cloud test execution.
+                </Text>
 
-              <Tabs.Panel value="configuration">
                 <Stack gap="md">
-                  <div>
-                    <Group gap="xs" mb="md">
-                      <Cloud size={20} />
-                      <Text size="lg" fw={600}>BrowserStack Configuration</Text>
-                    </Group>
-                    <Text size="sm" c="dimmed" mb="md">
-                      Configure BrowserStack credentials and defaults for cloud test execution.
-                    </Text>
-
-                    <Stack gap="md">
-                      <TextInput
-                        label="BrowserStack Username"
-                        placeholder="Enter your BrowserStack username"
-                        value={browserstackSettings.username}
-                        onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, username: e.target.value })}
-                      />
-                      <TextInput
-                        label="BrowserStack Access Key"
-                        placeholder="Enter your BrowserStack access key"
-                        type="password"
-                        value={browserstackSettings.accessKey}
-                        onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, accessKey: e.target.value })}
-                      />
-                      <TextInput
-                        label="Project (Optional)"
-                        placeholder="Project name"
-                        value={browserstackSettings.project}
-                        onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, project: e.target.value })}
-                      />
-                      <TextInput
-                        label="Build Prefix (Optional)"
-                        placeholder="Build prefix"
-                        value={browserstackSettings.buildPrefix}
-                        onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, buildPrefix: e.target.value })}
-                      />
-                    </Stack>
-
-                    <Group gap="xs" mt="md">
-                      <Button
-                        leftSection={<CheckCircle size={16} />}
-                        onClick={handleTestConnection}
-                        loading={testingConnection}
-                        variant="light"
-                      >
-                        Test Connection
-                      </Button>
-                      <Button
-                        leftSection={<Save size={16} />}
-                        onClick={handleSaveBrowserStack}
-                        loading={loading}
-                      >
-                        Save Settings
-                      </Button>
-                    </Group>
-                  </div>
+                  <TextInput
+                    label="BrowserStack Username"
+                    placeholder="Enter your BrowserStack username"
+                    value={browserstackSettings.username}
+                    onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, username: e.target.value })}
+                  />
+                  <TextInput
+                    label="BrowserStack Access Key"
+                    placeholder="Enter your BrowserStack access key"
+                    type="password"
+                    value={browserstackSettings.accessKey}
+                    onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, accessKey: e.target.value })}
+                  />
+                  <TextInput
+                    label="Project (Optional)"
+                    placeholder="Project name"
+                    value={browserstackSettings.project}
+                    onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, project: e.target.value })}
+                  />
+                  <TextInput
+                    label="Build Prefix (Optional)"
+                    placeholder="Build prefix"
+                    value={browserstackSettings.buildPrefix}
+                    onChange={(e) => setBrowserstackSettings({ ...browserstackSettings, buildPrefix: e.target.value })}
+                  />
                 </Stack>
-              </Tabs.Panel>
 
-              <Tabs.Panel value="test-management" style={{ height: 'calc(100vh - 300px)', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
-                <BrowserStackTM />
-              </Tabs.Panel>
-            </Tabs>
+                <Group gap="xs" mt="md">
+                  <Button
+                    leftSection={<CheckCircle size={16} />}
+                    onClick={handleTestConnection}
+                    loading={testingConnection}
+                    variant="light"
+                  >
+                    Test Connection
+                  </Button>
+                  <Button
+                    leftSection={<Save size={16} />}
+                    onClick={handleSaveBrowserStack}
+                    loading={loading}
+                  >
+                    Save Settings
+                  </Button>
+                </Group>
+              </div>
+            </Stack>
+          </Tabs.Panel>
+
+          {/* Jira Settings Tab */}
+          <Tabs.Panel value="jira" pt="md">
+            <Stack gap="md">
+              <div>
+                <Group gap="xs" mb="md">
+                  <Bug size={20} />
+                  <Text size="lg" fw={600}>Jira Configuration</Text>
+                </Group>
+                <Text size="sm" c="dimmed" mb="md">
+                  Configure Jira credentials and project settings for defect creation and management.
+                </Text>
+
+                <Stack gap="md">
+                  <TextInput
+                    label="Jira Base URL"
+                    placeholder="https://fourhands.atlassian.net"
+                    value={jiraSettings.baseUrl}
+                    onChange={(e) => setJiraSettings({ ...jiraSettings, baseUrl: e.target.value })}
+                  />
+                  <TextInput
+                    label="Email"
+                    placeholder="your-email@example.com"
+                    value={jiraSettings.email}
+                    onChange={(e) => setJiraSettings({ ...jiraSettings, email: e.target.value })}
+                    required
+                  />
+                  <TextInput
+                    label="API Token"
+                    placeholder="Enter or paste your Jira API token"
+                    type="password"
+                    value={jiraSettings.apiToken}
+                    onChange={(e) => setJiraSettings({ ...jiraSettings, apiToken: e.target.value })}
+                    description="Leave blank to keep the existing token that was previously saved."
+                  />
+                  <TextInput
+                    label="Project Key"
+                    placeholder="QST"
+                    value={jiraSettings.projectKey}
+                    onChange={(e) => setJiraSettings({ ...jiraSettings, projectKey: e.target.value.toUpperCase() })}
+                  />
+                </Stack>
+
+                {jiraConnectionStatus && (
+                  <Alert
+                    color={jiraConnectionStatus.success ? 'green' : 'red'}
+                    icon={<CheckCircle size={16} />}
+                    mt="md"
+                  >
+                    <Text size="sm">{jiraConnectionStatus.message}</Text>
+                    {jiraConnectionStatus.success && jiraConnectionStatus.projectName && (
+                      <Text size="xs" c="dimmed" mt={4}>
+                        Connected to project: <strong>{jiraConnectionStatus.projectName}</strong>
+                      </Text>
+                    )}
+                  </Alert>
+                )}
+
+                <Group gap="xs" mt="md">
+                  <Button
+                    leftSection={<CheckCircle size={16} />}
+                    onClick={handleTestJiraConnection}
+                    loading={testingJiraConnection}
+                    variant="light"
+                  >
+                    Test Connection
+                  </Button>
+                  <Button
+                    leftSection={<Save size={16} />}
+                    onClick={handleSaveJira}
+                    loading={loading}
+                  >
+                    Save Settings
+                  </Button>
+                </Group>
+              </div>
+            </Stack>
           </Tabs.Panel>
 
           {/* Developer Tab (only shown when dev mode is enabled) */}
@@ -1465,6 +1632,134 @@ const SettingsScreen: React.FC = () => {
                           fullWidth
                         >
                           View Raw Config JSON
+                        </Button>
+                        <Button
+                          leftSection={<Activity size={16} />}
+                          onClick={async () => {
+                            if (!workspacePath) return;
+                            try {
+                              const response = await ipc.playwright.checkEnv({ workspacePath });
+                              if (response.success) {
+                                alert(`Playwright Status:\nCLI Available: ${response.cliAvailable ? 'Yes' : 'No'}\nBrowsers Installed: ${response.browsersInstalled ? 'Yes' : 'No'}\nVersion: ${response.details?.version || 'Unknown'}`);
+                              } else {
+                                alert(`Failed to check Playwright: ${response.error}`);
+                              }
+                            } catch (error: any) {
+                              alert(`Error: ${error.message}`);
+                            }
+                          }}
+                          variant="light"
+                          disabled={!workspacePath}
+                          fullWidth
+                        >
+                          Check Playwright Status
+                        </Button>
+                        <Button
+                          leftSection={<RefreshCw size={16} />}
+                          onClick={async () => {
+                            if (!workspacePath) return;
+                            if (!confirm('Install/Update Playwright browsers? This may take several minutes.')) return;
+                            try {
+                              const response = await ipc.playwright.install({ workspacePath });
+                              if (response.success) {
+                                alert('Playwright installation started. Check the log file for progress.');
+                              } else {
+                                alert(`Failed to install Playwright: ${response.error}`);
+                              }
+                            } catch (error: any) {
+                              alert(`Error: ${error.message}`);
+                            }
+                          }}
+                          variant="light"
+                          disabled={!workspacePath}
+                          fullWidth
+                        >
+                          Install/Update Playwright
+                        </Button>
+                      </Stack>
+                    </Card>
+
+                    <Card padding="md" radius="md" withBorder>
+                      <Group gap="xs" mb="md">
+                        <Database size={20} />
+                        <Text fw={500}>Cache & Storage</Text>
+                      </Group>
+                      <Stack gap="xs">
+                        <Button
+                          leftSection={<RefreshCw size={16} />}
+                          onClick={async () => {
+                            if (!workspacePath) return;
+                            try {
+                              const response = await ipc.dev.clearTempFiles({ workspacePath });
+                              if (response.success) {
+                                alert(`Cleared ${response.deletedCount || 0} temporary files.`);
+                                refreshWorkspaceStats();
+                              } else {
+                                alert(`Failed to clear temp files: ${response.error}`);
+                              }
+                            } catch (error: any) {
+                              alert(`Error: ${error.message}`);
+                            }
+                          }}
+                          variant="light"
+                          color="blue"
+                          disabled={!workspacePath}
+                          fullWidth
+                        >
+                          Clear Application Cache
+                        </Button>
+                        <Text size="xs" c="dimmed">
+                          Clears temporary files and caches to free up space and resolve issues.
+                        </Text>
+                      </Stack>
+                    </Card>
+
+                    <Card padding="md" radius="md" withBorder>
+                      <Group gap="xs" mb="md">
+                        <CodeIcon size={20} />
+                        <Text fw={500}>Debugging Tools</Text>
+                      </Group>
+                      <Stack gap="xs">
+                        <Button
+                          leftSection={<Eye size={16} />}
+                          onClick={async () => {
+                            try {
+                              const response = await ipc.dev.getRawConfig();
+                              if (response.success && response.config) {
+                                const envInfo = {
+                                  nodeVersion: process.versions.node,
+                                  electronVersion: process.versions.electron,
+                                  chromeVersion: process.versions.chrome,
+                                  platform: process.platform,
+                                  arch: process.arch,
+                                  config: response.config,
+                                };
+                                const info = JSON.stringify(envInfo, null, 2);
+                                navigator.clipboard.writeText(info);
+                                alert('Environment info copied to clipboard!');
+                              }
+                            } catch (error: any) {
+                              alert(`Error: ${error.message}`);
+                            }
+                          }}
+                          variant="light"
+                          fullWidth
+                        >
+                          Copy Environment Info
+                        </Button>
+                        <Button
+                          leftSection={<FileX size={16} />}
+                          onClick={() => {
+                            if (confirm('Clear all browser cache and storage? This will log you out of D365.')) {
+                              // Clear browser cache - this would require IPC call
+                              alert('Browser cache clear functionality coming soon.');
+                            }
+                          }}
+                          variant="light"
+                          color="orange"
+                          fullWidth
+                        >
+                          Clear Browser Cache
                         </Button>
                       </Stack>
                     </Card>
