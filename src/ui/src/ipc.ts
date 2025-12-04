@@ -397,6 +397,99 @@ export const ipc = {
     }> => {
       return getBackend()?.jiraCreateDefectFromRun(context) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    searchIssues: (request: {
+      jql?: string;
+      maxResults?: number;
+      startAt?: number;
+    }): Promise<{
+      success: boolean;
+      issues?: Array<{
+        key: string;
+        summary: string;
+        status: string;
+        issueType: string;
+        assignee?: string;
+        created: string;
+        updated: string;
+        url: string;
+      }>;
+      total?: number;
+      startAt?: number;
+      maxResults?: number;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraSearchIssues(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getIssue: (issueKey: string): Promise<{
+      success: boolean;
+      issue?: any;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraGetIssue(issueKey) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getComments: (issueKey: string): Promise<{
+      success: boolean;
+      comments?: Array<{
+        id: string;
+        author: string;
+        body: string;
+        created: string;
+        updated: string;
+      }>;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraGetComments(issueKey) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    addComment: (request: {
+      issueKey: string;
+      comment: string;
+    }): Promise<{
+      success: boolean;
+      commentId?: string;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraAddComment(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getTransitions: (issueKey: string): Promise<{
+      success: boolean;
+      transitions?: Array<{ id: string; name: string; to: { id: string; name: string } }>;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraGetTransitions(issueKey) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    transitionIssue: (request: {
+      issueKey: string;
+      transitionId: string;
+      comment?: string;
+    }): Promise<{
+      success: boolean;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraTransitionIssue(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateIssue: (request: {
+      issueKey: string;
+      updates: {
+        summary?: string;
+        description?: string;
+        assignee?: string;
+        priority?: string;
+        labels?: string[];
+        customFields?: Record<string, any>;
+      };
+    }): Promise<{
+      success: boolean;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraUpdateIssue(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getProject: (projectKey?: string): Promise<{
+      success: boolean;
+      project?: any;
+      error?: string;
+    }> => {
+      return getBackend()?.jiraGetProject(projectKey) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
   },
 
   // ============================================================================
@@ -419,6 +512,221 @@ export const ipc = {
     },
     syncTestCaseForBundle: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; error?: string }> => {
       return getBackend()?.browserstackTmSyncTestCaseForBundle(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    testConnection: (): Promise<{ success: boolean; projectName?: string; error?: string }> => {
+      return getBackend()?.browserstackTmTestConnection() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    listTestCases: (request: {
+      page?: number;
+      pageSize?: number;
+    }): Promise<{
+      success: boolean;
+      testCases?: Array<{
+        id: string;
+        identifier: string;
+        name: string;
+        description?: string;
+        status?: string;
+        priority?: string;
+        caseType?: string;
+        owner?: string;
+        tags?: string[];
+        automationStatus?: string;
+        createdAt: string;
+        updatedAt: string;
+        url: string;
+      }>;
+      total?: number;
+      page?: number;
+      pageSize?: number;
+      hasMore?: boolean;
+      error?: string;
+    }> => {
+      return getBackend()?.browserstackTmListTestCases(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getTestCase: (testCaseId: string): Promise<{
+      success: boolean;
+      testCase?: any;
+      error?: string;
+    }> => {
+      return getBackend()?.browserstackTmGetTestCase(testCaseId) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    listTestRuns: (request: {
+      testCaseId?: string;
+      page?: number;
+      pageSize?: number;
+    }): Promise<{
+      success: boolean;
+      testRuns?: Array<{
+        id: string;
+        identifier: string;
+        testCaseId: string;
+        status: 'passed' | 'failed' | 'skipped';
+        duration?: number;
+        error?: string;
+        createdAt: string;
+        sessionId?: string;
+        buildId?: string;
+        url: string;
+      }>;
+      total?: number;
+      page?: number;
+      pageSize?: number;
+      hasMore?: boolean;
+      error?: string;
+    }> => {
+      return getBackend()?.browserstackTmListTestRuns(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    linkTestCase: (request: {
+      workspacePath: string;
+      testName: string;
+      testCaseId: string;
+      testCaseUrl: string;
+    }): Promise<{ success: boolean; error?: string }> => {
+      return getBackend()?.browserstackTmLinkTestCase(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // ============================================================================
+  // v2.0: BrowserStack Automate
+  // ============================================================================
+  browserstackAutomate: {
+    getPlan: (): Promise<{
+      success: boolean;
+      plan?: {
+        automatePlan: string;
+        parallelSessionsRunning: number;
+        teamParallelSessionsMaxAllowed: number;
+        parallelSessionsMaxAllowed: number;
+        queuedSessions: number;
+        queuedSessionsMaxAllowed: number;
+      };
+      error?: string;
+    }> => {
+      return getBackend()?.browserstackAutomateGetPlan() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getBrowsers: (): Promise<{
+      success: boolean;
+      browsers?: Array<{
+        os: string;
+        osVersion: string;
+        browser: string;
+        device: string | null;
+        browserVersion: string | null;
+        realMobile: boolean | null;
+      }>;
+      error?: string;
+    }> => {
+      return getBackend()?.browserstackAutomateGetBrowsers() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getProjects: (): Promise<{
+      success: boolean;
+      projects?: Array<{
+        id: number;
+        name: string;
+        groupId: number;
+        userId: number;
+        createdAt: string;
+        updatedAt: string;
+        subGroupId: number;
+      }>;
+      error?: string;
+    }> => {
+      return getBackend()?.browserstackAutomateGetProjects() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getProject: (projectId: number): Promise<{ success: boolean; project?: any; error?: string }> => {
+      return getBackend()?.browserstackAutomateGetProject(projectId) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getBuilds: (request: {
+      limit?: number;
+      offset?: number;
+      status?: string;
+      projectId?: number;
+    }): Promise<{
+      success: boolean;
+      builds?: Array<{
+        name: string;
+        hashedId: string;
+        duration: number;
+        status: string;
+        buildTag: string | null;
+        publicUrl: string;
+      }>;
+      error?: string;
+    }> => {
+      return getBackend()?.browserstackAutomateGetBuilds(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getBuildSessions: (request: {
+      buildId: string;
+      limit?: number;
+      offset?: number;
+      status?: string;
+    }): Promise<{
+      success: boolean;
+      sessions?: Array<{
+        name: string;
+        duration: number;
+        os: string;
+        osVersion: string;
+        browserVersion: string | null;
+        browser: string | null;
+        device: string | null;
+        status: string;
+        hashedId: string;
+        reason: string;
+        buildName: string;
+        projectName: string;
+        testPriority: string | null;
+        logs: string;
+        browserUrl: string;
+        publicUrl: string;
+        appiumLogsUrl: string;
+        videoUrl: string;
+        browserConsoleLogsUrl: string;
+        harLogsUrl: string;
+        seleniumLogsUrl: string;
+        seleniumTelemetryLogsUrl?: string;
+      }>;
+      error?: string;
+    }> => {
+      return getBackend()?.browserstackAutomateGetBuildSessions(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    getSession: (sessionId: string): Promise<{ success: boolean; session?: any; error?: string }> => {
+      return getBackend()?.browserstackAutomateGetSession(sessionId) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    setTestStatus: (request: {
+      sessionId: string;
+      status: 'passed' | 'failed';
+      reason?: string;
+    }): Promise<{ success: boolean; session?: any; error?: string }> => {
+      return getBackend()?.browserstackAutomateSetTestStatus(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateSessionName: (request: {
+      sessionId: string;
+      name: string;
+    }): Promise<{ success: boolean; session?: any; error?: string }> => {
+      return getBackend()?.browserstackAutomateUpdateSessionName(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+  },
+
+  // ============================================================================
+  // v2.0: Web Authentication (FH Web)
+  // ============================================================================
+  auth: {
+    webLogin: (credentials: {
+      webUrl: string;
+      username: string;
+      password: string;
+      workspacePath: string;
+      loginSelectors?: {
+        usernameSelector?: string;
+        passwordSelector?: string;
+        submitSelector?: string;
+        loginButtonSelector?: string;
+        waitForSelector?: string;
+      };
+    }): Promise<{ success: boolean; error?: string; storageStatePath?: string }> => {
+      return getBackend()?.webLogin(credentials) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
   },
 };

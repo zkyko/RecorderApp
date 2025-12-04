@@ -22,6 +22,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkAuth: () => ipcRenderer.invoke('auth:check'),
   login: (credentials: { username: string; password: string; d365Url?: string }) =>
     ipcRenderer.invoke('auth:login', credentials),
+  webLogin: (credentials: {
+    webUrl: string;
+    username: string;
+    password: string;
+    workspacePath: string;
+    loginSelectors?: {
+      usernameSelector?: string;
+      passwordSelector?: string;
+      submitSelector?: string;
+      loginButtonSelector?: string;
+      waitForSelector?: string;
+    };
+  }) => ipcRenderer.invoke('auth:web-login', credentials),
+  onWebLoginProgress: (callback: (message: string) => void) => {
+    ipcRenderer.on('web-login:progress', (_event, message) => callback(message));
+  },
+  removeWebLoginProgressListener: () => {
+    ipcRenderer.removeAllListeners('web-login:progress');
+  },
 
   // Session management
   startSession: (config: SessionConfig) => ipcRenderer.invoke('session:start', config),
@@ -65,8 +84,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setBrowserStackCredentials: (username: string, accessKey: string) => 
     ipcRenderer.invoke('config:set-browserstack-credentials', username, accessKey),
 
-  // Storage state checker
-  checkStorageState: () => ipcRenderer.invoke('config:check-storage-state'),
+  // Storage state checker (workspace-aware)
+  checkStorageState: (workspaceType?: string, workspacePath?: string) => ipcRenderer.invoke('config:check-storage-state', workspaceType, workspacePath),
 
   // ============================================================================
   // v1.5 IPC Methods
@@ -260,6 +279,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
     customFields?: Record<string, any>;
     labels?: string[];
   }) => ipcRenderer.invoke('jira:createIssue', request),
+  jiraCreateDefectFromRun: (context: {
+    workspacePath: string;
+    workspaceId?: string;
+    testName: string;
+    module?: string;
+    status: 'failed';
+    summary?: string;
+    issueType?: string;
+    firstFailureMessage?: string;
+    browserStackSessionUrl?: string;
+    browserStackTmTestCaseUrl?: string;
+    browserStackTmRunUrl?: string;
+    screenshotPath?: string;
+    tracePath?: string;
+    playwrightReportPath?: string;
+  }) => ipcRenderer.invoke('jira:createDefectFromRun', context),
+  jiraSearchIssues: (request: {
+    jql?: string;
+    maxResults?: number;
+    startAt?: number;
+  }) => ipcRenderer.invoke('jira:searchIssues', request),
+  jiraGetIssue: (issueKey: string) => ipcRenderer.invoke('jira:getIssue', issueKey),
+  jiraGetComments: (issueKey: string) => ipcRenderer.invoke('jira:getComments', issueKey),
+  jiraAddComment: (request: { issueKey: string; comment: string }) => ipcRenderer.invoke('jira:addComment', request),
+  jiraGetTransitions: (issueKey: string) => ipcRenderer.invoke('jira:getTransitions', issueKey),
+  jiraTransitionIssue: (request: { issueKey: string; transitionId: string; comment?: string }) => ipcRenderer.invoke('jira:transitionIssue', request),
+  jiraUpdateIssue: (request: { issueKey: string; updates: { summary?: string; description?: string; assignee?: string; priority?: string; labels?: string[]; customFields?: Record<string, any> } }) => ipcRenderer.invoke('jira:updateIssue', request),
+  jiraGetProject: (projectKey?: string) => ipcRenderer.invoke('jira:getProject', projectKey),
 
   // ============================================================================
   // v2.0: BrowserStack Test Management
@@ -274,5 +321,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     buildId?: string;
     dashboardUrl?: string;
   }) => ipcRenderer.invoke('browserstackTm:publishTestRun', request),
+  browserstackTmSyncTestCaseForBundle: (request: { workspacePath: string; testName: string }) => ipcRenderer.invoke('browserstackTm:syncTestCaseForBundle', request),
+  browserstackTmTestConnection: () => ipcRenderer.invoke('browserstackTm:testConnection'),
+  browserstackTmListTestCases: (request: { page?: number; pageSize?: number }) => ipcRenderer.invoke('browserstackTm:listTestCases', request),
+  browserstackTmGetTestCase: (testCaseId: string) => ipcRenderer.invoke('browserstackTm:getTestCase', testCaseId),
+  browserstackTmListTestRuns: (request: { testCaseId?: string; page?: number; pageSize?: number }) => ipcRenderer.invoke('browserstackTm:listTestRuns', request),
+  browserstackTmLinkTestCase: (request: { workspacePath: string; testName: string; testCaseId: string; testCaseUrl: string }) => ipcRenderer.invoke('browserstackTm:linkTestCase', request),
+
+  // ============================================================================
+  // v2.0: BrowserStack Automate
+  // ============================================================================
+  browserstackAutomateGetPlan: () => ipcRenderer.invoke('browserstackAutomate:getPlan'),
+  browserstackAutomateGetBrowsers: () => ipcRenderer.invoke('browserstackAutomate:getBrowsers'),
+  browserstackAutomateGetProjects: () => ipcRenderer.invoke('browserstackAutomate:getProjects'),
+  browserstackAutomateGetProject: (projectId: number) => ipcRenderer.invoke('browserstackAutomate:getProject', projectId),
+  browserstackAutomateGetBuilds: (request: { limit?: number; offset?: number; status?: string; projectId?: number }) => ipcRenderer.invoke('browserstackAutomate:getBuilds', request),
+  browserstackAutomateGetBuildSessions: (request: { buildId: string; limit?: number; offset?: number; status?: string }) => ipcRenderer.invoke('browserstackAutomate:getBuildSessions', request),
+  browserstackAutomateGetSession: (sessionId: string) => ipcRenderer.invoke('browserstackAutomate:getSession', sessionId),
+  browserstackAutomateSetTestStatus: (request: { sessionId: string; status: 'passed' | 'failed'; reason?: string }) => ipcRenderer.invoke('browserstackAutomate:setTestStatus', request),
+  browserstackAutomateUpdateSessionName: (request: { sessionId: string; name: string }) => ipcRenderer.invoke('browserstackAutomate:updateSessionName', request),
 });
 

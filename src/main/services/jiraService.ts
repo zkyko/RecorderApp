@@ -31,6 +31,8 @@ interface DefectAttachments {
   screenshotPath?: string;
   tracePath?: string;
   playwrightReportPath?: string;
+  videoPath?: string;
+  screenshotPaths?: string[]; // Multiple screenshots
 }
 
 interface DefectTestMeta {
@@ -41,15 +43,53 @@ interface DefectTestMeta {
   id?: string;
 }
 
+interface FailureArtifactData {
+  errorMessage?: string;
+  stackTrace?: string;
+  location?: {
+    file: string;
+    line: number;
+    column: number;
+  };
+  duration?: number;
+  retry?: number;
+  timestamp?: string;
+  failedLocator?: {
+    locator: string;
+    type: string;
+    locatorKey: string;
+  };
+  assertionFailure?: {
+    assertionType: string;
+    target: string;
+    expected?: string;
+    actual?: string;
+  };
+}
+
+interface EnvironmentInfo {
+  browser?: string;
+  os?: string;
+  executionProfile?: 'local' | 'browserstack';
+  browserVersion?: string;
+  osVersion?: string;
+}
+
 export interface DefectPayload {
   projectKey?: string;
   summary: string;
   description?: string;
+  issueType?: string;
   labels?: string[];
   priority?: string;
   links?: DefectLinks;
   attachments?: DefectAttachments;
   testMeta: DefectTestMeta;
+  failureArtifact?: FailureArtifactData;
+  environment?: EnvironmentInfo;
+  runId?: string;
+  startedAt?: string;
+  finishedAt?: string;
 }
 
 /**
@@ -123,7 +163,9 @@ export class JiraService {
       // Ignore logging errors
     }
 
-    // Values from settings with sensible defaults
+    // Hardcoded defaults for Four Hands Jira instance
+    // SECURITY WARNING: API tokens and credentials should be configured via settings.
+    // For production, use environment variables or secure credential storage.
     const baseUrl = jiraConfig.baseUrl || 'https://fourhands.atlassian.net';
     const email = jiraConfig.email || '';
     const apiToken = jiraConfig.apiToken || '';
@@ -164,6 +206,423 @@ export class JiraService {
   }
 
   /**
+   * Search for JIRA issues using JQL (Jira Query Language)
+   */
+  async searchIssues(jql?: string, maxResults: number = 50, startAt: number = 0): Promise<{
+    issues: Array<{
+      key: string;
+      summary: string;
+      status: string;
+      issueType: string;
+      assignee?: string;
+      created: string;
+      updated: string;
+      url: string;
+    }>;
+    total: number;
+    startAt: number;
+    maxResults: number;
+  }> {
+    try {
+      const { baseUrl, email, apiToken, projectKey } = this.getConfig();
+      
+      // Default JQL: get all issues from the project, ordered by most recent
+      const defaultJql = `project = ${projectKey} ORDER BY updated DESC`;
+      const query = jql || defaultJql;
+      
+      // Try the new /rest/api/3/search/jql endpoint
+      // The new endpoint might use GET with query parameters or a different POST format
+      // Let's try GET first as it's simpler and more common for search endpoints
+      const fieldsParam = 'summary,status,issuetype,assignee,created,updated,priority,labels';
+      const url = `${baseUrl}/rest/api/3/search/jql?jql=${encodeURIComponent(query)}&startAt=${startAt}&maxResults=${maxResults}&fields=${encodeURIComponent(fieldsParam)}`;
+      
+      // Log request for debugging
+      try {
+        console.log('[JiraService] Searching with GET to:', url);
+      } catch {
+        // Ignore logging errors
+      }
+      
+      let response;
+      try {
+        // Try GET first (simpler format)
+        response = await this.makeRequest('GET', url, email, apiToken);
+      } catch (error: any) {
+        // If GET fails, try POST with a different payload structure
+        if (error.message && error.message.includes('400')) {
+          console.log('[JiraService] GET failed, trying POST with different format');
+          const postUrl = `${baseUrl}/rest/api/3/search/jql`;
+          
+          // Try POST with simplified payload (just JQL, no fields array)
+          const payload = {
+            jql: query,
+            startAt,
+            maxResults,
+          };
+          
+          try {
+            response = await this.makeRequest('POST', postUrl, email, apiToken, payload);
+          } catch (postError: any) {
+            // If that fails, try with fields as a string instead of array
+            const payloadWithFields = {
+              jql: query,
+              startAt,
+              maxResults,
+              fields: fieldsParam, // Try as comma-separated string
+            };
+            response = await this.makeRequest('POST', postUrl, email, apiToken, payloadWithFields);
+          }
+        } else {
+          throw error;
+        }
+      }
+      
+      const issues = (response.issues || []).map((issue: any) => ({
+        key: issue.key,
+        summary: issue.fields?.summary || 'No summary',
+        status: issue.fields?.status?.name || 'Unknown',
+        issueType: issue.fields?.issuetype?.name || 'Unknown',
+        assignee: issue.fields?.assignee?.displayName || issue.fields?.assignee?.emailAddress || 'Unassigned',
+        created: issue.fields?.created || '',
+        updated: issue.fields?.updated || '',
+        url: `${baseUrl}/browse/${issue.key}`,
+      }));
+      
+      return {
+        issues,
+        total: response.total || 0,
+        startAt: response.startAt || 0,
+        maxResults: response.maxResults || maxResults,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to search JIRA issues: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get a single JIRA issue by key
+   */
+  async getIssue(issueKey: string): Promise<{
+    key: string;
+    summary: string;
+    description?: string;
+    status: string;
+    issueType: string;
+    priority?: string;
+    assignee?: string;
+    reporter?: string;
+    created: string;
+    updated: string;
+    labels?: string[];
+    url: string;
+    fields: Record<string, any>;
+  }> {
+    try {
+      const { baseUrl, email, apiToken } = this.getConfig();
+      const url = `${baseUrl}/rest/api/3/issue/${issueKey}`;
+      
+      const response = await this.makeRequest('GET', url, email, apiToken);
+      
+      return {
+        key: response.key,
+        summary: response.fields?.summary || 'No summary',
+        description: response.fields?.description?.content?.[0]?.content?.[0]?.text || '',
+        status: response.fields?.status?.name || 'Unknown',
+        issueType: response.fields?.issuetype?.name || 'Unknown',
+        priority: response.fields?.priority?.name,
+        assignee: response.fields?.assignee?.displayName || response.fields?.assignee?.emailAddress || 'Unassigned',
+        reporter: response.fields?.reporter?.displayName || response.fields?.reporter?.emailAddress,
+        created: response.fields?.created || '',
+        updated: response.fields?.updated || '',
+        labels: response.fields?.labels || [],
+        url: `${baseUrl}/browse/${response.key}`,
+        fields: response.fields || {},
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get JIRA issue: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get comments for a JIRA issue
+   */
+  async getComments(issueKey: string): Promise<Array<{
+    id: string;
+    author: string;
+    body: string;
+    created: string;
+    updated: string;
+  }>> {
+    try {
+      const { baseUrl, email, apiToken } = this.getConfig();
+      const url = `${baseUrl}/rest/api/3/issue/${issueKey}/comment`;
+      
+      const response = await this.makeRequest('GET', url, email, apiToken);
+      
+      return (response.comments || []).map((comment: any) => ({
+        id: comment.id,
+        author: comment.author?.displayName || comment.author?.emailAddress || 'Unknown',
+        body: comment.body?.content?.[0]?.content?.[0]?.text || comment.body || '',
+        created: comment.created || '',
+        updated: comment.updated || comment.created || '',
+      }));
+    } catch (error: any) {
+      throw new Error(`Failed to get comments: ${error.message}`);
+    }
+  }
+
+  /**
+   * Add a comment to a JIRA issue
+   */
+  async addComment(issueKey: string, comment: string): Promise<{ id: string; url: string }> {
+    try {
+      const { baseUrl, email, apiToken } = this.getConfig();
+      const url = `${baseUrl}/rest/api/3/issue/${issueKey}/comment`;
+      
+      // JIRA API v3 uses Atlassian Document Format (ADF) for comments
+      const payload = {
+        body: {
+          type: 'doc',
+          version: 1,
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: comment,
+                },
+              ],
+            },
+          ],
+        },
+      };
+      
+      const response = await this.makeRequest('POST', url, email, apiToken, payload);
+      
+      return {
+        id: response.id,
+        url: `${baseUrl}/browse/${issueKey}`,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to add comment: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get available transitions for a JIRA issue
+   */
+  async getTransitions(issueKey: string): Promise<Array<{ id: string; name: string; to: { id: string; name: string } }>> {
+    try {
+      const { baseUrl, email, apiToken } = this.getConfig();
+      const url = `${baseUrl}/rest/api/3/issue/${issueKey}/transitions`;
+      
+      const response = await this.makeRequest('GET', url, email, apiToken);
+      
+      return (response.transitions || []).map((transition: any) => ({
+        id: transition.id,
+        name: transition.name,
+        to: {
+          id: transition.to?.id || '',
+          name: transition.to?.name || transition.name,
+        },
+      }));
+    } catch (error: any) {
+      throw new Error(`Failed to get transitions: ${error.message}`);
+    }
+  }
+
+  /**
+   * Transition a JIRA issue (change status)
+   */
+  async transitionIssue(issueKey: string, transitionId: string, comment?: string): Promise<void> {
+    try {
+      const { baseUrl, email, apiToken } = this.getConfig();
+      const url = `${baseUrl}/rest/api/3/issue/${issueKey}/transitions`;
+      
+      const payload: any = {
+        transition: {
+          id: transitionId,
+        },
+      };
+      
+      // Add comment if provided
+      if (comment) {
+        payload.update = {
+          comment: [
+            {
+              add: {
+                body: {
+                  type: 'doc',
+                  version: 1,
+                  content: [
+                    {
+                      type: 'paragraph',
+                      content: [
+                        {
+                          type: 'text',
+                          text: comment,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        };
+      }
+      
+      await this.makeRequest('POST', url, email, apiToken, payload);
+    } catch (error: any) {
+      throw new Error(`Failed to transition issue: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update a JIRA issue
+   */
+  async updateIssue(issueKey: string, updates: {
+    summary?: string;
+    description?: string;
+    assignee?: string;
+    priority?: string;
+    labels?: string[];
+    customFields?: Record<string, any>;
+  }): Promise<void> {
+    try {
+      const { baseUrl, email, apiToken } = this.getConfig();
+      const url = `${baseUrl}/rest/api/3/issue/${issueKey}`;
+      
+      const fields: any = {};
+      
+      if (updates.summary) {
+        fields.summary = updates.summary;
+      }
+      
+      if (updates.description) {
+        fields.description = {
+          type: 'doc',
+          version: 1,
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: updates.description,
+                },
+              ],
+            },
+          ],
+        };
+      }
+      
+      if (updates.assignee) {
+        fields.assignee = { accountId: updates.assignee };
+      }
+      
+      if (updates.priority) {
+        fields.priority = { name: updates.priority };
+      }
+      
+      if (updates.labels) {
+        fields.labels = updates.labels;
+      }
+      
+      // Add custom fields
+      if (updates.customFields) {
+        for (const [fieldId, value] of Object.entries(updates.customFields)) {
+          const fieldSchema = this.getFieldSchema(fieldId);
+          if (fieldSchema) {
+            fields[fieldId] = this.formatFieldValue(value, fieldSchema);
+          } else {
+            fields[fieldId] = value;
+          }
+        }
+      }
+      
+      const payload = {
+        fields,
+      };
+      
+      await this.makeRequest('PUT', url, email, apiToken, payload);
+    } catch (error: any) {
+      throw new Error(`Failed to update issue: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get project information
+   */
+  async getProject(projectKey?: string): Promise<{
+    id: string;
+    key: string;
+    name: string;
+    description?: string;
+    lead?: string;
+    url: string;
+  }> {
+    try {
+      const { baseUrl, email, apiToken, projectKey: defaultProjectKey } = this.getConfig();
+      const key = projectKey || defaultProjectKey;
+      const url = `${baseUrl}/rest/api/3/project/${key}`;
+      
+      const response = await this.makeRequest('GET', url, email, apiToken);
+      
+      return {
+        id: response.id,
+        key: response.key,
+        name: response.name,
+        description: response.description,
+        lead: response.lead?.displayName || response.lead?.emailAddress,
+        url: `${baseUrl}/browse/${response.key}`,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get project: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get available issue types for the project
+   */
+  async getIssueTypes(): Promise<Array<{ id: string; name: string; description?: string }>> {
+    try {
+      const { baseUrl, email, apiToken, projectKey } = this.getConfig();
+      const url = `${baseUrl}/rest/api/3/project/${projectKey}`;
+
+      const project = await this.makeRequest('GET', url, email, apiToken);
+      
+      // Get issue types from project metadata
+      const issueTypesUrl = `${baseUrl}/rest/api/3/project/${projectKey}/statuses`;
+      const statuses = await this.makeRequest('GET', issueTypesUrl, email, apiToken);
+      
+      // Extract unique issue types
+      const issueTypeMap = new Map<string, { id: string; name: string }>();
+      if (Array.isArray(statuses)) {
+        for (const status of statuses) {
+          if (status.issueType) {
+            issueTypeMap.set(status.issueType.id, {
+              id: status.issueType.id,
+              name: status.issueType.name,
+            });
+          }
+        }
+      }
+      
+      return Array.from(issueTypeMap.values());
+    } catch (error: any) {
+      console.warn('[JiraService] Failed to fetch issue types:', error.message);
+      // Return common defaults
+      return [
+        { id: '10004', name: 'Bug' },
+        { id: '10003', name: 'Task' },
+        { id: '10001', name: 'Story' },
+      ];
+    }
+  }
+
+  /**
    * Create a Jira issue
    */
   async createIssue(issueData: {
@@ -175,6 +634,34 @@ export class JiraService {
   }): Promise<{ issueKey: string; issueUrl: string }> {
     const { baseUrl, email, apiToken, projectKey } = this.getConfig();
     const url = `${baseUrl}/rest/api/3/issue`;
+
+    // Try to get issue type ID from create metadata (more reliable than name)
+    // Also check which fields are available on the create screen
+    let issueTypeField: { id?: string; name?: string } = {};
+    let labelsAvailable = false;
+    const issueTypeName = issueData.issueType || 'Bug';
+    
+    try {
+      const metadataUrl = `${baseUrl}/rest/api/3/issue/createmeta?projectKeys=${projectKey}&issuetypeNames=${encodeURIComponent(issueTypeName)}&expand=projects.issuetypes.fields`;
+      const metadata = await this.makeRequest('GET', metadataUrl, email, apiToken);
+      
+      if (metadata.projects && metadata.projects.length > 0) {
+        const project = metadata.projects[0];
+        if (project.issuetypes && project.issuetypes.length > 0) {
+          // Use the first matching issue type
+          issueTypeField = { id: project.issuetypes[0].id };
+          
+          // Check if labels field is available on the create screen
+          const issueType = project.issuetypes[0];
+          if (issueType.fields && issueType.fields.labels) {
+            labelsAvailable = true;
+          }
+        }
+      }
+    } catch (metadataError: any) {
+      // Fall back to using name if metadata fetch fails
+      console.warn('[JiraService] Could not fetch issue type metadata, using name:', metadataError.message);
+    }
 
     // Build issue payload
     const fields: any = {
@@ -197,14 +684,16 @@ export class JiraService {
           },
         ],
       },
-      issuetype: {
-        name: issueData.issueType || 'Bug',
-      },
+      issuetype: issueTypeField.id 
+        ? { id: issueTypeField.id }
+        : { name: issueTypeName },
     };
 
-    // Add labels if provided
-    if (issueData.labels && issueData.labels.length > 0) {
+    // Add labels if provided and available on the create screen
+    if (issueData.labels && issueData.labels.length > 0 && labelsAvailable) {
       fields.labels = issueData.labels;
+    } else if (issueData.labels && issueData.labels.length > 0) {
+      console.warn('[JiraService] Labels field is not available on the create screen, skipping labels');
     }
 
     // Add custom fields with proper formatting based on schema
@@ -224,12 +713,42 @@ export class JiraService {
       fields,
     };
 
-    const response = await this.makeRequest('POST', url, email, apiToken, payload);
+    // Log payload for debugging (without sensitive data)
+    try {
+      const debugPayload = { ...payload };
+      console.log('[JiraService] Creating issue with payload:', JSON.stringify(debugPayload, null, 2));
+    } catch {
+      // Ignore logging errors
+    }
 
-    return {
-      issueKey: response.key,
-      issueUrl: `${baseUrl}/browse/${response.key}`,
-    };
+    try {
+      const response = await this.makeRequest('POST', url, email, apiToken, payload);
+
+      return {
+        issueKey: response.key,
+        issueUrl: `${baseUrl}/browse/${response.key}`,
+      };
+    } catch (error: any) {
+      // If error is about labels field not being available, retry without labels
+      if (error.message && error.message.includes('labels') && error.message.includes('cannot be set')) {
+        console.warn('[JiraService] Labels field not available, retrying without labels');
+        
+        // Remove labels from payload and retry
+        const fieldsWithoutLabels = { ...fields };
+        delete fieldsWithoutLabels.labels;
+        const payloadWithoutLabels = { fields: fieldsWithoutLabels };
+        
+        const response = await this.makeRequest('POST', url, email, apiToken, payloadWithoutLabels);
+        
+        return {
+          issueKey: response.key,
+          issueUrl: `${baseUrl}/browse/${response.key}`,
+        };
+      }
+      
+      // Re-throw if it's not a labels error
+      throw error;
+    }
   }
 
   /**
@@ -323,9 +842,48 @@ export class JiraService {
               resolve(response);
             } else {
               const errorData = data ? JSON.parse(data) : {};
+              // Jira API v3 returns errors in different formats:
+              // - errorMessages: array of strings
+              // - errors: object with field-level errors
+              // - message: single error message
+              let errorMessage = '';
+              
+              if (errorData.errorMessages && errorData.errorMessages.length > 0) {
+                errorMessage = errorData.errorMessages.join('; ');
+              }
+              
+              if (errorData.errors && Object.keys(errorData.errors).length > 0) {
+                const fieldErrors = Object.entries(errorData.errors)
+                  .map(([field, msg]) => `${field}: ${msg}`)
+                  .join('; ');
+                errorMessage = errorMessage 
+                  ? `${errorMessage}. Field errors: ${fieldErrors}` 
+                  : `Field errors: ${fieldErrors}`;
+              }
+              
+              if (!errorMessage && errorData.message) {
+                errorMessage = errorData.message;
+              }
+              
+              if (!errorMessage) {
+                errorMessage = res.statusMessage || 'Unknown error';
+              }
+              
+              // Log the full error response for debugging
+              console.error('[JiraService] API error response:', JSON.stringify(errorData, null, 2));
+              
+              // Add helpful suggestions for common errors
+              if (res.statusCode === 400) {
+                if (errorMessage.toLowerCase().includes('issuetype') || errorMessage.toLowerCase().includes('issue type')) {
+                  errorMessage += '. Tip: The issue type name must match exactly (case-sensitive). Common types: Bug, Task, Story, Defect.';
+                } else if (errorMessage.toLowerCase().includes('field') || errorMessage.toLowerCase().includes('required')) {
+                  errorMessage += '. Tip: Some required fields may be missing. Check your Jira project configuration.';
+                }
+              }
+              
               reject(
                 new Error(
-                  `Jira API error: ${res.statusCode} - ${errorData.errorMessages?.join(', ') || errorData.message || res.statusMessage}`
+                  `Jira API error: ${res.statusCode} - ${errorMessage}`
                 )
               );
             }
@@ -350,12 +908,57 @@ export class JiraService {
   }
 
   /**
+   * Load failure artifact from test bundle if not provided
+   */
+  private loadFailureArtifact(workspacePath: string, testName: string): FailureArtifactData | undefined {
+    try {
+      const slug = testName
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+      
+      // Try new bundle structure first
+      let failurePath = path.join(workspacePath, 'tests', 'd365', 'specs', slug, `${slug}_failure.json`);
+      
+      if (!fs.existsSync(failurePath)) {
+        // Try old structure
+        failurePath = path.join(workspacePath, 'tests', 'd365', slug, `${slug}_failure.json`);
+        if (!fs.existsSync(failurePath)) {
+          // Try flat structure
+          failurePath = path.join(workspacePath, 'tests', `${slug}_failure.json`);
+        }
+      }
+      
+      if (fs.existsSync(failurePath)) {
+        const content = fs.readFileSync(failurePath, 'utf-8');
+        const artifact = JSON.parse(content);
+        return {
+          errorMessage: artifact.error?.message,
+          stackTrace: artifact.error?.stack,
+          location: artifact.error?.location,
+          duration: artifact.duration,
+          retry: artifact.retry,
+          timestamp: artifact.timestamp,
+          failedLocator: artifact.failedLocator,
+          assertionFailure: artifact.assertionFailure,
+        };
+      }
+    } catch (error: any) {
+      console.warn('[JiraService] Failed to load failure artifact:', error.message);
+    }
+    return undefined;
+  }
+
+  /**
    * High-level helper for creating a structured Jira defect from a failed test run.
    * Builds a Markdown-style description, creates the issue, uploads attachments,
    * and updates the corresponding test bundle meta.json with Jira linkage.
    */
   async createDefect(payload: DefectPayload): Promise<{ issueKey: string; issueUrl: string }> {
     const meta = payload.testMeta;
+
+    // Load failure artifact if not provided
+    const failureArtifact = payload.failureArtifact || this.loadFailureArtifact(meta.workspacePath, meta.testName);
 
     const lines: string[] = [];
 
@@ -366,67 +969,156 @@ export class JiraService {
     if (meta.workspaceId) {
       lines.push(`Workspace: ${meta.workspaceId}`);
     }
+    if (payload.runId) {
+      lines.push(`Run ID: ${payload.runId}`);
+    }
+    if (payload.startedAt) {
+      const startDate = new Date(payload.startedAt).toLocaleString();
+      lines.push(`Execution Time: ${startDate}`);
+    }
+    if (failureArtifact?.duration) {
+      const durationSeconds = (failureArtifact.duration / 1000).toFixed(2);
+      lines.push(`Duration: ${durationSeconds}s`);
+    }
+    if (failureArtifact?.retry !== undefined && failureArtifact.retry > 0) {
+      lines.push(`Retry Count: ${failureArtifact.retry}`);
+    }
     lines.push('');
 
-    // Environment (simple hint based on BrowserStack presence)
-    if (payload.links?.browserStackSessionUrl) {
-      lines.push(`Environment: BrowserStack (Automate)`);
-      lines.push('');
+    // Test Execution Environment
+    lines.push('## Test Execution Environment');
+    lines.push('');
+    if (payload.environment) {
+      if (payload.environment.executionProfile) {
+        lines.push(`- Execution Profile: ${payload.environment.executionProfile === 'browserstack' ? 'BrowserStack Automate' : 'Local'}`);
+      }
+      if (payload.environment.browser) {
+        lines.push(`- Browser: ${payload.environment.browser}${payload.environment.browserVersion ? ` ${payload.environment.browserVersion}` : ''}`);
+      }
+      if (payload.environment.os) {
+        lines.push(`- OS: ${payload.environment.os}${payload.environment.osVersion ? ` ${payload.environment.osVersion}` : ''}`);
+      }
+    } else if (payload.links?.browserStackSessionUrl) {
+      lines.push('- Execution Profile: BrowserStack Automate');
+    } else {
+      lines.push('- Execution Profile: Local');
     }
+    lines.push('');
 
     // Failure Summary
     lines.push('## Failure Summary');
     lines.push('');
-    if (payload.description) {
-      lines.push(payload.description);
+    const errorMessage = failureArtifact?.errorMessage || payload.description || 'Automated test failed. See artifacts and links below for more details.';
+    lines.push(`\`\`\``);
+    lines.push(errorMessage);
+    lines.push(`\`\`\``);
+    lines.push('');
+
+    // Assertion Failure Details (if available)
+    if (failureArtifact?.assertionFailure) {
+      lines.push('### Assertion Failure Details');
       lines.push('');
-    } else {
-      lines.push('Automated test failed. See artifacts and links below for more details.');
+      const af = failureArtifact.assertionFailure;
+      lines.push(`- **Type**: ${af.assertionType}`);
+      lines.push(`- **Target**: ${af.target}`);
+      if (af.expected !== undefined) {
+        lines.push(`- **Expected**: ${af.expected}`);
+      }
+      if (af.actual !== undefined) {
+        lines.push(`- **Actual**: ${af.actual}`);
+      }
       lines.push('');
     }
 
-    // Steps to Reproduce (placeholder – recording-based steps can be added later)
+    // Failed Locator (if available)
+    if (failureArtifact?.failedLocator) {
+      lines.push('### Failed Locator');
+      lines.push('');
+      const fl = failureArtifact.failedLocator;
+      lines.push(`- **Locator**: \`${fl.locator}\``);
+      lines.push(`- **Type**: ${fl.type}`);
+      lines.push(`- **Key**: ${fl.locatorKey}`);
+      lines.push('');
+    }
+
+    // Error Location (if available)
+    if (failureArtifact?.location) {
+      lines.push('### Error Location');
+      lines.push('');
+      const loc = failureArtifact.location;
+      lines.push(`- **File**: \`${loc.file}\``);
+      lines.push(`- **Line**: ${loc.line}`);
+      lines.push(`- **Column**: ${loc.column}`);
+      lines.push('');
+    }
+
+    // Stack Trace (if available, in collapsed section)
+    if (failureArtifact?.stackTrace) {
+      lines.push('### Stack Trace');
+      lines.push('');
+      lines.push(`{code:java}`);
+      lines.push(failureArtifact.stackTrace);
+      lines.push(`{code}`);
+      lines.push('');
+    }
+
+    // Steps to Reproduce
     lines.push('## Steps to Reproduce');
     lines.push('');
-    lines.push('- Execute the automated test in QA Studio for the bundle referenced below.');
+    lines.push('1. Open QA Studio');
+    lines.push(`2. Navigate to workspace: ${meta.workspaceId || '<workspace>'}`);
+    lines.push(`3. Execute test: ${meta.testName}`);
+    if (payload.runId) {
+      lines.push(`4. View run details for Run ID: ${payload.runId}`);
+    }
     lines.push('');
 
     // Artifacts
     lines.push('## Artifacts');
     lines.push('');
-    if (payload.attachments?.screenshotPath) {
-      lines.push('- Screenshot: attached');
+    const attachments = payload.attachments || {};
+    if (attachments.screenshotPath || (attachments.screenshotPaths && attachments.screenshotPaths.length > 0)) {
+      const screenshotCount = attachments.screenshotPaths?.length || (attachments.screenshotPath ? 1 : 0);
+      lines.push(`- Screenshot${screenshotCount > 1 ? 's' : ''}: ${screenshotCount} file${screenshotCount > 1 ? 's' : ''} attached`);
     }
-    if (payload.attachments?.tracePath) {
-      lines.push('- Trace: attached');
+    if (attachments.tracePath) {
+      lines.push('- Trace file: attached (contains DOM snapshots, network logs, console logs, and step-by-step execution)');
     }
-    if (payload.attachments?.playwrightReportPath) {
-      lines.push(`- Playwright report: ${payload.attachments.playwrightReportPath}`);
+    if (attachments.videoPath) {
+      lines.push('- Video recording: attached');
     }
+    if (attachments.playwrightReportPath) {
+      lines.push(`- Allure HTML Report: ${attachments.playwrightReportPath}`);
+    }
+    lines.push('');
+    lines.push('*Note: Trace files can be opened in Playwright Trace Viewer for detailed debugging.*');
     lines.push('');
 
     // Links
-    lines.push('## Links');
+    lines.push('## External Links');
     lines.push('');
     if (payload.links?.browserStackSessionUrl) {
-      lines.push(`- BrowserStack session: ${payload.links.browserStackSessionUrl}`);
+      lines.push(`- [BrowserStack Session](${payload.links.browserStackSessionUrl})`);
     }
     if (payload.links?.browserStackTmTestCaseUrl) {
-      lines.push(`- BrowserStack TM test case: ${payload.links.browserStackTmTestCaseUrl}`);
+      lines.push(`- [BrowserStack TM Test Case](${payload.links.browserStackTmTestCaseUrl})`);
     }
     if (payload.links?.browserStackTmRunUrl) {
-      lines.push(`- BrowserStack TM run: ${payload.links.browserStackTmRunUrl}`);
+      lines.push(`- [BrowserStack TM Test Run](${payload.links.browserStackTmRunUrl})`);
+    }
+    if (!payload.links?.browserStackSessionUrl && !payload.links?.browserStackTmTestCaseUrl && !payload.links?.browserStackTmRunUrl) {
+      lines.push('*No external links available*');
     }
     lines.push('');
 
     // Studio bundle reference
-    lines.push('## Studio bundle reference');
+    lines.push('## QA Studio Bundle Reference');
     lines.push('');
     const slug = meta.testName
       .toLowerCase()
       .replace(/\s+/g, '-')
       .replace(/[^a-z0-9-]/g, '');
-    lines.push(`Bundle: workspaces/${meta.workspaceId || '<workspace>'}/tests/specs/${slug}/`);
+    lines.push(`Bundle Path: \`workspaces/${meta.workspaceId || '<workspace>'}/tests/specs/${slug}/\``);
     lines.push('');
 
     const fullDescription = lines.join('\n');
@@ -434,7 +1126,7 @@ export class JiraService {
     const issue = await this.createIssue({
       summary: payload.summary,
       description: fullDescription,
-      issueType: 'Bug',
+      issueType: payload.issueType || 'Bug',
       labels: [
         'qa-studio',
         meta.workspaceId || '',
@@ -454,19 +1146,45 @@ export class JiraService {
   }
 
   /**
-   * Upload screenshot/trace attachments to a Jira issue using the attachments API.
+   * Upload screenshot/trace/video attachments to a Jira issue using the attachments API.
+   * Supports multiple files including screenshots, traces, videos, and reports.
    */
   private async uploadAttachments(issueKey: string, attachments: DefectAttachments): Promise<void> {
     const { baseUrl, email, apiToken } = this.getConfig();
     const url = `${baseUrl}/rest/api/3/issue/${issueKey}/attachments`;
 
-    const files: string[] = [];
-    if (attachments.screenshotPath) files.push(attachments.screenshotPath);
-    if (attachments.tracePath) files.push(attachments.tracePath);
+    const files: Array<{ path: string; name?: string }> = [];
+    
+    // Add single screenshot
+    if (attachments.screenshotPath && fs.existsSync(attachments.screenshotPath)) {
+      files.push({ path: attachments.screenshotPath });
+    }
+    
+    // Add multiple screenshots
+    if (attachments.screenshotPaths) {
+      for (const screenshotPath of attachments.screenshotPaths) {
+        if (fs.existsSync(screenshotPath)) {
+          files.push({ path: screenshotPath });
+        }
+      }
+    }
+    
+    // Add trace file
+    if (attachments.tracePath && fs.existsSync(attachments.tracePath)) {
+      files.push({ path: attachments.tracePath });
+    }
+    
+    // Add video file
+    if (attachments.videoPath && fs.existsSync(attachments.videoPath)) {
+      files.push({ path: attachments.videoPath });
+    }
 
     if (files.length === 0) {
+      console.log('[JiraService] No attachment files found to upload');
       return;
     }
+
+    console.log(`[JiraService] Uploading ${files.length} attachment(s) to Jira issue ${issueKey}`);
 
     const boundary = `----qa-studio-${Date.now()}`;
     const urlObj = new URL(url);
@@ -504,23 +1222,45 @@ export class JiraService {
 
       req.on('error', (err) => reject(err));
 
-      for (const filePath of files) {
-        if (!fs.existsSync(filePath)) continue;
-        const fileName = path.basename(filePath);
-        const fileContent = fs.readFileSync(filePath);
+      // Upload all files
+      for (const file of files) {
+        if (!fs.existsSync(file.path)) {
+          console.warn(`[JiraService] File not found, skipping: ${file.path}`);
+          continue;
+        }
+        
+        const fileName = file.name || path.basename(file.path);
+        const fileContent = fs.readFileSync(file.path);
+        
+        // Determine content type based on file extension
+        const ext = path.extname(fileName).toLowerCase();
+        let contentType = 'application/octet-stream';
+        if (ext === '.png' || ext === '.jpg' || ext === '.jpeg') {
+          contentType = `image/${ext === '.png' ? 'png' : 'jpeg'}`;
+        } else if (ext === '.zip') {
+          contentType = 'application/zip';
+        } else if (ext === '.mp4' || ext === '.webm') {
+          contentType = `video/${ext === '.mp4' ? 'mp4' : 'webm'}`;
+        } else if (ext === '.html') {
+          contentType = 'text/html';
+        }
 
         req.write(`--${boundary}\r\n`);
         req.write(
           `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
-          `Content-Type: application/octet-stream\r\n\r\n`
+          `Content-Type: ${contentType}\r\n\r\n`
         );
         req.write(fileContent);
         req.write('\r\n');
+        
+        console.log(`[JiraService] Uploaded: ${fileName} (${(fileContent.length / 1024).toFixed(2)} KB)`);
       }
 
       req.write(`--${boundary}--\r\n`);
       req.end();
     });
+    
+    console.log(`[JiraService] Successfully uploaded ${files.length} attachment(s)`);
   }
 
   /**

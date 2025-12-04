@@ -94,6 +94,8 @@ const JiraCreateDefectModal: React.FC<JiraCreateDefectModalProps> = ({
     }
 
     setLoading(true);
+    // Clear previous error status when attempting to create
+    setConnectionStatus(null);
     try {
       const context: JiraDefectContext = {
         workspacePath,
@@ -101,13 +103,16 @@ const JiraCreateDefectModal: React.FC<JiraCreateDefectModalProps> = ({
         testName,
         module: undefined,
         status: 'failed',
-        firstFailureMessage: description.trim(),
+        summary: summary.trim(),
+        issueType: issueType || 'Bug',
+        firstFailureMessage: description.trim() || undefined,
         browserStackSessionUrl: run.browserstack?.dashboardUrl,
         browserStackTmTestCaseUrl: undefined,
         browserStackTmRunUrl: undefined,
         screenshotPath: undefined,
         tracePath: run.tracePaths && run.tracePaths[0],
         playwrightReportPath: run.allureReportPath || run.reportPath,
+        runId: run.runId, // Pass runId to load additional metadata automatically
       };
 
       const result = await ipc.jira.createDefectFromRun(context);

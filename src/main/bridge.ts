@@ -26,6 +26,7 @@ import { LocatorMaintenanceService } from './services/locator-maintenance';
 import { RAGService } from './services/rag-service';
 import { JiraService } from './services/jiraService';
 import { BrowserStackTMService } from './services/browserstackTmService';
+import { BrowserStackAutomateService } from './services/browserstackAutomateService';
 import { SpecUpdater } from './services/spec-updater';
 import { LocatorBrowserService } from './services/locator-browser-service';
 import { runAllElectronTests } from '../ElectronTest';
@@ -113,6 +114,7 @@ export class IPCBridge {
   private locatorBrowser: LocatorBrowserService;
   private jiraService: JiraService;
   private browserstackTmService: BrowserStackTMService;
+  private browserstackAutomateService: BrowserStackAutomateService;
 
   constructor(configManager: ConfigManager, workspaceManager: WorkspaceManager, mainWindow: BrowserWindow | null = null) {
     this.configManager = configManager;
@@ -141,6 +143,7 @@ export class IPCBridge {
     this.locatorBrowser = new LocatorBrowserService();
     this.jiraService = new JiraService(configManager);
     this.browserstackTmService = new BrowserStackTMService(configManager);
+    this.browserstackAutomateService = new BrowserStackAutomateService(configManager);
     this.locatorBrowser.setMainWindow(mainWindow);
   }
 
@@ -162,13 +165,24 @@ export class IPCBridge {
 
   /**
    * Get storage state path from config or default
+   * @param workspaceType Optional workspace type to determine which storage state to use
+   * @param workspacePath Optional workspace path for workspace-specific storage state
    */
-  private getStorageStatePath(): string {
+  private getStorageStatePath(workspaceType?: string, workspacePath?: string): string {
+    // For web-demo workspaces, use workspace-specific web.json
+    if (workspaceType === 'web-demo' && workspacePath) {
+      const webStorageStatePath = path.join(workspacePath, 'storage_state', 'web.json');
+      if (fs.existsSync(webStorageStatePath)) {
+        return webStorageStatePath;
+      }
+    }
+    
+    // For D365 workspaces or default, use config or default D365 storage state
     const config = this.configManager.getConfig();
     if (config.storageStatePath && fs.existsSync(config.storageStatePath)) {
       return config.storageStatePath;
     }
-    // Fallback to config manager's default
+    // Fallback to config manager's default (D365)
     return this.configManager.getStorageStatePath();
   }
 
@@ -197,23 +211,47 @@ export class IPCBridge {
 
   /**
    * Check storage state and determine next steps
+   * @param workspaceType Optional workspace type ('d365' | 'web-demo')
+   * @param workspacePath Optional workspace path for workspace-specific storage state
    */
-  async checkStorageState(): Promise<{
+  async checkStorageState(workspaceType?: string, workspacePath?: string): Promise<{
     status: 'valid' | 'missing' | 'invalid' | 'expired' | 'error';
     message: string;
     nextSteps: string[];
     storageStatePath: string;
     details?: any;
+    workspaceType?: string;
   }> {
-    const storageStatePath = this.getStorageStatePath();
-    const d365Url = this.getD365Url() || process.env.D365_URL || '';
+    const storageStatePath = this.getStorageStatePath(workspaceType, workspacePath);
+    const isWebDemo = workspaceType === 'web-demo';
     
-    if (!d365Url) {
+    // For web-demo, get web URL from workspace settings
+    let testUrl: string | null = null;
+    if (isWebDemo && workspacePath) {
+      try {
+        const workspaceJsonPath = path.join(workspacePath, 'workspace.json');
+        if (fs.existsSync(workspaceJsonPath)) {
+          const workspaceMeta = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
+          const settings = workspaceMeta.settings || {};
+          testUrl = settings.baseUrl || null;
+        }
+      } catch (error: any) {
+        console.warn('[Bridge] Failed to read workspace settings:', error.message);
+      }
+    } else {
+      // For D365, use D365 URL
+      testUrl = this.getD365Url() || process.env.D365_URL || '';
+    }
+    
+    if (!testUrl) {
       return {
         status: 'error',
-        message: 'D365 URL not configured',
-        nextSteps: ['Configure D365 URL in settings'],
+        message: isWebDemo ? 'Web URL not configured in workspace settings' : 'D365 URL not configured',
+        nextSteps: isWebDemo 
+          ? ['Configure baseUrl in workspace settings']
+          : ['Configure D365 URL in settings'],
         storageStatePath,
+        workspaceType,
       };
     }
 
@@ -221,29 +259,43 @@ export class IPCBridge {
       return {
         status: 'missing',
         message: 'Storage state file does not exist',
-        nextSteps: [
-          'Go to Setup screen',
-          'Enter D365 URL and credentials',
-          'Click "Sign in to D365" to create storage state',
-        ],
+        nextSteps: isWebDemo
+          ? [
+              'Go to Record screen',
+              'Click "Login to FH Web" button',
+              'Enter your web application credentials',
+            ]
+          : [
+              'Go to Setup screen',
+              'Enter D365 URL and credentials',
+              'Click "Sign in to D365" to create storage state',
+            ],
         storageStatePath,
+        workspaceType,
       };
     }
 
     // Test if storage state works
-    const testResult = await this.browserManager.testStorageState(storageStatePath, d365Url);
+    const testResult = await this.browserManager.testStorageState(storageStatePath, testUrl, !isWebDemo);
     
     if (!testResult.isValid) {
       return {
         status: 'invalid',
         message: testResult.error || 'Storage state is invalid',
-        nextSteps: [
-          'Storage state file is corrupted or invalid',
-          'Go to Setup screen',
-          'Re-enter credentials and sign in again',
-        ],
+        nextSteps: isWebDemo
+          ? [
+              'Storage state file is corrupted or invalid',
+              'Go to Record screen',
+              'Click "Login to FH Web" to re-authenticate',
+            ]
+          : [
+              'Storage state file is corrupted or invalid',
+              'Go to Setup screen',
+              'Re-enter credentials and sign in again',
+            ],
         storageStatePath,
         details: testResult.details,
+        workspaceType,
       };
     }
 
@@ -251,13 +303,20 @@ export class IPCBridge {
       return {
         status: 'expired',
         message: 'Storage state exists but authentication has expired',
-        nextSteps: [
-          'Go to Setup screen',
-          'Re-enter credentials and sign in again',
-          'This will update the storage state',
-        ],
+        nextSteps: isWebDemo
+          ? [
+              'Go to Record screen',
+              'Click "Login to FH Web" to re-authenticate',
+              'This will update the storage state',
+            ]
+          : [
+              'Go to Setup screen',
+              'Re-enter credentials and sign in again',
+              'This will update the storage state',
+            ],
         storageStatePath,
         details: testResult.details,
+        workspaceType,
       };
     }
 
@@ -270,6 +329,7 @@ export class IPCBridge {
       ],
       storageStatePath,
       details: testResult.details,
+      workspaceType,
     };
   }
 
@@ -282,13 +342,30 @@ export class IPCBridge {
       return this.checkAuthentication();
     });
 
-    // Storage state checker
-    ipcMain.handle('config:check-storage-state', async () => {
-      return await this.checkStorageState();
+    // Storage state checker (workspace-aware)
+    ipcMain.handle('config:check-storage-state', async (_event, workspaceType?: string, workspacePath?: string) => {
+      return await this.checkStorageState(workspaceType, workspacePath);
     });
 
     ipcMain.handle('auth:login', async (_, credentials: { username: string; password: string; d365Url?: string }) => {
       return this.handleLogin(credentials);
+    });
+
+    // Web login (for FH web and other web applications)
+    ipcMain.handle('auth:web-login', async (_, credentials: {
+      webUrl: string;
+      username: string;
+      password: string;
+      workspacePath: string;
+      loginSelectors?: {
+        usernameSelector?: string;
+        passwordSelector?: string;
+        submitSelector?: string;
+        loginButtonSelector?: string;
+        waitForSelector?: string;
+      };
+    }) => {
+      return this.handleWebLogin(credentials);
     });
 
     // Session management
@@ -929,6 +1006,151 @@ export class IPCBridge {
       }
     });
 
+    ipcMain.handle('jira:searchIssues', async (_, request: {
+      jql?: string;
+      maxResults?: number;
+      startAt?: number;
+    }): Promise<{
+      success: boolean;
+      issues?: Array<{
+        key: string;
+        summary: string;
+        status: string;
+        issueType: string;
+        assignee?: string;
+        created: string;
+        updated: string;
+        url: string;
+      }>;
+      total?: number;
+      startAt?: number;
+      maxResults?: number;
+      error?: string;
+    }> => {
+      try {
+        const result = await this.jiraService.searchIssues(
+          request.jql,
+          request.maxResults || 50,
+          request.startAt || 0
+        );
+        return { success: true, ...result };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to search JIRA issues' };
+      }
+    });
+
+    ipcMain.handle('jira:getIssue', async (_, issueKey: string): Promise<{
+      success: boolean;
+      issue?: any;
+      error?: string;
+    }> => {
+      try {
+        const issue = await this.jiraService.getIssue(issueKey);
+        return { success: true, issue };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get JIRA issue' };
+      }
+    });
+
+    ipcMain.handle('jira:getComments', async (_, issueKey: string): Promise<{
+      success: boolean;
+      comments?: Array<{
+        id: string;
+        author: string;
+        body: string;
+        created: string;
+        updated: string;
+      }>;
+      error?: string;
+    }> => {
+      try {
+        const comments = await this.jiraService.getComments(issueKey);
+        return { success: true, comments };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get comments' };
+      }
+    });
+
+    ipcMain.handle('jira:addComment', async (_, request: {
+      issueKey: string;
+      comment: string;
+    }): Promise<{
+      success: boolean;
+      commentId?: string;
+      error?: string;
+    }> => {
+      try {
+        const result = await this.jiraService.addComment(request.issueKey, request.comment);
+        return { success: true, commentId: result.id };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to add comment' };
+      }
+    });
+
+    ipcMain.handle('jira:getTransitions', async (_, issueKey: string): Promise<{
+      success: boolean;
+      transitions?: Array<{ id: string; name: string; to: { id: string; name: string } }>;
+      error?: string;
+    }> => {
+      try {
+        const transitions = await this.jiraService.getTransitions(issueKey);
+        return { success: true, transitions };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get transitions' };
+      }
+    });
+
+    ipcMain.handle('jira:transitionIssue', async (_, request: {
+      issueKey: string;
+      transitionId: string;
+      comment?: string;
+    }): Promise<{
+      success: boolean;
+      error?: string;
+    }> => {
+      try {
+        await this.jiraService.transitionIssue(request.issueKey, request.transitionId, request.comment);
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to transition issue' };
+      }
+    });
+
+    ipcMain.handle('jira:updateIssue', async (_, request: {
+      issueKey: string;
+      updates: {
+        summary?: string;
+        description?: string;
+        assignee?: string;
+        priority?: string;
+        labels?: string[];
+        customFields?: Record<string, any>;
+      };
+    }): Promise<{
+      success: boolean;
+      error?: string;
+    }> => {
+      try {
+        await this.jiraService.updateIssue(request.issueKey, request.updates);
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update issue' };
+      }
+    });
+
+    ipcMain.handle('jira:getProject', async (_, projectKey?: string): Promise<{
+      success: boolean;
+      project?: any;
+      error?: string;
+    }> => {
+      try {
+        const project = await this.jiraService.getProject(projectKey);
+        return { success: true, project };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get project' };
+      }
+    });
+
     ipcMain.handle('jira:createIssue', async (_, request: {
       summary: string;
       description: string;
@@ -993,6 +1215,318 @@ export class IPCBridge {
         return { success: true, testRunId: result.testRunId };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to publish BrowserStack test run' };
+      }
+    });
+
+    ipcMain.handle('browserstackTm:testConnection', async (): Promise<{ success: boolean; projectName?: string; error?: string }> => {
+      try {
+        return await this.browserstackTmService.testConnection();
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to test BrowserStack TM connection' };
+      }
+    });
+
+    ipcMain.handle('browserstackTm:listTestCases', async (_, request: {
+      page?: number;
+      pageSize?: number;
+    }): Promise<{
+      success: boolean;
+      testCases?: Array<{
+        id: string;
+        identifier: string;
+        name: string;
+        description?: string;
+        status?: string;
+        priority?: string;
+        caseType?: string;
+        owner?: string;
+        tags?: string[];
+        automationStatus?: string;
+        createdAt: string;
+        updatedAt: string;
+        url: string;
+      }>;
+      total?: number;
+      page?: number;
+      pageSize?: number;
+      hasMore?: boolean;
+      error?: string;
+    }> => {
+      try {
+        const result = await this.browserstackTmService.listTestCases(
+          request.page || 1,
+          request.pageSize || 30
+        );
+        return { success: true, ...result };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to list test cases' };
+      }
+    });
+
+    ipcMain.handle('browserstackTm:getTestCase', async (_, testCaseId: string): Promise<{
+      success: boolean;
+      testCase?: any;
+      error?: string;
+    }> => {
+      try {
+        const testCase = await this.browserstackTmService.getTestCase(testCaseId);
+        return { success: true, testCase };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get test case' };
+      }
+    });
+
+    ipcMain.handle('browserstackTm:linkTestCase', async (_, request: {
+      workspacePath: string;
+      testName: string;
+      testCaseId: string;
+      testCaseUrl: string;
+    }): Promise<{ success: boolean; error?: string }> => {
+      try {
+        await this.browserstackTmService.linkTestCaseToBundle(
+          request.workspacePath,
+          request.testName,
+          request.testCaseId,
+          request.testCaseUrl
+        );
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to link test case' };
+      }
+    });
+
+    // ============================================================================
+    // v2.0: BrowserStack Automate
+    // ============================================================================
+    ipcMain.handle('browserstackAutomate:getPlan', async (): Promise<{
+      success: boolean;
+      plan?: {
+        automatePlan: string;
+        parallelSessionsRunning: number;
+        teamParallelSessionsMaxAllowed: number;
+        parallelSessionsMaxAllowed: number;
+        queuedSessions: number;
+        queuedSessionsMaxAllowed: number;
+      };
+      error?: string;
+    }> => {
+      try {
+        const plan = await this.browserstackAutomateService.getPlan();
+        return { success: true, plan };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get plan details' };
+      }
+    });
+
+    ipcMain.handle('browserstackAutomate:getBrowsers', async (): Promise<{
+      success: boolean;
+      browsers?: Array<{
+        os: string;
+        osVersion: string;
+        browser: string;
+        device: string | null;
+        browserVersion: string | null;
+        realMobile: boolean | null;
+      }>;
+      error?: string;
+    }> => {
+      try {
+        const browsers = await this.browserstackAutomateService.getBrowsers();
+        return { success: true, browsers };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get browsers' };
+      }
+    });
+
+    ipcMain.handle('browserstackAutomate:getProjects', async (): Promise<{
+      success: boolean;
+      projects?: Array<{
+        id: number;
+        name: string;
+        groupId: number;
+        userId: number;
+        createdAt: string;
+        updatedAt: string;
+        subGroupId: number;
+      }>;
+      error?: string;
+    }> => {
+      try {
+        const projects = await this.browserstackAutomateService.getProjects();
+        return { success: true, projects };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get projects' };
+      }
+    });
+
+    ipcMain.handle('browserstackAutomate:getProject', async (_, projectId: number): Promise<{
+      success: boolean;
+      project?: any;
+      error?: string;
+    }> => {
+      try {
+        const project = await this.browserstackAutomateService.getProject(projectId);
+        return { success: true, project };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get project' };
+      }
+    });
+
+    ipcMain.handle('browserstackAutomate:getBuilds', async (_, request: {
+      limit?: number;
+      offset?: number;
+      status?: string;
+      projectId?: number;
+    }): Promise<{
+      success: boolean;
+      builds?: Array<{
+        name: string;
+        hashedId: string;
+        duration: number;
+        status: string;
+        buildTag: string | null;
+        publicUrl: string;
+      }>;
+      error?: string;
+    }> => {
+      try {
+        const builds = await this.browserstackAutomateService.getBuilds(request);
+        return { success: true, builds };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get builds' };
+      }
+    });
+
+    ipcMain.handle('browserstackAutomate:getBuildSessions', async (_, request: {
+      buildId: string;
+      limit?: number;
+      offset?: number;
+      status?: string;
+    }): Promise<{
+      success: boolean;
+      sessions?: Array<{
+        name: string;
+        duration: number;
+        os: string;
+        osVersion: string;
+        browserVersion: string | null;
+        browser: string | null;
+        device: string | null;
+        status: string;
+        hashedId: string;
+        reason: string;
+        buildName: string;
+        projectName: string;
+        testPriority: string | null;
+        logs: string;
+        browserUrl: string;
+        publicUrl: string;
+        appiumLogsUrl: string;
+        videoUrl: string;
+        browserConsoleLogsUrl: string;
+        harLogsUrl: string;
+        seleniumLogsUrl: string;
+        seleniumTelemetryLogsUrl?: string;
+      }>;
+      error?: string;
+    }> => {
+      try {
+        const sessions = await this.browserstackAutomateService.getBuildSessions(
+          request.buildId,
+          { limit: request.limit, offset: request.offset, status: request.status }
+        );
+        return { success: true, sessions };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get build sessions' };
+      }
+    });
+
+    ipcMain.handle('browserstackAutomate:getSession', async (_, sessionId: string): Promise<{
+      success: boolean;
+      session?: any;
+      error?: string;
+    }> => {
+      try {
+        const session = await this.browserstackAutomateService.getSession(sessionId);
+        return { success: true, session };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get session' };
+      }
+    });
+
+    ipcMain.handle('browserstackAutomate:setTestStatus', async (_, request: {
+      sessionId: string;
+      status: 'passed' | 'failed';
+      reason?: string;
+    }): Promise<{
+      success: boolean;
+      session?: any;
+      error?: string;
+    }> => {
+      try {
+        const session = await this.browserstackAutomateService.setTestStatus(
+          request.sessionId,
+          request.status,
+          request.reason
+        );
+        return { success: true, session };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to set test status' };
+      }
+    });
+
+    ipcMain.handle('browserstackAutomate:updateSessionName', async (_, request: {
+      sessionId: string;
+      name: string;
+    }): Promise<{
+      success: boolean;
+      session?: any;
+      error?: string;
+    }> => {
+      try {
+        const session = await this.browserstackAutomateService.updateSessionName(
+          request.sessionId,
+          request.name
+        );
+        return { success: true, session };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update session name' };
+      }
+    });
+
+    ipcMain.handle('browserstackTm:listTestRuns', async (_, request: {
+      testCaseId?: string;
+      page?: number;
+      pageSize?: number;
+    }): Promise<{
+      success: boolean;
+      testRuns?: Array<{
+        id: string;
+        identifier: string;
+        testCaseId: string;
+        status: 'passed' | 'failed' | 'skipped';
+        duration?: number;
+        error?: string;
+        createdAt: string;
+        sessionId?: string;
+        buildId?: string;
+        url: string;
+      }>;
+      total?: number;
+      page?: number;
+      pageSize?: number;
+      hasMore?: boolean;
+      error?: string;
+    }> => {
+      try {
+        const result = await this.browserstackTmService.listTestRuns(
+          request.testCaseId,
+          request.page || 1,
+          request.pageSize || 30
+        );
+        return { success: true, ...result };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to list test runs' };
       }
     });
 
@@ -1532,6 +2066,25 @@ export class IPCBridge {
       'browserstackTm:syncTestCaseForBundle',
       async (_event, args: { workspacePath: string; testName: string }) => {
         try {
+          // Check if BrowserStack TM is configured
+          try {
+            const config = this.configManager.getConfig();
+            const tmApiToken = (config as any).browserstackTmApiToken || '';
+            if (!tmApiToken) {
+              console.warn('[IPCBridge] BrowserStack TM API token not configured, skipping sync');
+              return {
+                success: false,
+                error: 'BrowserStack Test Management is not configured. Please set the API token in Settings.',
+              };
+            }
+          } catch (configError: any) {
+            console.warn('[IPCBridge] Failed to check BrowserStack TM configuration:', configError.message);
+            return {
+              success: false,
+              error: 'BrowserStack Test Management is not configured. Please configure it in Settings.',
+            };
+          }
+
           const { workspacePath, testName } = args;
           const fileName = testName
             .toLowerCase()
@@ -1577,9 +2130,11 @@ export class IPCBridge {
 
           return { success: true };
         } catch (error: any) {
+          // Log warning but don't crash - TM sync is optional
+          console.warn('[IPCBridge] BrowserStack TM sync failed (non-fatal):', error.message);
           return {
             success: false,
-            error: error.message || 'Failed to sync with BrowserStack TM',
+            error: error.message || 'Failed to sync with BrowserStack TM. Test generation will continue normally.',
           };
         }
       }
@@ -1592,16 +2147,142 @@ export class IPCBridge {
   private registerJiraDefectHandlers(): void {
     ipcMain.handle('jira:createDefectFromRun', async (_event, context: JiraDefectContext) => {
       try {
-        const summaryBase = `Failed automated test: ${context.testName}`;
-        const summary = context.workspaceId ? `${summaryBase} [${context.workspaceId}]` : summaryBase;
+        // Check if Jira is configured
+        try {
+          const jiraConfig = this.configManager.getJiraConfig();
+          if (!jiraConfig.email || !jiraConfig.apiToken) {
+            return {
+              success: false,
+              error: 'Jira integration is not configured. Please set Jira email and API token in Settings.',
+            };
+          }
+        } catch (configError: any) {
+          return {
+            success: false,
+            error: 'Jira integration is not configured. Please set Jira URL, project key, and credentials in Settings.',
+          };
+        }
 
-        const description =
-          context.firstFailureMessage ||
-          'Automated test failure. See artifacts and links below for more details.';
+        // Use provided summary or generate one
+        const summary = context.summary || (context.workspaceId
+          ? `Failed automated test: ${context.testName} [${context.workspaceId}]`
+          : `Failed automated test: ${context.testName}`);
+
+        // Load run metadata if runId is available
+        let runMeta: TestRunMeta | null = null;
+        let startedAt: string | undefined;
+        let finishedAt: string | undefined;
+        if (context.runId) {
+          try {
+            const runResult = await this.handleGetRun({
+              workspacePath: context.workspacePath,
+              runId: context.runId,
+            });
+            if (runResult.success && runResult.run) {
+              runMeta = runResult.run;
+              startedAt = runMeta.startedAt;
+              finishedAt = runMeta.finishedAt;
+            }
+          } catch (error: any) {
+            console.warn('[IPCBridge] Failed to load run metadata:', error.message);
+          }
+        }
+
+        // Load failure artifact to get screenshot paths and additional error details
+        const slug = context.testName
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
+        
+        let failureArtifactPath: string | undefined;
+        let screenshotPaths: string[] = [];
+        
+        // Try to find failure artifact
+        const possibleFailurePaths = [
+          path.join(context.workspacePath, 'tests', 'd365', 'specs', slug, `${slug}_failure.json`),
+          path.join(context.workspacePath, 'tests', 'd365', slug, `${slug}_failure.json`),
+          path.join(context.workspacePath, 'tests', `${slug}_failure.json`),
+        ];
+        
+        for (const failurePath of possibleFailurePaths) {
+          if (fs.existsSync(failurePath)) {
+            failureArtifactPath = failurePath;
+            try {
+              const failureContent = fs.readFileSync(failurePath, 'utf-8');
+              const failureData = JSON.parse(failureContent);
+              
+              // Extract screenshot paths from failure artifact
+              if (failureData.screenshot) {
+                const screenshotPath = path.isAbsolute(failureData.screenshot)
+                  ? failureData.screenshot
+                  : path.join(context.workspacePath, failureData.screenshot);
+                if (fs.existsSync(screenshotPath)) {
+                  screenshotPaths.push(screenshotPath);
+                }
+              }
+              
+              // If multiple screenshots exist in test-results, add them
+              const testResultsDir = path.join(context.workspacePath, 'test-results');
+              if (fs.existsSync(testResultsDir)) {
+                const findScreenshots = (dir: string): string[] => {
+                  const screenshots: string[] = [];
+                  if (!fs.existsSync(dir)) return screenshots;
+                  
+                  const entries = fs.readdirSync(dir, { withFileTypes: true });
+                  for (const entry of entries) {
+                    const fullPath = path.join(dir, entry.name);
+                    if (entry.isDirectory()) {
+                      screenshots.push(...findScreenshots(fullPath));
+                    } else if (entry.name.match(/\.(png|jpg|jpeg)$/i)) {
+                      screenshots.push(fullPath);
+                    }
+                  }
+                  return screenshots;
+                };
+                
+                const allScreenshots = findScreenshots(testResultsDir);
+                screenshotPaths.push(...allScreenshots.filter(p => !screenshotPaths.includes(p)));
+              }
+            } catch (error: any) {
+              console.warn('[IPCBridge] Failed to parse failure artifact:', error.message);
+            }
+            break;
+          }
+        }
+
+        // Build trace path (use first trace if available)
+        let tracePath: string | undefined = context.tracePath;
+        if (!tracePath && runMeta?.tracePaths && runMeta.tracePaths.length > 0) {
+          tracePath = path.isAbsolute(runMeta.tracePaths[0])
+            ? runMeta.tracePaths[0]
+            : path.join(context.workspacePath, runMeta.tracePaths[0]);
+        }
+
+        // Build report path
+        let reportPath: string | undefined = context.playwrightReportPath;
+        if (!reportPath && runMeta) {
+          if (runMeta.allureReportPath) {
+            reportPath = path.isAbsolute(runMeta.allureReportPath)
+              ? runMeta.allureReportPath
+              : path.join(context.workspacePath, runMeta.allureReportPath);
+          } else if (runMeta.reportPath) {
+            reportPath = path.isAbsolute(runMeta.reportPath)
+              ? runMeta.reportPath
+              : path.join(context.workspacePath, runMeta.reportPath);
+          }
+        }
+
+        // Determine environment info
+        const environment = {
+          executionProfile: runMeta?.source === 'browserstack' ? 'browserstack' as const : 'local' as const,
+          browser: runMeta?.browserstack ? 'Chrome' : undefined, // Could be enhanced with actual browser info
+          os: runMeta?.browserstack ? 'Windows' : undefined, // Could be enhanced with actual OS info
+        };
 
         const result = await this.jiraService.createDefect({
           summary,
-          description,
+          description: context.firstFailureMessage || undefined,
+          issueType: context.issueType || 'Bug',
           testMeta: {
             workspacePath: context.workspacePath,
             workspaceId: context.workspaceId,
@@ -1615,10 +2296,16 @@ export class IPCBridge {
             browserStackTmRunUrl: context.browserStackTmRunUrl,
           },
           attachments: {
-            screenshotPath: context.screenshotPath,
-            tracePath: context.tracePath,
-            playwrightReportPath: context.playwrightReportPath,
+            screenshotPath: context.screenshotPath || (screenshotPaths.length > 0 ? screenshotPaths[0] : undefined),
+            screenshotPaths: screenshotPaths.length > 1 ? screenshotPaths : undefined,
+            tracePath: tracePath,
+            playwrightReportPath: reportPath,
+            videoPath: undefined, // Videos are currently disabled, but structure supports it
           },
+          runId: context.runId,
+          startedAt: startedAt,
+          finishedAt: finishedAt,
+          environment: environment,
         });
 
         return {
@@ -1627,9 +2314,17 @@ export class IPCBridge {
           issueUrl: result.issueUrl,
         };
       } catch (error: any) {
+        // Return user-friendly error messages
+        const errorMessage = error.message || 'Failed to create Jira defect';
+        if (errorMessage.includes('not configured') || errorMessage.includes('email') || errorMessage.includes('API token')) {
+          return {
+            success: false,
+            error: 'Jira integration is not configured. Please set Jira URL, project key, and credentials in Settings.',
+          };
+        }
         return {
           success: false,
-          error: error.message || 'Failed to create Jira defect',
+          error: errorMessage,
         };
       }
     });
@@ -1917,6 +2612,71 @@ export class IPCBridge {
       this.configManager.setStorageStatePath(storageStatePath);
 
       return { success: true };
+    } catch (error: any) {
+      // Ensure browser is closed on error
+      if (this.browserManager.isOpen()) {
+        await this.browserManager.close().catch(() => {});
+      }
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Handle web login flow (for FH web and other web applications)
+   */
+  private async handleWebLogin(credentials: {
+    webUrl: string;
+    username: string;
+    password: string;
+    workspacePath: string;
+    loginSelectors?: {
+      usernameSelector?: string;
+      passwordSelector?: string;
+      submitSelector?: string;
+      loginButtonSelector?: string;
+      waitForSelector?: string;
+    };
+  }): Promise<{ success: boolean; error?: string; storageStatePath?: string }> {
+    try {
+      if (!credentials.webUrl) {
+        return { success: false, error: 'Web URL is required' };
+      }
+
+      // Create workspace-specific storage state path
+      const storageStateDir = path.join(credentials.workspacePath, 'storage_state');
+      if (!fs.existsSync(storageStateDir)) {
+        fs.mkdirSync(storageStateDir, { recursive: true });
+      }
+      const storageStatePath = path.join(storageStateDir, 'web.json');
+
+      // Close browser if already open (to start fresh)
+      if (this.browserManager.isOpen()) {
+        await this.browserManager.close();
+      }
+
+      // Launch browser
+      await this.browserManager.launch({ headless: false });
+
+      // Perform web login
+      await this.browserManager.performWebLogin(
+        credentials.webUrl,
+        credentials.username,
+        credentials.password,
+        storageStatePath,
+        (message) => {
+          // Emit progress events to renderer
+          if (this.mainWindow) {
+            this.mainWindow.webContents.send('web-login:progress', message);
+          }
+          console.log('Web login progress:', message);
+        },
+        credentials.loginSelectors
+      );
+
+      // Close browser after login
+      await this.browserManager.close();
+
+      return { success: true, storageStatePath };
     } catch (error: any) {
       // Ensure browser is closed on error
       if (this.browserManager.isOpen()) {

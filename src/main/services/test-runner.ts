@@ -24,6 +24,7 @@ interface RunResultForTM {
   durationMs: number;
   assertionSummary: AssertionSummary;
   bsSessionId?: string;
+  bsBuildId?: string;
   bsSessionUrl?: string;
   screenshotPath?: string;
   tracePath?: string;
@@ -150,15 +151,28 @@ export class TestRunner {
       const testName = path.basename(workspaceSpecPath, '.spec.ts');
       const specRelPath = path.relative(request.workspacePath, workspaceSpecPath).replace(/\\/g, '/');
 
+      // Determine workspace type by checking workspace.json (needed for storage state and config)
+      let workspaceType: string | undefined;
+      try {
+        const workspaceJsonPath = path.join(request.workspacePath, 'workspace.json');
+        if (fs.existsSync(workspaceJsonPath)) {
+          const workspaceMeta = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
+          workspaceType = workspaceMeta.type;
+        }
+      } catch (e) {
+        // If we can't read workspace.json, assume D365
+        console.warn('[TestRunner] Could not determine workspace type, defaulting to D365');
+      }
+
       // Ensure workspace has playwright.config.ts (skip browser install for BrowserStack)
-      await this.ensureWorkspaceConfig(request.workspacePath, runId, request.runMode === 'browserstack');
+      await this.ensureWorkspaceConfig(request.workspacePath, runId, request.runMode === 'browserstack', workspaceType);
 
       // Prepare run directories
       const tracesDir = path.join(request.workspacePath, 'traces', runId);
       fs.mkdirSync(tracesDir, { recursive: true });
 
       // Copy storage state to workspace if needed
-      await this.ensureStorageState(request.workspacePath);
+      await this.ensureStorageState(request.workspacePath, workspaceType);
 
       // Create initial run metadata
       const runMeta: TestRunMeta = {
@@ -202,7 +216,7 @@ export class TestRunner {
           BROWSERSTACK_ACCESS_KEY: browserstackSettings.accessKey,
           BROWSERSTACK_LOCAL: 'true', // Enable Local Testing for storage state access
           D365_URL: process.env.D365_URL || 'https://fourhands-test.sandbox.operations.dynamics.com/',
-          STORAGE_STATE_PATH: path.join(request.workspacePath, 'storage_state', 'd365.json'),
+          STORAGE_STATE_PATH: path.join(request.workspacePath, 'storage_state', workspaceType === 'web-demo' ? 'web.json' : 'd365.json'),
         };
         
         // Use BrowserStack config - BrowserStack wrapper requires npx directly
@@ -519,7 +533,7 @@ export class TestRunner {
   /**
    * Ensure workspace has playwright.config.ts and Playwright installed
    */
-  private async ensureWorkspaceConfig(workspacePath: string, runId: string, skipBrowserInstall: boolean = false): Promise<void> {
+  private async ensureWorkspaceConfig(workspacePath: string, runId: string, skipBrowserInstall: boolean = false, workspaceType?: string): Promise<void> {
     // Ensure package.json exists in workspace
     const packageJsonPath = path.join(workspacePath, 'package.json');
     let needsInstall = false;
@@ -642,7 +656,7 @@ export class TestRunner {
     
     // Always regenerate config to ensure it uses Allure reporter
     // Generate workspace-specific playwright config
-    const configContent = this.generateWorkspaceConfig(workspacePath, runId);
+    const configContent = this.generateWorkspaceConfig(workspacePath, runId, workspaceType);
     fs.writeFileSync(configPath, configContent, 'utf-8');
     console.log('[TestRunner] Created/updated playwright.config.ts in workspace');
   }
@@ -829,7 +843,7 @@ export default defineConfig({
     trace: 'on',
     screenshot: 'on',
     video: 'off',
-    storageState: process.env.STORAGE_STATE_PATH || 'storage_state/d365.json',
+    storageState: process.env.STORAGE_STATE_PATH || 'storage_state/d365.json', // Will be overridden by STORAGE_STATE_PATH env var
     viewport: { width: 1920, height: 1080 },
     // BrowserStack connection via CDP
     connectOptions: {
@@ -890,9 +904,11 @@ function getBrowserStackEndpoint(): string {
    * Generate workspace-specific Playwright config
    * v1.5: Uses Allure reporter instead of HTML
    */
-  private generateWorkspaceConfig(workspacePath: string, runId: string): string {
+  private generateWorkspaceConfig(workspacePath: string, runId: string, workspaceType?: string): string {
     // Copy ErrorGrabber reporter to workspace runtime directory
     this.copyReporterToWorkspace(workspacePath);
+    
+    const storageStatePath = workspaceType === 'web-demo' ? 'storage_state/web.json' : 'storage_state/d365.json';
     
     return `import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
@@ -922,7 +938,7 @@ export default defineConfig({
     trace: 'on',              // Always trace for QA Studio runs
     screenshot: 'on',          // Capture screenshots
     video: 'off',             // Disable video to save space
-    storageState: 'storage_state/d365.json',
+    storageState: '${storageStatePath}',
     headless: false,
   },
 
@@ -939,28 +955,36 @@ export default defineConfig({
   /**
    * Ensure storage state exists in workspace
    */
-  private async ensureStorageState(workspacePath: string): Promise<void> {
-    const workspaceStorageState = path.join(workspacePath, 'storage_state', 'd365.json');
+  private async ensureStorageState(workspacePath: string, workspaceType?: string): Promise<void> {
+    // For web-demo workspaces, use web.json instead of d365.json
+    const storageStateFileName = workspaceType === 'web-demo' ? 'web.json' : 'd365.json';
+    const workspaceStorageState = path.join(workspacePath, 'storage_state', storageStateFileName);
     
     if (fs.existsSync(workspaceStorageState)) {
       return; // Already exists
     }
 
-    // Try default QA Studio location
-    const defaultStorageState = path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-      'QA-Studio',
-      'storage_state',
-      'd365.json'
-    );
+    // For D365 workspaces, copy from default location
+    if (workspaceType !== 'web-demo') {
+      // Try default QA Studio location
+      const defaultStorageState = path.join(
+        process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
+        'QA-Studio',
+        'storage_state',
+        'd365.json'
+      );
 
-    if (fs.existsSync(defaultStorageState)) {
-      const workspaceStorageStateDir = path.join(workspacePath, 'storage_state');
-      fs.mkdirSync(workspaceStorageStateDir, { recursive: true });
-      fs.copyFileSync(defaultStorageState, workspaceStorageState);
-      console.log('[TestRunner] Copied storage state to workspace');
+      if (fs.existsSync(defaultStorageState)) {
+        const workspaceStorageStateDir = path.join(workspacePath, 'storage_state');
+        fs.mkdirSync(workspaceStorageStateDir, { recursive: true });
+        fs.copyFileSync(defaultStorageState, workspaceStorageState);
+        console.log('[TestRunner] Copied storage state to workspace');
+      } else {
+        console.warn('[TestRunner] Storage state not found. Tests may fail without authentication.');
+      }
     } else {
-      console.warn('[TestRunner] Storage state not found. Tests may fail without authentication.');
+      // For web-demo, storage state is optional (user can login via UI)
+      console.log('[TestRunner] Web storage state not found. User can login via Record screen to save authentication.');
     }
   }
 

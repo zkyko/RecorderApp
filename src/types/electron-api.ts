@@ -20,6 +20,21 @@ export interface ElectronAPI {
   // Authentication (legacy)
   checkAuth: () => Promise<{ needsLogin: boolean; hasStorageState: boolean }>;
   login: (credentials: { username: string; password: string; d365Url?: string }) => Promise<{ success: boolean; error?: string }>;
+  webLogin: (credentials: {
+    webUrl: string;
+    username: string;
+    password: string;
+    workspacePath: string;
+    loginSelectors?: {
+      usernameSelector?: string;
+      passwordSelector?: string;
+      submitSelector?: string;
+      loginButtonSelector?: string;
+      waitForSelector?: string;
+    };
+  }) => Promise<{ success: boolean; error?: string; storageStatePath?: string }>;
+  onWebLoginProgress: (callback: (message: string) => void) => void;
+  removeWebLoginProgressListener: () => void;
   
   // Session management
   startSession: (config: {
@@ -79,17 +94,19 @@ export interface ElectronAPI {
   getBrowserStackCredentials: () => Promise<{ username: string | undefined; accessKey: string | undefined }>;
   setBrowserStackCredentials: (username: string, accessKey: string) => Promise<{ success: boolean }>;
 
-  // Storage state checker
-  checkStorageState: () => Promise<{
+  // Storage state checker (workspace-aware)
+  checkStorageState: (workspaceType?: string, workspacePath?: string) => Promise<{
     status: 'valid' | 'missing' | 'invalid' | 'expired' | 'error';
     message: string;
     nextSteps: string[];
     storageStatePath: string;
+    workspaceType?: string;
     details?: {
       exists: boolean;
       hasCookies: boolean;
       cookieCount: number;
-      canAccessD365: boolean;
+      canAccessD365?: boolean;
+      canAccessWeb?: boolean;
     };
   }>;
 
@@ -262,6 +279,50 @@ export interface ElectronAPI {
     customFields?: Record<string, any>;
     labels?: string[];
   }) => Promise<{ success: boolean; issueKey?: string; issueUrl?: string; error?: string }>;
+  jiraCreateDefectFromRun: (context: {
+    workspacePath: string;
+    workspaceId?: string;
+    testName: string;
+    module?: string;
+    status: 'failed';
+    summary?: string;
+    issueType?: string;
+    firstFailureMessage?: string;
+    browserStackSessionUrl?: string;
+    browserStackTmTestCaseUrl?: string;
+    browserStackTmRunUrl?: string;
+    screenshotPath?: string;
+    tracePath?: string;
+    playwrightReportPath?: string;
+  }) => Promise<{ success: boolean; issueKey?: string; issueUrl?: string; error?: string }>;
+  jiraSearchIssues: (request: {
+    jql?: string;
+    maxResults?: number;
+    startAt?: number;
+  }) => Promise<{
+    success: boolean;
+    issues?: Array<{
+      key: string;
+      summary: string;
+      status: string;
+      issueType: string;
+      assignee?: string;
+      created: string;
+      updated: string;
+      url: string;
+    }>;
+    total?: number;
+    startAt?: number;
+    maxResults?: number;
+    error?: string;
+  }>;
+  jiraGetIssue: (issueKey: string) => Promise<{ success: boolean; issue?: any; error?: string }>;
+  jiraGetComments: (issueKey: string) => Promise<{ success: boolean; comments?: Array<{ id: string; author: string; body: string; created: string; updated: string }>; error?: string }>;
+  jiraAddComment: (request: { issueKey: string; comment: string }) => Promise<{ success: boolean; commentId?: string; error?: string }>;
+  jiraGetTransitions: (issueKey: string) => Promise<{ success: boolean; transitions?: Array<{ id: string; name: string; to: { id: string; name: string } }>; error?: string }>;
+  jiraTransitionIssue: (request: { issueKey: string; transitionId: string; comment?: string }) => Promise<{ success: boolean; error?: string }>;
+  jiraUpdateIssue: (request: { issueKey: string; updates: { summary?: string; description?: string; assignee?: string; priority?: string; labels?: string[]; customFields?: Record<string, any> } }) => Promise<{ success: boolean; error?: string }>;
+  jiraGetProject: (projectKey?: string) => Promise<{ success: boolean; project?: any; error?: string }>;
 
   // ============================================================================
   // v2.0: BrowserStack Test Management
@@ -276,5 +337,137 @@ export interface ElectronAPI {
     buildId?: string;
     dashboardUrl?: string;
   }) => Promise<{ success: boolean; testRunId?: string; error?: string }>;
+  browserstackTmSyncTestCaseForBundle: (request: { workspacePath: string; testName: string }) => Promise<{ success: boolean; error?: string }>;
+  browserstackTmTestConnection: () => Promise<{ success: boolean; projectName?: string; error?: string }>;
+  browserstackTmListTestCases: (request: { page?: number; pageSize?: number }) => Promise<{
+    success: boolean;
+    testCases?: Array<{
+      id: string;
+      identifier: string;
+      name: string;
+      description?: string;
+      status?: string;
+      priority?: string;
+      caseType?: string;
+      owner?: string;
+      tags?: string[];
+      automationStatus?: string;
+      createdAt: string;
+      updatedAt: string;
+      url: string;
+    }>;
+    total?: number;
+    page?: number;
+    pageSize?: number;
+    hasMore?: boolean;
+    error?: string;
+  }>;
+  browserstackTmGetTestCase: (testCaseId: string) => Promise<{ success: boolean; testCase?: any; error?: string }>;
+  browserstackTmListTestRuns: (request: { testCaseId?: string; page?: number; pageSize?: number }) => Promise<{
+    success: boolean;
+    testRuns?: Array<{
+      id: string;
+      identifier: string;
+      testCaseId: string;
+      status: 'passed' | 'failed' | 'skipped';
+      duration?: number;
+      error?: string;
+      createdAt: string;
+      sessionId?: string;
+      buildId?: string;
+      url: string;
+    }>;
+    total?: number;
+    page?: number;
+    pageSize?: number;
+    hasMore?: boolean;
+    error?: string;
+  }>;
+  browserstackTmLinkTestCase: (request: { workspacePath: string; testName: string; testCaseId: string; testCaseUrl: string }) => Promise<{ success: boolean; error?: string }>;
+
+  // ============================================================================
+  // v2.0: BrowserStack Automate
+  // ============================================================================
+  browserstackAutomateGetPlan: () => Promise<{
+    success: boolean;
+    plan?: {
+      automatePlan: string;
+      parallelSessionsRunning: number;
+      teamParallelSessionsMaxAllowed: number;
+      parallelSessionsMaxAllowed: number;
+      queuedSessions: number;
+      queuedSessionsMaxAllowed: number;
+    };
+    error?: string;
+  }>;
+  browserstackAutomateGetBrowsers: () => Promise<{
+    success: boolean;
+    browsers?: Array<{
+      os: string;
+      osVersion: string;
+      browser: string;
+      device: string | null;
+      browserVersion: string | null;
+      realMobile: boolean | null;
+    }>;
+    error?: string;
+  }>;
+  browserstackAutomateGetProjects: () => Promise<{
+    success: boolean;
+    projects?: Array<{
+      id: number;
+      name: string;
+      groupId: number;
+      userId: number;
+      createdAt: string;
+      updatedAt: string;
+      subGroupId: number;
+    }>;
+    error?: string;
+  }>;
+  browserstackAutomateGetProject: (projectId: number) => Promise<{ success: boolean; project?: any; error?: string }>;
+  browserstackAutomateGetBuilds: (request: { limit?: number; offset?: number; status?: string; projectId?: number }) => Promise<{
+    success: boolean;
+    builds?: Array<{
+      name: string;
+      hashedId: string;
+      duration: number;
+      status: string;
+      buildTag: string | null;
+      publicUrl: string;
+    }>;
+    error?: string;
+  }>;
+  browserstackAutomateGetBuildSessions: (request: { buildId: string; limit?: number; offset?: number; status?: string }) => Promise<{
+    success: boolean;
+    sessions?: Array<{
+      name: string;
+      duration: number;
+      os: string;
+      osVersion: string;
+      browserVersion: string | null;
+      browser: string | null;
+      device: string | null;
+      status: string;
+      hashedId: string;
+      reason: string;
+      buildName: string;
+      projectName: string;
+      testPriority: string | null;
+      logs: string;
+      browserUrl: string;
+      publicUrl: string;
+      appiumLogsUrl: string;
+      videoUrl: string;
+      browserConsoleLogsUrl: string;
+      harLogsUrl: string;
+      seleniumLogsUrl: string;
+      seleniumTelemetryLogsUrl?: string;
+    }>;
+    error?: string;
+  }>;
+  browserstackAutomateGetSession: (sessionId: string) => Promise<{ success: boolean; session?: any; error?: string }>;
+  browserstackAutomateSetTestStatus: (request: { sessionId: string; status: 'passed' | 'failed'; reason?: string }) => Promise<{ success: boolean; session?: any; error?: string }>;
+  browserstackAutomateUpdateSessionName: (request: { sessionId: string; name: string }) => Promise<{ success: boolean; session?: any; error?: string }>;
 }
 

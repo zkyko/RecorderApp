@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Text, Button, Group, Alert, Badge, ScrollArea, Code, Grid, Stack, List, Select } from '@mantine/core';
-import { CircleDot, Square, Play, Info, Clock, CheckCircle2, AlertTriangle, XCircle, Sparkles } from 'lucide-react';
+import { CircleDot, Square, Play, Info, Clock, CheckCircle2, AlertTriangle, XCircle, Sparkles, LogIn } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { CodegenCodeUpdate, RecorderCodeUpdate, RecordingEngine } from '../../../types/v1.5';
 import VisualTestBuilder from './VisualTestBuilder';
-import { notifications } from '@mantine/notifications';
 import './RecordScreen.css';
+import WebLoginDialog from './WebLoginDialog';
 
 const RecordScreen: React.FC = () => {
   const navigate = useNavigate();
@@ -27,6 +27,7 @@ const RecordScreen: React.FC = () => {
   } | null>(null);
   const [recordingEngine, setRecordingEngine] = useState<RecordingEngine>('qaStudio');
   const [visualBuilderOpen, setVisualBuilderOpen] = useState(false);
+  const [showWebLogin, setShowWebLogin] = useState(false);
 
   // Load recording engine setting on mount
   useEffect(() => {
@@ -140,8 +141,10 @@ const RecordScreen: React.FC = () => {
         // FH Web workspace: use workspace-specific baseUrl
         const settings = (currentWorkspace.settings || {}) as { baseUrl?: string };
         envUrlToUse = settings.baseUrl || 'https://fh-test-fourhandscom.azurewebsites.net/';
-        // Web workspaces typically don't require D365 storage state
-        storageStatePath = undefined;
+        // Use web storage state if it exists (saved from web login)
+        // Path: <workspace>/storage_state/web.json
+        const webStorageStatePath = `${workspacePath}/storage_state/web.json`;
+        storageStatePath = webStorageStatePath;
       } else {
         // D365 / other workspaces: fall back to global D365 URL + storage state
         if (!config?.d365Url) {
@@ -364,6 +367,21 @@ const RecordScreen: React.FC = () => {
                 ? 'Launch a browser, capture your FH web journey, then move into cleanup and parameterization.'
                 : 'Launch a browser, capture your D365 flow, then move into cleanup and parameterization.'}
             </Text>
+            {currentWorkspace?.type === 'web-demo' && (
+              <Group gap="xs" mb="sm">
+                <Text size="xs" c="dimmed">
+                  Save your login to avoid repeated authentication:
+                </Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<LogIn size={14} />}
+                  onClick={() => setShowWebLogin(true)}
+                >
+                  Login to FH Web
+                </Button>
+              </Group>
+            )}
             <Group gap="md">
               {envUrl && (
                 <Text size="sm" c="dimmed">
@@ -578,6 +596,19 @@ const RecordScreen: React.FC = () => {
           workspacePath={workspacePath}
           // No testName means we're on Record screen - will navigate to step editor
           // No onStepsGenerated means it will navigate instead of calling callback
+        />
+      )}
+
+      {/* Web Login Dialog for FH Web workspaces */}
+      {currentWorkspace?.type === 'web-demo' && (
+        <WebLoginDialog
+          opened={showWebLogin}
+          onClose={() => setShowWebLogin(false)}
+          onLoginSuccess={() => {
+            // Storage state saved, user can now record without logging in again
+            setError(null);
+          }}
+          webUrl={((currentWorkspace.settings || {}) as { baseUrl?: string }).baseUrl}
         />
       )}
     </div>

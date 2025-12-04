@@ -54,7 +54,7 @@ import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { RecordingEngine, WorkspaceMeta } from '../../../types/v1.5';
 import LoginDialog from './LoginDialog';
-import { BrowserStackTM } from './BrowserStackTM';
+import WebLoginDialog from './WebLoginDialog';
 import { Bug } from 'lucide-react';
 // Using simple alerts for now - can be replaced with Mantine notifications if provider is set up
 import './SettingsScreen.css';
@@ -64,11 +64,13 @@ type StorageStateStatus = {
   message: string;
   nextSteps: string[];
   storageStatePath: string;
+  workspaceType?: string;
   details?: {
     exists: boolean;
     hasCookies: boolean;
     cookieCount: number;
-    canAccessD365: boolean;
+    canAccessD365?: boolean;
+    canAccessWeb?: boolean;
   };
 };
 
@@ -686,7 +688,9 @@ const SettingsScreen: React.FC = () => {
 
     setStorageStatusLoading(true);
     try {
-      const status = await electronAPI.checkStorageState();
+      // Pass workspace type and path to check the appropriate storage state
+      const workspaceType = currentWorkspace?.type;
+      const status = await electronAPI.checkStorageState(workspaceType, workspacePath);
       setStorageStateStatus(status);
     } catch (error) {
       console.error('Failed to check storage state:', error);
@@ -903,7 +907,11 @@ const SettingsScreen: React.FC = () => {
               {storageStateStatus?.details && (
                 <Group gap="xl" mt="sm">
                   <Text size="sm">Cookies: {storageStateStatus.details.cookieCount}</Text>
-                  <Text size="sm">Can access D365: {storageStateStatus.details.canAccessD365 ? 'Yes' : 'No'}</Text>
+                  {currentWorkspace?.type === 'web-demo' ? (
+                    <Text size="sm">Can access Web: {storageStateStatus.details.canAccessWeb ? 'Yes' : 'No'}</Text>
+                  ) : (
+                    <Text size="sm">Can access D365: {storageStateStatus.details.canAccessD365 ? 'Yes' : 'No'}</Text>
+                  )}
                 </Group>
               )}
 
@@ -939,7 +947,7 @@ const SettingsScreen: React.FC = () => {
                   variant="outline"
                   onClick={() => setShowAuthDialog(true)}
                 >
-                  Re-authenticate
+                  {currentWorkspace?.type === 'web-demo' ? 'Login to FH Web' : 'Re-authenticate'}
                 </Button>
               </Group>
             </Card>
@@ -1870,7 +1878,19 @@ const SettingsScreen: React.FC = () => {
         </Stack>
       </Modal>
 
-      {showAuthDialog && (
+      {showAuthDialog && currentWorkspace?.type === 'web-demo' ? (
+        <WebLoginDialog
+          opened={showAuthDialog}
+          onClose={() => setShowAuthDialog(false)}
+          onLoginSuccess={() => {
+            setShowAuthDialog(false);
+            refreshStorageStateStatus();
+            // Trigger storage state check in App.tsx to dismiss notification
+            window.dispatchEvent(new CustomEvent('storage-state-updated'));
+          }}
+          webUrl={(currentWorkspace?.settings as { baseUrl?: string })?.baseUrl}
+        />
+      ) : showAuthDialog ? (
         <LoginDialog
           forceShow={true}
           onLoginSuccess={() => {
@@ -1881,7 +1901,7 @@ const SettingsScreen: React.FC = () => {
           }}
           onSkip={() => setShowAuthDialog(false)}
         />
-      )}
+      ) : null}
     </div>
   );
 };

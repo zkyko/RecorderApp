@@ -45,6 +45,7 @@ import TestDetailsLocatorsTab from './TestDetailsLocatorsTab';
 import DebugChatPanel from './DebugChatPanel';
 import JiraCreateDefectModal from './JiraCreateDefectModal';
 import EnhancedStepsTab from './EnhancedStepsTab';
+import BrowserStackTMLinkModal from './BrowserStackTMLinkModal';
 import './TestDetailsScreen.css';
 
 const TestDetailsScreen: React.FC = () => {
@@ -63,6 +64,7 @@ const TestDetailsScreen: React.FC = () => {
   const [chatDrawerOpened, setChatDrawerOpened] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [jiraModalOpened, setJiraModalOpened] = useState(false);
+  const [browserstackTmModalOpened, setBrowserstackTmModalOpened] = useState(false);
   const [selectedRun, setSelectedRun] = useState<TestRunMeta | null>(null);
 
   const analytics = React.useMemo(() => {
@@ -381,7 +383,16 @@ const TestDetailsScreen: React.FC = () => {
           <Text fw={600} mb="sm">Test Links / Status</Text>
           <Stack gap="sm">
             <div>
-              <Text size="sm" fw={500} mb={4}>BrowserStack Test Management</Text>
+              <Group justify="space-between" mb={4}>
+                <Text size="sm" fw={500}>BrowserStack Test Management</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  onClick={() => setBrowserstackTmModalOpened(true)}
+                >
+                  {testMeta.browserstack?.tmTestCaseId ? 'Change Link' : 'Link Test Case'}
+                </Button>
+              </Group>
               {testMeta.browserstack?.tmTestCaseId && testMeta.browserstack.tmTestCaseUrl ? (
                 <Group gap="xs">
                   <Text size="sm">
@@ -680,6 +691,30 @@ const TestDetailsScreen: React.FC = () => {
         run={selectedRun}
         testName={testName || ''}
       />
+
+      {testName && workspacePath && (
+        <BrowserStackTMLinkModal
+          opened={browserstackTmModalOpened}
+          onClose={() => setBrowserstackTmModalOpened(false)}
+          onLink={async (testCaseId, testCaseUrl) => {
+            const result = await ipc.browserstackTm.linkTestCase({
+              workspacePath,
+              testName,
+              testCaseId,
+              testCaseUrl,
+            });
+            if (result.success) {
+              // Reload test data to show updated link
+              await loadTestData();
+            } else {
+              throw new Error(result.error || 'Failed to link test case');
+            }
+          }}
+          currentTestCaseId={testMeta?.browserstack?.tmTestCaseId}
+          workspacePath={workspacePath}
+          testName={testName}
+        />
+      )}
     </div>
   );
 };

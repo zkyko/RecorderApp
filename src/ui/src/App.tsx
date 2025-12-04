@@ -22,7 +22,14 @@ import SetupScreen from './components/SetupScreen';
 import LoginDialog from './components/LoginDialog';
 import MarketplaceScreen from './components/MarketplaceScreen';
 import BrowserStackTMScreen from './components/BrowserStackTMScreen';
+import BrowserStackTMTestCaseDetails from './components/BrowserStackTMTestCaseDetails';
+import BrowserStackAutomateScreen from './components/BrowserStackAutomateScreen';
+import BrowserStackAutomateProjectDetails from './components/BrowserStackAutomateProjectDetails';
+import BrowserStackAutomateBuildDetails from './components/BrowserStackAutomateBuildDetails';
+import BrowserStackAutomateSessionDetails from './components/BrowserStackAutomateSessionDetails';
 import JiraScreen from './components/JiraScreen';
+import JiraIssuesList from './components/JiraIssuesList';
+import JiraIssueDetails from './components/JiraIssueDetails';
 import DiagnosticsScreen from './components/DiagnosticsScreen';
 import { useWorkspaceStore } from './store/workspace-store';
 import { ipc } from './ipc';
@@ -152,13 +159,16 @@ function AppContent() {
     if (!backend) return;
 
     try {
-      const status = await backend.checkStorageState();
+      // Pass workspace type and path to check the appropriate storage state
+      const workspaceType = currentWorkspace?.type;
+      const status = await backend.checkStorageState(workspaceType, workspacePath);
       if (status.status === 'expired' && !expiredNotificationShown.current) {
         expiredNotificationShown.current = true;
+        const authType = workspaceType === 'web-demo' ? 'Web' : 'Dynamics 365';
         notifications.show({
           id: 'storage-state-expired',
           title: 'Authentication Expired',
-          message: 'Your Dynamics 365 authentication has expired. Please re-authenticate in Settings.',
+          message: `Your ${authType} authentication has expired. Please re-authenticate in Settings.`,
           color: 'orange',
           icon: <AlertTriangle size={16} />,
           autoClose: false,
@@ -175,7 +185,7 @@ function AppContent() {
     } catch (error) {
       console.error('Error checking storage state status:', error);
     }
-  }, []);
+  }, [currentWorkspace, workspacePath]);
 
   const checkAuthentication = useCallback(async () => {
     addDebugLog('checkAuthentication called');
@@ -480,7 +490,14 @@ function AppContent() {
           <Route path="/report/:runId" element={<ReportViewerScreen />} />
           <Route path="/report" element={<ReportDashboard />} />
           <Route path="/browserstack-tm" element={<BrowserStackTMScreen />} />
+          <Route path="/browserstack-tm/test-cases/:testCaseId" element={<BrowserStackTMTestCaseDetails />} />
+          <Route path="/browserstack-automate" element={<BrowserStackAutomateScreen />} />
+          <Route path="/browserstack-automate/projects/:projectId" element={<BrowserStackAutomateProjectDetails />} />
+          <Route path="/browserstack-automate/builds/:buildId" element={<BrowserStackAutomateBuildDetails />} />
+          <Route path="/browserstack-automate/sessions/:sessionId" element={<BrowserStackAutomateSessionDetails />} />
           <Route path="/jira" element={<JiraScreen />} />
+          <Route path="/jira/issues" element={<JiraIssuesList />} />
+          <Route path="/jira/issues/:issueKey" element={<JiraIssueDetails />} />
           <Route path="/marketplace" element={<MarketplaceScreen />} />
           <Route path="/diagnostics" element={<DiagnosticsScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />

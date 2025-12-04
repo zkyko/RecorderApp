@@ -113,6 +113,7 @@ const Sidebar: React.FC = () => {
     { path: '/runs', label: 'Runs', icon: History, section: 'Tools' },
     { path: '/report', label: 'Report', icon: BarChart3, section: 'Tools' },
     { path: '/browserstack-tm', label: 'BrowserStack TM', icon: Cloud, section: 'Tools' },
+    { path: '/browserstack-automate', label: 'BrowserStack Automate', icon: Cloud, section: 'Tools' },
     { path: '/jira', label: 'Jira', icon: Bug, section: 'Tools' },
     { path: '/locators', label: 'Locator Library', icon: Crosshair, section: 'Tools' },
     { path: '/diagnostics', label: 'Diagnostics', icon: Activity, section: 'Tools' },

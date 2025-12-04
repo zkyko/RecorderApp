@@ -16,6 +16,26 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: "2.0.1",
+    date: "December 4, 2025",
+    type: "improvement",
+    title: "Enhanced Jira Integration & Workspace-Aware Authentication",
+    description: "Major improvements to Jira defect creation with automatic artifact inclusion and workspace-aware authentication system that adapts to D365 and Web Demo workspaces.",
+    items: [
+      "Enhanced Jira Defect Creation - Automatically includes all test artifacts: screenshots, trace files, videos, error messages, stack traces, assertion failures, and environment details",
+      "Comprehensive Test Information - Jira defects now include execution environment (browser, OS, execution profile), test duration, retry count, failed locator details, and error location",
+      "Multiple Screenshot Support - Upload all screenshots from test runs automatically to Jira issues",
+      "Automatic Failure Artifact Loading - System automatically loads and includes failure artifacts (_failure.json) with error details, stack traces, and assertion information",
+      "Workspace-Aware Authentication - Authentication & Storage State UI now switches between D365 and Web Demo based on current workspace",
+      "Web Login Dialog - New dedicated login dialog for Web Demo workspaces with workspace-specific storage state (web.json)",
+      "D365 Login Dialog - Existing D365 login dialog for D365 workspaces with D365 storage state (d365.json)",
+      "Smart Storage State Detection - System automatically detects and validates the appropriate storage state file based on workspace type",
+      "Enhanced Storage State Testing - Generic storage state validation that works for both D365 and web applications",
+      "Workspace-Specific Storage Paths - Each workspace type uses its own storage state file (d365.json for D365, web.json for web-demo)",
+      "Improved Error Context in Jira - Full error context including assertion failures, failed locators, and execution environment automatically included in defect descriptions"
+    ]
+  },
+  {
     version: "2.0.0",
     date: "December 2025",
     type: "feature",

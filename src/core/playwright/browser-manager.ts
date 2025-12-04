@@ -31,8 +31,11 @@ export class BrowserManager {
 
   /**
    * Test if storage state is valid and working by attempting to use it
+   * @param storageStatePath Path to storage state file
+   * @param testUrl URL to test access (D365 URL for D365 workspaces, web URL for web-demo workspaces)
+   * @param isD365 Whether this is a D365 workspace (affects login page detection)
    */
-  async testStorageState(storageStatePath: string, d365Url: string): Promise<{
+  async testStorageState(storageStatePath: string, testUrl: string, isD365: boolean = true): Promise<{
     isValid: boolean;
     isWorking: boolean;
     error?: string;
@@ -40,7 +43,8 @@ export class BrowserManager {
       exists: boolean;
       hasCookies: boolean;
       cookieCount: number;
-      canAccessD365: boolean;
+      canAccessD365: boolean; // For D365 workspaces
+      canAccessWeb: boolean;  // For web-demo workspaces
     };
   }> {
     const result = {
@@ -51,6 +55,7 @@ export class BrowserManager {
         hasCookies: false,
         cookieCount: 0,
         canAccessD365: false,
+        canAccessWeb: false,
       }
     };
 
@@ -83,19 +88,33 @@ export class BrowserManager {
       });
       const page = await context.newPage();
       
-      // Try to navigate to D365
-      await page.goto(d365Url, { 
+      // Try to navigate to the test URL
+      await page.goto(testUrl, { 
         waitUntil: 'domcontentloaded', 
         timeout: 30000 
       });
       
-      // Check if we're logged in (not on login page)
+      // Check if we're logged in
       const currentUrl = page.url();
-      const isOnLoginPage = currentUrl.includes('login.microsoft.com') || 
-                            currentUrl.includes('microsoftonline.com');
       
-      result.details.canAccessD365 = !isOnLoginPage;
-      result.isWorking = result.details.canAccessD365;
+      if (isD365) {
+        // For D365: check if we're not on a login page
+        const isOnLoginPage = currentUrl.includes('login.microsoft.com') || 
+                              currentUrl.includes('microsoftonline.com');
+        result.details.canAccessD365 = !isOnLoginPage;
+        result.isWorking = result.details.canAccessD365;
+      } else {
+        // For web-demo: check if we're not redirected to a login page
+        // This is a simple check - we assume if we can access the URL without being redirected to login, it works
+        const isOnLoginPage = currentUrl.toLowerCase().includes('login') || 
+                              currentUrl.toLowerCase().includes('signin') ||
+                              currentUrl.toLowerCase().includes('auth');
+        // If we're still on the target domain (or close to it), consider it working
+        const targetDomain = new URL(testUrl).hostname;
+        const currentDomain = new URL(currentUrl).hostname;
+        result.details.canAccessWeb = !isOnLoginPage && (currentDomain === targetDomain || currentDomain.includes(targetDomain.split('.')[0]));
+        result.isWorking = result.details.canAccessWeb;
+      }
       
       await context.close();
       await testBrowser.close();
@@ -282,6 +301,149 @@ export class BrowserManager {
 
       // Wait for D365 shell to be ready (Chrome confirms elements are visible)
       await this.waitForD365Ready();
+
+      // Save storage state
+      onProgress?.('Saving authentication state...');
+      await this.saveStorageState(storageStatePath);
+      onProgress?.('Authentication successful!');
+
+      return true;
+    } catch (error: any) {
+      onProgress?.(`Error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Perform generic web login and save storage state
+   * This is a flexible login method that can handle various web applications
+   */
+  async performWebLogin(
+    webUrl: string,
+    username: string,
+    password: string,
+    storageStatePath: string,
+    onProgress?: (message: string) => void,
+    loginSelectors?: {
+      usernameSelector?: string;
+      passwordSelector?: string;
+      submitSelector?: string;
+      loginButtonSelector?: string;
+      waitForSelector?: string; // Selector to wait for after login to confirm success
+    }
+  ): Promise<boolean> {
+    try {
+      if (!this.page) {
+        throw new Error('Browser not launched. Call launch() first.');
+      }
+
+      onProgress?.('Navigating to web application...');
+      await this.page.goto(webUrl, { 
+        waitUntil: 'domcontentloaded',
+        timeout: 60000
+      });
+      
+      onProgress?.('Waiting for page to be ready...');
+      await this.page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {
+        return this.page?.waitForLoadState('load', { timeout: 10000 });
+      });
+
+      // Default selectors for common login forms
+      const usernameSel = loginSelectors?.usernameSelector || 'input[type="email"], input[name="email"], input[name="username"], input[type="text"][placeholder*="email" i], input[type="text"][placeholder*="username" i]';
+      const passwordSel = loginSelectors?.passwordSelector || 'input[type="password"]';
+      const submitSel = loginSelectors?.submitSelector || 'button[type="submit"], input[type="submit"], button:has-text("Login"), button:has-text("Sign in"), button:has-text("Log in")';
+      const waitForSel = loginSelectors?.waitForSelector;
+
+      // Check if already logged in
+      if (waitForSel) {
+        try {
+          await this.page.waitForSelector(waitForSel, { timeout: 3000, state: 'visible' });
+          onProgress?.('Already authenticated');
+          await this.saveStorageState(storageStatePath);
+          return true;
+        } catch {
+          // Not logged in, continue with login
+        }
+      }
+
+      // Wait for login form
+      onProgress?.('Waiting for login form...');
+      try {
+        await this.page.waitForSelector(usernameSel, { 
+          timeout: 10000,
+          state: 'visible'
+        });
+      } catch (error) {
+        const currentUrl = this.page.url();
+        if (currentUrl !== webUrl && !currentUrl.includes('login')) {
+          // Might already be logged in
+          onProgress?.('Already authenticated or different page');
+          await this.saveStorageState(storageStatePath);
+          return true;
+        }
+        throw new Error('Login form not found. Please check the URL and login selectors.');
+      }
+
+      // Fill username
+      onProgress?.('Entering username...');
+      const emailInput = this.page.locator(usernameSel).first();
+      await emailInput.fill(username);
+      
+      // Try to find and click next/submit button, or press Enter
+      const nextButton = this.page.locator('button:has-text("Next"), button[type="submit"]').first();
+      if (await nextButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await nextButton.click();
+      } else {
+        await emailInput.press('Enter');
+      }
+      
+      onProgress?.('Waiting for password field...');
+      await this.page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+
+      // Wait for password field
+      try {
+        await this.page.waitForSelector(passwordSel, { 
+          timeout: 10000,
+          state: 'visible'
+        });
+      } catch (error) {
+        // Check if already logged in
+        const currentUrl = this.page.url();
+        if (currentUrl !== webUrl && !currentUrl.includes('login')) {
+          onProgress?.('Already authenticated');
+          await this.saveStorageState(storageStatePath);
+          return true;
+        }
+        throw new Error('Password field not found. Please check the login flow.');
+      }
+
+      // Fill password
+      onProgress?.('Entering password...');
+      const passwordInput = this.page.locator(passwordSel).first();
+      await passwordInput.fill(password);
+      
+      // Submit form
+      onProgress?.('Submitting login...');
+      const submitButton = this.page.locator(submitSel).first();
+      if (await submitButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await submitButton.click();
+      } else {
+        await passwordInput.press('Enter');
+      }
+      
+      onProgress?.('Waiting for authentication...');
+      await this.page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+
+      // Wait for successful login - either wait for specific selector or URL change
+      onProgress?.('Waiting for login to complete...');
+      if (waitForSel) {
+        await this.page.waitForSelector(waitForSel, { timeout: 60000, state: 'visible' });
+      } else {
+        // Wait for URL to change away from login page
+        await this.page.waitForURL(url => !url.toString().includes('login') && !url.toString().includes('signin'), { timeout: 60000 });
+      }
+      
+      await this.page.waitForLoadState('load', { timeout: 10000 });
 
       // Save storage state
       onProgress?.('Saving authentication state...');

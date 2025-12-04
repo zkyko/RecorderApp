@@ -242,6 +242,8 @@ export interface JiraDefectContext {
   testName: string;
   module?: string;
   status: 'failed';
+  summary?: string;
+  issueType?: string;
   firstFailureMessage?: string;
   browserStackSessionUrl?: string;
   browserStackTmTestCaseUrl?: string;
@@ -249,6 +251,7 @@ export interface JiraDefectContext {
   screenshotPath?: string;
   tracePath?: string;
   playwrightReportPath?: string;
+  runId?: string; // v2.0: Run ID to load additional metadata
 }
 
 // ============================================================================
