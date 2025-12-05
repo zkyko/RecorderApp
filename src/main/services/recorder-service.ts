@@ -90,6 +90,7 @@ export class RecorderService {
         if (!hasNavigationStep) {
           // Manually create initial navigation step as fallback
           const initialNavigationStep: RecordedStep = {
+            id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             pageId: 'DefaultDashboard', // Will be classified later if needed
             action: 'navigate',
             description: `Navigate to ${initialUrl}`,

@@ -34,7 +34,7 @@ import {
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { LocatorIndexEntry } from '../../../types/v1.5';
-import { notifications } from '@mantine/notifications';
+import { notifications } from '../utils/notifications';
 import VisualTestBuilder from './VisualTestBuilder';
 
 interface Step {

@@ -24,6 +24,7 @@ export interface RecordingSession {
 }
 
 export interface RecordedStep {
+  id: string;
   pageId: string; // e.g. "SalesOrderPage"
   action: 'click' | 'fill' | 'select' | 'navigate' | 'wait' | 'custom' | 'comment' | 'assert';
   description: string; // human-readable
@@ -47,6 +48,8 @@ export interface RecordedStep {
   target?: string; // POM locator name or 'page'
   expected?: string; // literal value or {{param}} syntax
   customMessage?: string; // Optional custom assertion message
+  not?: boolean; // if true: .not.<matcher>()
+  soft?: boolean; // if true: expect.soft(...)
 }
 
 export type LocatorDefinition =

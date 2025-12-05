@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { ipc } from '../ipc';
 import { LocatorIndexEntry } from '../../../types/v1.5';
-import { notifications } from '@mantine/notifications';
+import { notifications } from '../utils/notifications';
 
 interface VisualStep {
   id: string;

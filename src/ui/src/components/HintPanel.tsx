@@ -124,53 +124,53 @@ const HintPanel: React.FC = () => {
   };
 
   return (
-    <Card padding="md" radius="md" withBorder className="hint-panel" style={{ background: 'rgba(59, 130, 246, 0.1)' }}>
-      <Group justify="space-between" align="flex-start" gap="md">
-        <Group gap="xs" style={{ flex: 1 }}>
-          <Lightbulb size={18} color="#3b82f6" />
-          <div style={{ flex: 1 }}>
-            <Text size="sm" fw={500} mb={4}>
+    <div className="hint-panel">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2 flex-1">
+          <Lightbulb size={14} className="text-info mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-base-content mb-0.5">
               {currentHint.title}
-            </Text>
-            <Text size="xs" c="dimmed">
+            </div>
+            <div className="text-xs text-base-content/60 leading-snug">
               {currentHint.message}
-            </Text>
+            </div>
           </div>
-        </Group>
-        <Group gap="xs">
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
           {availableHints.length > 1 && (
             <>
-              <ActionIcon
-                size="sm"
-                variant="subtle"
+              <button
+                className="btn btn-ghost btn-xs p-1"
                 onClick={handlePrevious}
                 disabled={availableHints.length <= 1}
+                title="Previous tip"
               >
-                <ChevronLeft size={14} />
-              </ActionIcon>
-              <Text size="xs" c="dimmed">
+                <ChevronLeft size={12} />
+              </button>
+              <span className="text-xs text-base-content/50 px-1">
                 {currentHintIndex + 1}/{availableHints.length}
-              </Text>
-              <ActionIcon
-                size="sm"
-                variant="subtle"
+              </span>
+              <button
+                className="btn btn-ghost btn-xs p-1"
                 onClick={handleNext}
                 disabled={availableHints.length <= 1}
+                title="Next tip"
               >
-                <ChevronRight size={14} />
-              </ActionIcon>
+                <ChevronRight size={12} />
+              </button>
             </>
           )}
-          <ActionIcon
-            size="sm"
-            variant="subtle"
+          <button
+            className="btn btn-ghost btn-xs p-1"
             onClick={handleDismiss}
+            title="Dismiss tip"
           >
-            <X size={14} />
-          </ActionIcon>
-        </Group>
-      </Group>
-    </Card>
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

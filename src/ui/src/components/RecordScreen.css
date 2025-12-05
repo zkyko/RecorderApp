@@ -1,33 +1,190 @@
 .record-screen {
-  max-width: 100%;
-  margin: 0 auto;
+  @apply max-w-[1400px] mx-auto;
+  padding: 0;
 }
 
+/* Consistent left margin for all content */
+.record-screen > * {
+  margin-left: 0;
+}
+
+/* Primary Record Panel */
 .record-hero {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
-  border-color: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.4);
+  @apply bg-base-200 border border-base-300 rounded-lg mb-6;
+  padding: 2rem !important;
 }
 
-.record-hero .mantine-Alert-root {
-  background: rgba(239, 68, 68, 0.1);
+.record-hero-title {
+  @apply text-xl font-semibold text-base-content mb-2;
 }
 
-.recording-dot {
-  width: 12px;
-  height: 12px;
-  background: #3b82f6;
-  border-radius: 50%;
-  animation: pulse 1.5s ease-in-out infinite;
+.record-hero-subtitle {
+  @apply text-sm text-base-content/60 mb-6;
+}
+
+.record-primary-button {
+  @apply btn btn-success btn-lg;
+  min-width: 200px;
+  margin: 0 auto;
+  display: block;
+}
+
+.record-primary-button.recording {
+  @apply btn-error;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.record-status-pill {
+  @apply badge;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+}
+
+.record-status-pill.idle {
+  @apply badge-neutral;
+}
+
+.record-status-pill.recording {
+  @apply badge-info;
+}
+
+/* Two-column layout for workflow and code preview */
+.record-secondary-row {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6;
+}
+
+.record-workflow-card {
+  @apply bg-base-200 border border-base-300 rounded-lg p-6;
+}
+
+.record-workflow-title {
+  @apply text-lg font-semibold text-base-content mb-4;
+}
+
+.record-workflow-steps {
+  @apply space-y-4;
+}
+
+.record-workflow-step {
+  @apply flex items-start gap-3;
+}
+
+.record-workflow-step-icon {
+  @apply w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0;
+}
+
+.record-workflow-step-text {
+  @apply text-sm text-base-content/80 leading-relaxed;
+}
+
+.record-code-preview-card {
+  @apply bg-base-200 border border-base-300 rounded-lg p-6;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.record-code-preview-title {
+  @apply text-lg font-semibold text-base-content mb-2;
+}
+
+.record-code-preview-subtitle {
+  @apply text-sm text-base-content/60 mb-4;
+}
+
+.record-code-preview-empty {
+  @apply flex-1 flex items-center justify-center text-center;
+  min-height: 300px;
+}
+
+.record-code-preview-content {
+  @apply flex-1 overflow-auto;
+  background: #0b1020;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.record-code-preview-content .code-line {
+  padding: 2px 0;
+}
+
+.record-code-preview-content .code-line.highlighted {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.record-code-stats {
+  @apply mt-4 text-xs text-base-content/50;
+}
+
+/* Recording indicator */
+.recording-indicator {
+  @apply inline-flex items-center gap-2;
+}
+
+.recording-dot {
+  @apply w-2 h-2 rounded-full bg-info;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+.recording-dot-pulse {
+  @apply w-3 h-3 rounded-full bg-error;
+  animation: pulse-dot-red 1s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(250, 82, 82, 0.7);
+}
+
+.recording-dot-pulse-small {
+  @apply w-2 h-2 rounded-full bg-error;
+  animation: pulse-dot-red 1s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
   0%, 100% {
     opacity: 1;
     transform: scale(1);
   }
   50% {
     opacity: 0.5;
-    transform: scale(1.2);
+    transform: scale(0.8);
   }
+}
+
+@keyframes pulse-dot-red {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(250, 82, 82, 0.7);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(250, 82, 82, 0);
+  }
+}
+
+.record-code-preview-content .line-number {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
+  user-select: none;
+}
+
+.record-code-preview-content .code-content {
+  display: inline-block;
 }

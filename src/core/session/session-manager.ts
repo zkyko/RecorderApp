@@ -57,6 +57,7 @@ export class SessionManager {
 
     const newStep: RecordedStep = {
       ...step,
+      id: step.id || `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       order: session.steps.length + 1,
       timestamp: new Date(),
     };

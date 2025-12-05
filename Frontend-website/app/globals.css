@@ -3,22 +3,11 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --accent: 262.1 83.3% 57.8%;
-    --accent-foreground: 210 40% 98%;
-  }
-}
-
-@layer base {
   * {
-    @apply border-zinc-800;
+    @apply border-base-300;
   }
   body {
-    @apply bg-zinc-950 text-foreground;
+    @apply bg-base-100 text-base-content;
     font-feature-settings: "rlig" 1, "calt" 1;
     background-image: 
       linear-gradient(to right, rgba(128, 128, 128, 0.05) 1px, transparent 1px),

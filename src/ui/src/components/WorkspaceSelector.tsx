@@ -17,7 +17,7 @@ import { Folder, Plus, Check, X, Globe } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { WorkspaceMeta, WorkspaceType } from '../../../types/v1.5';
-import { notifications } from '@mantine/notifications';
+import { notifications } from '../utils/notifications';
 
 interface WorkspaceSelectorProps {
   opened: boolean;

@@ -21,7 +21,12 @@
     "dist",
     "src/ui",
     "src/ElectronTest",
-    "src/ElectronTest/**/*"
+    "src/ElectronTest/**/*",
+    "**/__tests__/**/*",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
   ]
 }
 

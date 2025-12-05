@@ -1,6 +1,7 @@
 import { ElectronTestResultWithoutDuration } from '../types';
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawn } from 'child_process';
 import { WorkspaceManager } from '../../main/services/workspace-manager';
 import { WorkspaceMeta } from '../../types/v1.5';
 
@@ -44,12 +45,61 @@ export async function browserstackCheck(): Promise<ElectronTestResultWithoutDura
       };
     }
 
-    return {
-      id: 'browserstack',
-      label: 'BrowserStack Automate',
-      status: 'PASS',
-      details: `Credentials present for workspace "${current.name}".`,
-    };
+    // Check if npx is available (required for BrowserStack execution)
+    try {
+      const npxCheck = spawn('npx', ['--version'], { shell: true, stdio: 'pipe' });
+      const npxAvailable = await new Promise<boolean>((resolve) => {
+        npxCheck.on('error', () => resolve(false));
+        npxCheck.on('close', (code) => resolve(code === 0));
+        setTimeout(() => {
+          npxCheck.kill();
+          resolve(false);
+        }, 3000);
+      });
+
+      if (!npxAvailable) {
+        return {
+          id: 'browserstack',
+          label: 'BrowserStack Automate',
+          status: 'FAIL',
+          details: '❌ npx not available. BrowserStack execution requires Node.js/npm to be installed. Install Node.js from https://nodejs.org/',
+        };
+      }
+
+      // Check if browserstack-node-sdk is available
+      const sdkCheck = spawn('npx', ['browserstack-node-sdk', '--version'], { shell: true, stdio: 'pipe' });
+      const sdkAvailable = await new Promise<boolean>((resolve) => {
+        sdkCheck.on('error', () => resolve(false));
+        sdkCheck.on('close', (code) => resolve(code === 0));
+        setTimeout(() => {
+          sdkCheck.kill();
+          resolve(false);
+        }, 5000);
+      });
+
+      if (!sdkAvailable) {
+        return {
+          id: 'browserstack',
+          label: 'BrowserStack Automate',
+          status: 'FAIL',
+          details: '❌ browserstack-node-sdk not found. Install it by running: npm install -g browserstack-node-sdk',
+        };
+      }
+
+      return {
+        id: 'browserstack',
+        label: 'BrowserStack Automate',
+        status: 'PASS',
+        details: `✓ Credentials configured for workspace "${current.name}". ✓ npx available. ✓ browserstack-node-sdk installed. Ready for BrowserStack execution.`,
+      };
+    } catch (err: any) {
+      return {
+        id: 'browserstack',
+        label: 'BrowserStack Automate',
+        status: 'FAIL',
+        details: `Failed to check BrowserStack prerequisites: ${err?.message || String(err)}`,
+      };
+    }
   } catch (err: any) {
     return {
       id: 'browserstack',

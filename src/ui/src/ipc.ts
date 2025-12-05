@@ -300,6 +300,12 @@ export const ipc = {
     updateJiraConfig: (request: { baseUrl: string; email: string; apiToken: string; projectKey: string }): Promise<{ success: boolean; error?: string }> => {
       return getBackend()?.settingsUpdateJiraConfig(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    getBrowserStackTmConfig: (): Promise<{ success: boolean; config?: { projectId?: string; suiteName?: string; apiToken?: string }; error?: string }> => {
+      return getBackend()?.settingsGetBrowserStackTmConfig() || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
+    updateBrowserStackTmConfig: (request: { projectId?: string; suiteName?: string; apiToken?: string }): Promise<{ success: boolean; error?: string }> => {
+      return getBackend()?.settingsUpdateBrowserStackTmConfig(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
     clearJiraSession: (): Promise<{ success: boolean; error?: string }> => {
       return getBackend()?.clearJiraSession() || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
@@ -401,6 +407,7 @@ export const ipc = {
       jql?: string;
       maxResults?: number;
       startAt?: number;
+      nextPageToken?: string;
     }): Promise<{
       success: boolean;
       issues?: Array<{
@@ -416,6 +423,7 @@ export const ipc = {
       total?: number;
       startAt?: number;
       maxResults?: number;
+      nextPageToken?: string;
       error?: string;
     }> => {
       return getBackend()?.jiraSearchIssues(request) || Promise.resolve({ success: false, error: 'Electron API not available' });

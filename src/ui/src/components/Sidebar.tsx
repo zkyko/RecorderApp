@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Select } from '@mantine/core';
 import { 
   Library, 
   BarChart3, 
@@ -107,18 +106,22 @@ const Sidebar: React.FC = () => {
   };
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: LayoutDashboard, section: 'Workspace' },
-    { path: '/library', label: 'Test Library', icon: Library, section: 'Workspace' },
-    { path: '/record', label: 'Record', icon: Camera, section: 'Workspace' },
-    { path: '/runs', label: 'Runs', icon: History, section: 'Tools' },
-    { path: '/report', label: 'Report', icon: BarChart3, section: 'Tools' },
-    { path: '/browserstack-tm', label: 'BrowserStack TM', icon: Cloud, section: 'Tools' },
-    { path: '/browserstack-automate', label: 'BrowserStack Automate', icon: Cloud, section: 'Tools' },
-    { path: '/jira', label: 'Jira', icon: Bug, section: 'Tools' },
-    { path: '/locators', label: 'Locator Library', icon: Crosshair, section: 'Tools' },
-    { path: '/diagnostics', label: 'Diagnostics', icon: Activity, section: 'Tools' },
-    ...(isDemoMode ? [{ path: '/marketplace', label: 'Marketplace', icon: Store, section: 'Tools' }] : []),
-    { path: '/settings', label: 'Settings', icon: Settings, section: 'Tools' },
+    // WORKSPACE
+    { path: '/', label: 'Dashboard', icon: LayoutDashboard, section: 'WORKSPACE' },
+    { path: '/library', label: 'Test Library', icon: Library, section: 'WORKSPACE' },
+    { path: '/record', label: 'Record', icon: Camera, section: 'WORKSPACE' },
+    // EXECUTION
+    { path: '/runs', label: 'Runs', icon: History, section: 'EXECUTION' },
+    { path: '/browserstack-automate', label: 'BrowserStack Automate', icon: Cloud, section: 'EXECUTION' },
+    // QUALITY & INSIGHTS
+    { path: '/report', label: 'Report', icon: BarChart3, section: 'QUALITY & INSIGHTS' },
+    { path: '/browserstack-tm', label: 'BrowserStack TM', icon: Cloud, section: 'QUALITY & INSIGHTS' },
+    // TOOLS
+    { path: '/jira', label: 'Jira', icon: Bug, section: 'TOOLS' },
+    { path: '/locators', label: 'Locator Library', icon: Crosshair, section: 'TOOLS' },
+    { path: '/diagnostics', label: 'Diagnostics', icon: Activity, section: 'TOOLS' },
+    ...(isDemoMode ? [{ path: '/marketplace', label: 'Marketplace', icon: Store, section: 'TOOLS' }] : []),
+    { path: '/settings', label: 'Settings', icon: Settings, section: 'TOOLS' },
   ];
 
   const isActive = (path: string) => {
@@ -144,80 +147,78 @@ const Sidebar: React.FC = () => {
           <span className="logo-text">QA Studio</span>
         </div>
         <div className="sidebar-workspace">
-          <Select
-            placeholder="Select workspace"
-            value={currentWorkspace?.id || null}
-            onChange={handleWorkspaceChange}
-            data={[
-              ...workspaces.map((w) => ({
-                value: w.id,
-                label: `${w.name} (${w.type === 'web-demo' ? 'FH Web' : w.type.toUpperCase()})`,
-              })),
-              { value: '__divider__', label: '──────────', disabled: true },
-              { value: '__create_new__', label: '➕ Create New Workspace...' },
-              { value: '__manage__', label: '⚙️ Manage Workspaces...' },
-            ]}
-            searchable
-            disabled={switchingWorkspace}
-            size="xs"
-            styles={{
-              input: {
-                backgroundColor: 'rgba(31, 41, 55, 0.5)',
-                border: '1px solid #374151',
-                color: '#f3f4f6',
-                fontSize: '0.875rem',
-                '&:hover': {
-                  borderColor: '#4b5563',
-                },
-              },
-              dropdown: {
-                backgroundColor: '#1f2937',
-                border: '1px solid #374151',
-              },
-              option: {
-                backgroundColor: '#1f2937',
-                color: '#f3f4f6',
-                '&:hover': {
-                  backgroundColor: '#374151',
-                },
-                '&[data-selected]': {
-                  backgroundColor: '#3b82f6',
-                  color: '#fff',
-                },
-                '&[data-disabled]': {
-                  color: '#6b7280',
-                  cursor: 'not-allowed',
-                  opacity: 0.5,
-                },
-              },
-            }}
-            rightSection={
+          <div className="dropdown dropdown-end w-full relative">
+            <label
+              tabIndex={0}
+              className="select select-bordered select-sm w-full bg-base-200 border-base-300 text-base-content hover:border-primary focus:border-primary focus:outline-none pr-20 overflow-hidden [&>svg]:hidden"
+            >
+              <span className="block truncate">
+                {currentWorkspace
+                  ? `${currentWorkspace.name} (${currentWorkspace.type === 'web-demo' ? 'FH Web' : currentWorkspace.type.toUpperCase()})`
+                  : 'Select workspace'}
+              </span>
+            </label>
+            <ul
+              tabIndex={0}
+              className="dropdown-content menu p-2 shadow-lg bg-base-200 border border-base-300 rounded-box w-full max-h-60 overflow-y-auto z-[1000]"
+            >
+              {workspaces.map((w) => (
+                <li key={w.id}>
+                  <a
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleWorkspaceChange(w.id);
+                    }}
+                    className={currentWorkspace?.id === w.id ? 'active' : ''}
+                  >
+                    {w.name} ({w.type === 'web-demo' ? 'FH Web' : w.type.toUpperCase()})
+                  </a>
+                </li>
+              ))}
+              {workspaces.length > 0 && <li><hr className="my-1 border-base-300" /></li>}
+              <li>
+                <a
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleWorkspaceChange('__create_new__');
+                  }}
+                >
+                  ➕ Create New Workspace...
+                </a>
+              </li>
+              <li>
+                <a
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleWorkspaceChange('__manage__');
+                  }}
+                >
+                  ⚙️ Manage Workspaces...
+                </a>
+              </li>
+            </ul>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10 pointer-events-none">
               <button
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setWorkspaceSelectorOpen(true);
                 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#9ca3af',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  zIndex: 10,
-                }}
+                className="btn btn-ghost btn-xs h-6 w-6 min-h-0 p-0 flex items-center justify-center pointer-events-auto"
                 title="Manage workspaces"
               >
-                <Settings size={14} />
+                <Settings size={12} />
               </button>
-            }
-          />
+              <svg
+                className="w-4 h-4 opacity-50 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
 

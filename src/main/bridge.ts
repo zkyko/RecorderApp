@@ -25,7 +25,7 @@ import { WorkspaceManager } from './services/workspace-manager';
 import { LocatorMaintenanceService } from './services/locator-maintenance';
 import { RAGService } from './services/rag-service';
 import { JiraService } from './services/jiraService';
-import { BrowserStackTMService } from './services/browserstackTmService';
+import { BrowserStackTmService } from './services/browserstackTmService';
 import { BrowserStackAutomateService } from './services/browserstackAutomateService';
 import { SpecUpdater } from './services/spec-updater';
 import { LocatorBrowserService } from './services/locator-browser-service';
@@ -113,7 +113,7 @@ export class IPCBridge {
   private specUpdater: SpecUpdater;
   private locatorBrowser: LocatorBrowserService;
   private jiraService: JiraService;
-  private browserstackTmService: BrowserStackTMService;
+  private browserstackTmService: BrowserStackTmService;
   private browserstackAutomateService: BrowserStackAutomateService;
 
   constructor(configManager: ConfigManager, workspaceManager: WorkspaceManager, mainWindow: BrowserWindow | null = null) {
@@ -134,7 +134,7 @@ export class IPCBridge {
     this.recorderService.setMainWindow(mainWindow);
     this.locatorCleanupService = new LocatorCleanupService();
     this.parameterDetector = new ParameterDetector();
-    this.specWriter = new SpecWriter(workspaceManager, new BrowserStackTMService(configManager));
+    this.specWriter = new SpecWriter(workspaceManager, new BrowserStackTmService(configManager));
     this.dataWriter = new DataWriter();
     this.traceServer = new TraceServer();
     this.locatorMaintenance = new LocatorMaintenanceService();
@@ -142,7 +142,7 @@ export class IPCBridge {
     this.specUpdater = new SpecUpdater();
     this.locatorBrowser = new LocatorBrowserService();
     this.jiraService = new JiraService(configManager);
-    this.browserstackTmService = new BrowserStackTMService(configManager);
+    this.browserstackTmService = new BrowserStackTmService(configManager);
     this.browserstackAutomateService = new BrowserStackAutomateService(configManager);
     this.locatorBrowser.setMainWindow(mainWindow);
   }
@@ -950,6 +950,36 @@ export class IPCBridge {
       }
     });
 
+    // BrowserStack TM Configuration handlers
+    ipcMain.handle('settings:getBrowserStackTmConfig', async (): Promise<{ success: boolean; config?: { projectId?: string; suiteName?: string; apiToken?: string }; error?: string }> => {
+      try {
+        const config = this.configManager.getBrowserStackTmConfig();
+        return {
+          success: true,
+          config: {
+            projectId: config.projectId || '',
+            suiteName: config.suiteName || '',
+            apiToken: config.apiToken || '',
+          },
+        };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to get BrowserStack TM config' };
+      }
+    });
+
+    ipcMain.handle('settings:updateBrowserStackTmConfig', async (_, request: { projectId?: string; suiteName?: string; apiToken?: string }): Promise<{ success: boolean; error?: string }> => {
+      try {
+        this.configManager.setBrowserStackTmConfig({
+          projectId: request.projectId,
+          suiteName: request.suiteName,
+          apiToken: request.apiToken,
+        });
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to update BrowserStack TM config' };
+      }
+    });
+
     // Jira Session Management
     ipcMain.handle('jira:clearSession', async (): Promise<{ success: boolean; error?: string }> => {
       try {
@@ -1010,6 +1040,7 @@ export class IPCBridge {
       jql?: string;
       maxResults?: number;
       startAt?: number;
+      nextPageToken?: string;
     }): Promise<{
       success: boolean;
       issues?: Array<{
@@ -1025,13 +1056,15 @@ export class IPCBridge {
       total?: number;
       startAt?: number;
       maxResults?: number;
+      nextPageToken?: string;
       error?: string;
     }> => {
       try {
         const result = await this.jiraService.searchIssues(
           request.jql,
           request.maxResults || 50,
-          request.startAt || 0
+          request.startAt || 0,
+          request.nextPageToken
         );
         return { success: true, ...result };
       } catch (error: any) {
@@ -1180,7 +1213,7 @@ export class IPCBridge {
           description: request.description,
           tags: request.tags,
         });
-        return { success: true, testCaseId: result.testCaseId };
+        return { success: true, testCaseId: result.identifier };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to create BrowserStack test case' };
       }
@@ -1196,23 +1229,18 @@ export class IPCBridge {
       dashboardUrl?: string;
     }): Promise<{ success: boolean; testRunId?: string; error?: string }> => {
       try {
-        const result = await this.browserstackTmService.publishTestRun(
-          request.testCaseId,
-          {
-            testCaseId: request.testCaseId,
-            status: request.status,
-            duration: request.duration,
-            error: request.error,
-            sessionId: request.sessionId,
-            buildId: request.buildId,
-          },
-          {
-            sessionId: request.sessionId,
-            buildId: request.buildId,
-            dashboardUrl: request.dashboardUrl,
-          }
-        );
-        return { success: true, testRunId: result.testRunId };
+        const result = await this.browserstackTmService.publishTestRun({
+          testCaseId: request.testCaseId,
+          status: request.status,
+          duration: request.duration,
+          error: request.error,
+          screenshots: [],
+          videoUrl: undefined,
+          sessionId: request.sessionId,
+          buildId: request.buildId,
+          dashboardUrl: request.dashboardUrl,
+        });
+        return { success: true, testRunId: result.identifier };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to publish BrowserStack test run' };
       }
@@ -1229,6 +1257,9 @@ export class IPCBridge {
     ipcMain.handle('browserstackTm:listTestCases', async (_, request: {
       page?: number;
       pageSize?: number;
+      search?: string;
+      status?: string;
+      tags?: string[];
     }): Promise<{
       success: boolean;
       testCases?: Array<{
@@ -1253,11 +1284,14 @@ export class IPCBridge {
       error?: string;
     }> => {
       try {
-        const result = await this.browserstackTmService.listTestCases(
-          request.page || 1,
-          request.pageSize || 30
-        );
-        return { success: true, ...result };
+        const result = await this.browserstackTmService.listTestCases({
+          page: request.page,
+          pageSize: request.pageSize,
+          search: request.search,
+          status: request.status,
+          tags: request.tags,
+        });
+        return { success: true, testCases: result.items, ...result };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to list test cases' };
       }
@@ -1283,12 +1317,33 @@ export class IPCBridge {
       testCaseUrl: string;
     }): Promise<{ success: boolean; error?: string }> => {
       try {
-        await this.browserstackTmService.linkTestCaseToBundle(
-          request.workspacePath,
-          request.testName,
-          request.testCaseId,
-          request.testCaseUrl
-        );
+        // Find bundle directory
+        const fileName = request.testName
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
+        
+        let bundleDir: string | null = null;
+        const possiblePaths = [
+          path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName),
+          path.join(request.workspacePath, 'tests', 'd365', fileName),
+          path.join(request.workspacePath, 'tests', fileName),
+          path.join(request.workspacePath, 'tests', 'web-demo', 'specs', fileName),
+        ];
+        
+        for (const possiblePath of possiblePaths) {
+          if (fs.existsSync(possiblePath)) {
+            bundleDir = possiblePath;
+            break;
+          }
+        }
+        
+        if (!bundleDir) {
+          throw new Error(`Bundle not found for test: ${request.testName}`);
+        }
+        
+        const bundleMeta = this.browserstackTmService.readBundleMeta(bundleDir);
+        await this.browserstackTmService.linkTestCaseToBundle(bundleMeta, request.testCaseId);
         return { success: true };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to link test case' };
@@ -1498,6 +1553,9 @@ export class IPCBridge {
       testCaseId?: string;
       page?: number;
       pageSize?: number;
+      status?: 'passed' | 'failed' | 'skipped';
+      dateFrom?: string;
+      dateTo?: string;
     }): Promise<{
       success: boolean;
       testRuns?: Array<{
@@ -1519,12 +1577,15 @@ export class IPCBridge {
       error?: string;
     }> => {
       try {
-        const result = await this.browserstackTmService.listTestRuns(
-          request.testCaseId,
-          request.page || 1,
-          request.pageSize || 30
-        );
-        return { success: true, ...result };
+        const result = await this.browserstackTmService.listTestRuns({
+          testCaseId: request.testCaseId,
+          page: request.page,
+          pageSize: request.pageSize,
+          status: request.status,
+          dateFrom: request.dateFrom,
+          dateTo: request.dateTo,
+        });
+        return { success: true, testRuns: result.items, ...result };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to list test runs' };
       }
@@ -2066,22 +2127,21 @@ export class IPCBridge {
       'browserstackTm:syncTestCaseForBundle',
       async (_event, args: { workspacePath: string; testName: string }) => {
         try {
-          // Check if BrowserStack TM is configured
+          // Check if BrowserStack TM is configured (uses same credentials as Automate)
           try {
-            const config = this.configManager.getConfig();
-            const tmApiToken = (config as any).browserstackTmApiToken || '';
-            if (!tmApiToken) {
-              console.warn('[IPCBridge] BrowserStack TM API token not configured, skipping sync');
+            const browserstackCreds = this.configManager.getBrowserStackCredentials();
+            if (!browserstackCreds.username || !browserstackCreds.accessKey) {
+              console.warn('[IPCBridge] BrowserStack credentials not configured (used by both Automate and TM), skipping sync');
               return {
                 success: false,
-                error: 'BrowserStack Test Management is not configured. Please set the API token in Settings.',
+                error: 'BrowserStack credentials not configured. Please set username and access key in Settings → BrowserStack (used by both Automate and Test Management).',
               };
             }
           } catch (configError: any) {
-            console.warn('[IPCBridge] Failed to check BrowserStack TM configuration:', configError.message);
+            console.warn('[IPCBridge] Failed to check BrowserStack configuration:', configError.message);
             return {
               success: false,
-              error: 'BrowserStack Test Management is not configured. Please configure it in Settings.',
+              error: 'BrowserStack Test Management is not configured. Please configure BrowserStack credentials in Settings.',
             };
           }
 
@@ -2126,7 +2186,8 @@ export class IPCBridge {
           }
 
           const bundleDir = path.dirname(metaPath);
-          await this.browserstackTmService.syncTestCaseForBundle(bundleDir);
+          const bundleMeta = this.browserstackTmService.readBundleMeta(bundleDir);
+          await this.browserstackTmService.syncTestCaseForBundle(bundleMeta);
 
           return { success: true };
         } catch (error: any) {
@@ -2853,9 +2914,14 @@ export class IPCBridge {
 
       // Ensure BrowserStack TM test case exists for this bundle (v2.0 demo)
       // Fire-and-forget; we don't need to block code generation on this.
-      this.browserstackTmService.ensureTestCaseForBundle(bundleDir).catch((e: any) => {
-        console.warn('[IPCBridge] Failed to sync BrowserStack TM test case:', e.message);
-      });
+      try {
+        const bundleMeta = this.browserstackTmService.readBundleMeta(bundleDir);
+        this.browserstackTmService.ensureTestCaseForBundle(bundleMeta).catch((e: any) => {
+          console.warn('[IPCBridge] Failed to sync BrowserStack TM test case:', e.message);
+        });
+      } catch (e: any) {
+        console.warn('[IPCBridge] Failed to read bundle meta for BrowserStack TM:', e.message);
+      }
 
       // Generate and write meta.md
       const metaMdContent = this.specGenerator.generateMetaMd(

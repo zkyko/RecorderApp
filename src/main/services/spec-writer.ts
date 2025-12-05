@@ -6,7 +6,7 @@ import { D365WaitInjector } from './d365-wait-injector';
 import { WorkspaceManager } from './workspace-manager';
 import { DataWriter } from './data-writer';
 import { SpecGenerator } from '../../generators/spec-generator';
-import { BrowserStackTMService } from './browserstackTmService';
+import { BrowserStackTmService } from './browserstackTmService';
 
 /**
  * Service for writing flat Playwright spec files
@@ -16,9 +16,9 @@ export class SpecWriter {
   private waitInjector: D365WaitInjector;
   private dataWriter: DataWriter;
   private specGenerator: SpecGenerator;
-  private browserStackTMService: BrowserStackTMService;
+  private browserStackTMService: BrowserStackTmService;
 
-  constructor(workspaceManager: WorkspaceManager, browserStackTMService: BrowserStackTMService) {
+  constructor(workspaceManager: WorkspaceManager, browserStackTMService: BrowserStackTmService) {
     this.workspaceManager = workspaceManager;
     this.waitInjector = new D365WaitInjector();
     this.dataWriter = new DataWriter();
@@ -153,7 +153,8 @@ export async function waitForD365(page: Page): Promise<void> {
 
       // Ensure BrowserStack TM test case is created/linked for this bundle (v2.0 demo)
       try {
-        await this.browserStackTMService.ensureTestCaseForBundle(bundleDir);
+        const bundleMeta = this.browserStackTMService.readBundleMeta(bundleDir);
+        await this.browserStackTMService.ensureTestCaseForBundle(bundleMeta);
       } catch (e: any) {
         console.warn('[SpecWriter] Failed to sync BrowserStack TM test case:', e.message);
       }

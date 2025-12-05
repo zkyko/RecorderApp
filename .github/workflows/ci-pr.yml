@@ -1,0 +1,120 @@
+name: CI - Pull Request
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# Prevent multiple runs for same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-checks:
+    name: PR Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for comparison
+    
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+    
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd src/ui && npm ci
+    
+      - name: Check PR title format
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if ! echo "$PR_TITLE" | grep -qE "^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+"; then
+            echo "❌ PR title must follow conventional commits format"
+            echo "Examples: feat: add new feature, fix(ui): resolve button issue"
+            exit 1
+          fi
+        continue-on-error: true
+    
+      - name: Check for merge conflicts
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git fetch origin main
+          if ! git merge-tree $(git merge-base HEAD origin/main) HEAD origin/main | grep -q "^"; then
+            echo "❌ Merge conflicts detected"
+            exit 1
+          fi
+        continue-on-error: true
+    
+      - name: Run all linters
+        run: npm run lint
+        continue-on-error: true
+    
+      - name: Type check
+        run: |
+          npm run typecheck
+          npm run typecheck:ui
+        continue-on-error: true
+    
+      - name: Check bundle size
+        run: |
+          npm run build:all
+          BUNDLE_SIZE=$(du -sh dist 2>/dev/null | cut -f1 || echo "N/A")
+          echo "Bundle size: $BUNDLE_SIZE"
+        continue-on-error: true
+
+  full-test-suite:
+    name: Full Test Suite
+    uses: ./.github/workflows/ci-dev.yml
+    secrets: inherit
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+    
+      - name: Run Snyk scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+  pr-ready:
+    name: PR Ready for Review
+    runs-on: ubuntu-latest
+    needs: [pr-checks, full-test-suite, security-scan]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [ "${{ needs.pr-checks.result }}" != "success" ] || \
+             [ "${{ needs.full-test-suite.result }}" != "success" ]; then
+            echo "❌ PR is not ready for merge - tests failed"
+            exit 1
+          else
+            echo "✅ PR is ready for review"
+          fi
+    
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        if: success()
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ All tests passed! This PR is ready for review.'
+            })

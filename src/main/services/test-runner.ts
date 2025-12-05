@@ -8,7 +8,7 @@ import { TestRunRequest, TestRunEvent, TestRunMeta, RunIndex, TestMeta } from '.
 import { getReporterPath, getReporterSourcePath } from '../utils/path-resolver';
 import { LocatorMaintenanceService } from './locator-maintenance';
 import { runPlaywright } from '../utils/playwrightRuntime';
-import { BrowserStackTMService } from './browserstackTmService';
+import { BrowserStackTmService } from './browserstackTmService';
 
 interface AssertionSummary {
   total: number;
@@ -44,12 +44,12 @@ export class TestRunner {
   private currentProcess: ChildProcess | null = null;
   private mainWindow: BrowserWindow | null = null;
   private locatorMaintenance: LocatorMaintenanceService | null = null;
-  private browserStackTMService: BrowserStackTMService;
+  private browserStackTMService: BrowserStackTmService;
 
-  constructor(mainWindow: BrowserWindow | null, locatorMaintenance?: LocatorMaintenanceService, browserStackTMService?: BrowserStackTMService) {
+  constructor(mainWindow: BrowserWindow | null, locatorMaintenance?: LocatorMaintenanceService, browserStackTMService?: BrowserStackTmService) {
     this.mainWindow = mainWindow;
     this.locatorMaintenance = locatorMaintenance || null;
-    this.browserStackTMService = browserStackTMService || new BrowserStackTMService(new (require('../config-manager').ConfigManager)());
+    this.browserStackTMService = browserStackTMService || new BrowserStackTmService(new (require('../config-manager').ConfigManager)());
   }
 
 
@@ -314,6 +314,25 @@ export class TestRunner {
             browserstackMetadata.sessionId = sessionMatch[2];
             browserstackMetadata.dashboardUrl = `https://automate.browserstack.com/builds/${sessionMatch[1]}/sessions/${sessionMatch[2]}`;
           }
+          
+          // Detect BrowserStack Local Testing errors
+          if (error.toLowerCase().includes('local') && 
+              (error.toLowerCase().includes('failed') || 
+               error.toLowerCase().includes('error') || 
+               error.toLowerCase().includes('timeout') ||
+               error.toLowerCase().includes('connection'))) {
+            this.emitEvent(runId, {
+              type: 'error',
+              runId,
+              message: `⚠️ BrowserStack Local Testing Error Detected:\n${error}\n\n` +
+                'If you\'re using storage state files, ensure BrowserStack Local binary is running.\n' +
+                'Download from: https://www.browserstack.com/docs/local-testing/getting-started\n' +
+                'OR disable Local Testing if not needed (set enableLocalTesting: false in workspace settings)',
+              timestamp: new Date().toISOString(),
+            });
+            // Don't emit the error twice, return early
+            return;
+          }
         }
         
         this.emitEvent(runId, {
@@ -412,7 +431,12 @@ export class TestRunner {
 
           const bundleDir = this.getBundleDirForTest(request.workspacePath, testName);
           if (bundleDir) {
-            await this.browserStackTMService.publishRunFromBundle(bundleDir, runResultForTM as any);
+            try {
+              const bundleMeta = this.browserStackTMService.readBundleMeta(bundleDir);
+              await this.browserStackTMService.publishRunFromBundle(bundleMeta);
+            } catch (e: any) {
+              console.warn('[TestRunner] Failed to read bundle meta for BrowserStack TM:', e.message);
+            }
           }
         } catch (e: any) {
           console.warn('[TestRunner] Failed to publish run to BrowserStack TM:', e.message);

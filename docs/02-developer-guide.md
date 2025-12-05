@@ -21,9 +21,10 @@ npm run dev:electron       # hot-reload main process, assumes dist/ui already bu
 | --- | --- | --- |
 | `src/core/` | Browser-side recorder, locator, registry, session helpers | Pure TypeScript targeting Playwright; avoid Node APIs. |
 | `src/main/` | Electron main process (IPC bridge, config, test executor) | Services under `services/` encapsulate file/AST work (e.g., `codegen-service.ts`). |
-| `src/main/services/` | Backend services (v2.0 additions) | `workspace-manager.ts`, `browserstackTmService.ts`, `jiraService.ts`, `updaterService.ts` |
+| `src/main/services/` | Backend services (v2.0 additions) | `workspace-manager.ts`, `browserstackTmService.ts`, `jiraService.ts`, `updaterService.ts`, `rag-service.ts` |
 | `src/generators/` | Pure functions that emit source files (specs, formatters) | Consumed by main process; unit-testable without Electron. Includes assertion code generation. |
-| `src/ui/` | Mantine/React app running in the renderer | Uses Zustand stores, React Router 7, and Vite tooling. Includes workspace selector and assertion editor. |
+| `src/ui/` | Mantine/React app running in the renderer | Uses Zustand stores, React Router 7, and Vite tooling. Includes workspace selector, assertion editor, and diagnostics screen. |
+| `src/ElectronTest/` | Diagnostics and health checks (v2.0) | Environment validation, workspace health, and integration connectivity checks. |
 | `workspaces/` | Workspace directories (v2.0) | Each workspace contains tests, data, locators, and workspace.json config. |
 | `Recordings/` | User-generated outputs (page registry, specs, test data) | Git-ignored; treat as runtime state. Legacy location, new tests go in workspaces. |
 | `dist/` | Build artifacts consumed by Electron | Never edit by hand; produced via `npm run build:all`. |
@@ -58,7 +59,9 @@ npm run dev:electron       # hot-reload main process, assumes dist/ui already bu
 - **Playwright timeouts:** `src/main/services/test-runner.ts` centralizes retry/timeouts; adjust there instead of per-spec to keep behavior consistent.
 - **Workspace switching:** Check `workspace-manager.ts` logs to see workspace loading and path resolution. Workspace config is in `workspaces/<id>/workspace.json`.
 - **Assertion generation:** Verify assertion code generation in `spec-generator.ts`. Check that parameterized values are resolved correctly from test data.
-- **BrowserStack/Jira:** Test connections via Settings UI. Check service logs in main process console for API call details.
+- **BrowserStack/Jira:** Test connections via Settings UI or diagnostics screen. Check service logs in main process console for API call details.
+- **Diagnostics:** Use the diagnostics screen (`src/ElectronTest/`) to verify environment health. Each check is in `src/ElectronTest/checks/` and can be run independently.
+- **Auto-updates:** Test update flow using `updaterService.ts`. Ensure `package.json` has correct `publish` configuration for GitHub Releases.
 
 ### Release & Distribution
 1. `npm run build:all`

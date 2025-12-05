@@ -1,36 +1,19 @@
 .top-toolbar {
-  background: #1f2937;
-  border-bottom: 1px solid #374151;
-  padding: 0;
-  height: 56px;
-  flex-shrink: 0;
-  z-index: 10;
+  @apply bg-base-200 border-b border-base-300 p-0 h-14 flex-shrink-0 z-10;
 }
 
 .toolbar-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 24px;
-  height: 100%;
+  @apply flex justify-between items-center px-6 h-full;
 }
 
 .toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  @apply flex items-center gap-4;
 }
 
 .toolbar-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #f3f4f6;
-  margin: 0;
+  @apply text-lg font-semibold text-base-content m-0;
 }
 
 .toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @apply flex items-center gap-2;
 }
-

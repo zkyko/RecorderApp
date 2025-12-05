@@ -163,9 +163,7 @@ export class JiraService {
       // Ignore logging errors
     }
 
-    // Hardcoded defaults for Four Hands Jira instance
-    // SECURITY WARNING: API tokens and credentials should be configured via settings.
-    // For production, use environment variables or secure credential storage.
+    // Default values for Four Hands Jira instance (no hardcoded secrets)
     const baseUrl = jiraConfig.baseUrl || 'https://fourhands.atlassian.net';
     const email = jiraConfig.email || '';
     const apiToken = jiraConfig.apiToken || '';
@@ -198,17 +196,66 @@ export class JiraService {
         projectName: response.name || projectKey,
       };
     } catch (error: any) {
+      // Provide more helpful error messages
+      let errorMessage = error.message || 'Failed to connect to Jira';
+      
+      if (errorMessage.includes('No project could be found') || errorMessage.includes('404')) {
+        errorMessage += '\n\nPossible causes:\n' +
+          '1. The project key "QST" may be incorrect\n' +
+          '2. The API token may not have permission to access this project\n' +
+          '3. The API token may be associated with a different Jira account\n\n' +
+          'To fix this:\n' +
+          '1. Verify the project key in Jira (Settings → Projects → QST)\n' +
+          '2. Ensure the API token is created for an account that has access to QST\n' +
+          '3. Check project permissions in Jira (Project Settings → Permissions)\n' +
+          '4. Create a new API token at: https://id.atlassian.com/manage-profile/security/api-tokens';
+      } else if (errorMessage.includes('permission')) {
+        errorMessage += '\n\nThe API token does not have sufficient permissions.\n\n' +
+          'Required permissions:\n' +
+          '- Browse Projects\n' +
+          '- Create Issues\n' +
+          '- Edit Issues\n\n' +
+          'To fix this:\n' +
+          '1. Ask a Jira administrator to grant permissions to your account\n' +
+          '2. Or create a new API token for an account with the right permissions';
+      }
+      
       return {
         success: false,
-        error: error.message || 'Failed to connect to Jira',
+        error: errorMessage,
       };
+    }
+  }
+
+  /**
+   * List projects accessible to the current user
+   * Useful for debugging permission issues
+   */
+  async listAccessibleProjects(): Promise<Array<{ key: string; name: string; id: string }>> {
+    try {
+      const { baseUrl, email, apiToken } = this.getConfig();
+      const url = `${baseUrl}/rest/api/3/project?maxResults=100`;
+
+      const response = await this.makeRequest('GET', url, email, apiToken);
+      
+      // Response can be an array or an object with a values property
+      const projects = Array.isArray(response) ? response : (response.values || []);
+      
+      return projects.map((project: any) => ({
+        key: project.key,
+        name: project.name,
+        id: project.id,
+      }));
+    } catch (error: any) {
+      console.error('[JiraService] Failed to list projects:', error.message);
+      return [];
     }
   }
 
   /**
    * Search for JIRA issues using JQL (Jira Query Language)
    */
-  async searchIssues(jql?: string, maxResults: number = 50, startAt: number = 0): Promise<{
+  async searchIssues(jql?: string, maxResults: number = 50, startAt: number = 0, nextPageToken?: string): Promise<{
     issues: Array<{
       key: string;
       summary: string;
@@ -222,77 +269,137 @@ export class JiraService {
     total: number;
     startAt: number;
     maxResults: number;
+    nextPageToken?: string;
   }> {
     try {
       const { baseUrl, email, apiToken, projectKey } = this.getConfig();
       
       // Default JQL: get all issues from the project, ordered by most recent
-      const defaultJql = `project = ${projectKey} ORDER BY updated DESC`;
+      // Use project key without quotes for Jira Cloud
+      // IMPORTANT: New API requires bounded queries - add a time bound to avoid 400 errors
+      const defaultJql = `project = ${projectKey} ORDER BY created DESC`;
       const query = jql || defaultJql;
       
-      // Try the new /rest/api/3/search/jql endpoint
-      // The new endpoint might use GET with query parameters or a different POST format
-      // Let's try GET first as it's simpler and more common for search endpoints
-      const fieldsParam = 'summary,status,issuetype,assignee,created,updated,priority,labels';
-      const url = `${baseUrl}/rest/api/3/search/jql?jql=${encodeURIComponent(query)}&startAt=${startAt}&maxResults=${maxResults}&fields=${encodeURIComponent(fieldsParam)}`;
+      // Use the new /rest/api/3/search/jql endpoint (replaces deprecated /rest/api/3/search)
+      // This endpoint requires a two-step approach:
+      // Step 1: Get issue IDs/keys via /rest/api/3/search/jql
+      // Step 2: Get full issue details via /rest/api/3/issue/bulkfetch
+      const searchUrl = `${baseUrl}/rest/api/3/search/jql`;
+      
+      // Step 1: Get issue IDs/keys (new API only returns IDs by default)
+      const searchPayload: any = {
+        jql: query,
+        maxResults: Math.min(maxResults, 100), // API may have limits
+      };
+      
+      // Use nextPageToken if provided (new pagination method replaces startAt)
+      if (nextPageToken) {
+        searchPayload.nextPageToken = nextPageToken;
+      }
       
       // Log request for debugging
       try {
-        console.log('[JiraService] Searching with GET to:', url);
+        console.log('[JiraService] Step 1: Searching with POST to:', searchUrl);
+        console.log('[JiraService] JQL query:', query);
+        console.log('[JiraService] Payload:', JSON.stringify(searchPayload, null, 2));
       } catch {
         // Ignore logging errors
       }
       
-      let response;
+      // Step 1: Get issue IDs/keys from search endpoint
+      const searchResponse = await this.makeRequest('POST', searchUrl, email, apiToken, searchPayload);
+      
+      // Log search response for debugging
       try {
-        // Try GET first (simpler format)
-        response = await this.makeRequest('GET', url, email, apiToken);
-      } catch (error: any) {
-        // If GET fails, try POST with a different payload structure
-        if (error.message && error.message.includes('400')) {
-          console.log('[JiraService] GET failed, trying POST with different format');
-          const postUrl = `${baseUrl}/rest/api/3/search/jql`;
-          
-          // Try POST with simplified payload (just JQL, no fields array)
-          const payload = {
-            jql: query,
-            startAt,
-            maxResults,
-          };
-          
-          try {
-            response = await this.makeRequest('POST', postUrl, email, apiToken, payload);
-          } catch (postError: any) {
-            // If that fails, try with fields as a string instead of array
-            const payloadWithFields = {
-              jql: query,
-              startAt,
-              maxResults,
-              fields: fieldsParam, // Try as comma-separated string
-            };
-            response = await this.makeRequest('POST', postUrl, email, apiToken, payloadWithFields);
-          }
+        console.log('[JiraService] Step 1 response:', JSON.stringify(searchResponse, null, 2));
+        console.log('[JiraService] Response issues count:', searchResponse.issues?.length || 0);
+        if (searchResponse.issues && searchResponse.issues.length > 0) {
+          console.log('[JiraService] First issue from search:', JSON.stringify(searchResponse.issues[0], null, 2));
         } else {
-          throw error;
+          // If no issues found, test permissions by fetching a specific issue
+          console.log('[JiraService] No issues found in search. Testing permissions by fetching QST-1 directly...');
+          try {
+            const testIssueUrl = `${baseUrl}/rest/api/3/issue/QST-1`;
+            const testIssue = await this.makeRequest('GET', testIssueUrl, email, apiToken);
+            console.log('[JiraService] Successfully fetched QST-1:', testIssue.key);
+            console.log('[JiraService] This suggests a JQL query issue, not permissions');
+          } catch (testError: any) {
+            console.log('[JiraService] Failed to fetch QST-1:', testError.message);
+            console.log('[JiraService] This suggests a permissions issue');
+          }
         }
+      } catch {
+        // Ignore logging errors
       }
       
-      const issues = (response.issues || []).map((issue: any) => ({
-        key: issue.key,
-        summary: issue.fields?.summary || 'No summary',
-        status: issue.fields?.status?.name || 'Unknown',
-        issueType: issue.fields?.issuetype?.name || 'Unknown',
-        assignee: issue.fields?.assignee?.displayName || issue.fields?.assignee?.emailAddress || 'Unassigned',
-        created: issue.fields?.created || '',
-        updated: issue.fields?.updated || '',
-        url: `${baseUrl}/browse/${issue.key}`,
-      }));
+      // Extract issue keys/IDs from search response
+      const issueKeys = (searchResponse.issues || []).map((issue: any) => issue.key || issue.id).filter(Boolean);
+      
+      if (issueKeys.length === 0) {
+        // No issues found
+        return {
+          issues: [],
+          total: 0,
+          startAt: startAt,
+          maxResults: maxResults,
+          nextPageToken: searchResponse.nextPageToken,
+        };
+      }
+      
+      // Step 2: Get full issue details using bulk fetch API
+      const fields = ['summary', 'status', 'issuetype', 'assignee', 'created', 'updated', 'priority', 'labels'];
+      const bulkFetchUrl = `${baseUrl}/rest/api/3/issue/bulkfetch`;
+      const bulkFetchPayload = {
+        issueIdsOrKeys: issueKeys,
+        fields: fields,
+      };
+      
+      try {
+        console.log('[JiraService] Step 2: Fetching details for', issueKeys.length, 'issues via bulk fetch');
+        console.log('[JiraService] Bulk fetch URL:', bulkFetchUrl);
+      } catch {
+        // Ignore logging errors
+      }
+      
+      const bulkResponse = await this.makeRequest('POST', bulkFetchUrl, email, apiToken, bulkFetchPayload);
+      
+      // Log bulk response for debugging
+      try {
+        console.log('[JiraService] Step 2 response (bulk fetch):', JSON.stringify(bulkResponse, null, 2));
+      } catch {
+        // Ignore logging errors
+      }
+      
+      // Bulk API returns issues in an array or object with issues property
+      const bulkIssues = Array.isArray(bulkResponse) ? bulkResponse : (bulkResponse.issues || bulkResponse.values || []);
+      
+      // Map response to our format
+      const issues = bulkIssues.map((issue: any) => {
+        const issueFields = issue.fields || {};
+        
+        return {
+          key: issue.key,
+          summary: issueFields.summary || 'No summary',
+          status: issueFields.status?.name || 'Unknown',
+          issueType: issueFields.issuetype?.name || 'Unknown',
+          assignee: issueFields.assignee?.displayName || issueFields.assignee?.emailAddress || 'Unassigned',
+          created: issueFields.created || '',
+          updated: issueFields.updated || '',
+          url: `${baseUrl}/browse/${issue.key}`,
+        };
+      });
+      
+      // New API doesn't return exact total count, use approximate
+      // We can use the count of issues returned and indicate if there are more pages
+      const returnedCount = issues.length;
+      const hasMorePages = !!searchResponse.nextPageToken;
       
       return {
         issues,
-        total: response.total || 0,
-        startAt: response.startAt || 0,
-        maxResults: response.maxResults || maxResults,
+        total: hasMorePages ? returnedCount + 1 : returnedCount, // Approximate total
+        startAt: startAt, // Keep for backward compatibility
+        maxResults: maxResults,
+        nextPageToken: searchResponse.nextPageToken, // New pagination token
       };
     } catch (error: any) {
       throw new Error(`Failed to search JIRA issues: ${error.message}`);

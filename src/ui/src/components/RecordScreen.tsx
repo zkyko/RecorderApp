@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Text, Button, Group, Alert, Badge, ScrollArea, Code, Grid, Stack, List, Select } from '@mantine/core';
-import { CircleDot, Square, Play, Info, Clock, CheckCircle2, AlertTriangle, XCircle, Sparkles, LogIn } from 'lucide-react';
+import { CircleDot, Square, LogIn, Play, Sparkles, ChevronDown, ChevronUp, Copy, Maximize2, Minimize2, Clock, Pause, RotateCcw, Save } from 'lucide-react';
+import { Card, Alert, Group, Text, Button, Badge, List, ScrollArea } from '@mantine/core';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { CodegenCodeUpdate, RecorderCodeUpdate, RecordingEngine } from '../../../types/v1.5';
 import VisualTestBuilder from './VisualTestBuilder';
+import CopyButton from './CopyButton';
+import KeyboardShortcutsPanel from './KeyboardShortcutsPanel';
+import CustomButton from './Button';
+import { notifications } from '../utils/notifications';
 import './RecordScreen.css';
 import WebLoginDialog from './WebLoginDialog';
 
@@ -26,8 +30,15 @@ const RecordScreen: React.FC = () => {
     bad: number;
   } | null>(null);
   const [recordingEngine, setRecordingEngine] = useState<RecordingEngine>('qaStudio');
+  const [recordingMode, setRecordingMode] = useState<'standard' | 'advanced'>('standard');
   const [visualBuilderOpen, setVisualBuilderOpen] = useState(false);
   const [showWebLogin, setShowWebLogin] = useState(false);
+  const [showShortcutsPanel, setShowShortcutsPanel] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [recordingStartTime, setRecordingStartTime] = useState<Date | null>(null);
+  const [sessionDuration, setSessionDuration] = useState(0);
+  const codePreviewRef = useRef<HTMLDivElement>(null);
 
   // Load recording engine setting on mount
   useEffect(() => {
@@ -200,6 +211,13 @@ const RecordScreen: React.FC = () => {
       if (response.success) {
         setIsRecording(true);
         setError(null);
+        setRecordingStartTime(new Date());
+        setSessionDuration(0);
+        setIsPaused(false);
+        notifications.show({
+          message: 'Recording started',
+          color: 'success',
+        });
       } else {
         setError(response.error || 'Failed to start recording');
       }
@@ -208,6 +226,30 @@ const RecordScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Track recording duration
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isRecording && recordingStartTime) {
+      interval = setInterval(() => {
+        if (!isPaused) {
+          setSessionDuration(Math.floor((Date.now() - recordingStartTime.getTime()) / 1000));
+        }
+      }, 1000);
+    } else {
+      setSessionDuration(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording, recordingStartTime, isPaused]);
+
+  // Format duration
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Parse steps from code content
@@ -246,6 +288,8 @@ const RecordScreen: React.FC = () => {
 
     return parsedSteps;
   }, [liveCodeContent]);
+
+  const stepCount = steps.length;
 
   // Calculate locator health
   useEffect(() => {
@@ -329,111 +373,175 @@ const RecordScreen: React.FC = () => {
     if (!timestamp) return 'Never';
     try {
       const date = new Date(timestamp);
-      return date.toLocaleTimeString();
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     } catch {
       return timestamp;
     }
   };
 
+  const getRecordingEngineLabel = () => {
+    return recordingEngine === 'playwright' ? 'Playwright Codegen' : 'QA Studio Recorder';
+  };
+
   return (
     <div className="record-screen">
-      <Card padding="lg" radius="lg" withBorder className="record-hero">
-        <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <div>
-            <Group gap="xs" mb="xs">
-              <Badge
-                color={isRecording ? 'blue' : 'gray'}
-                variant="filled"
-                leftSection={isRecording ? <Play size={12} /> : <Square size={12} />}
+      {/* Primary Panel: Record Flow */}
+      <div className="record-hero">
+        <div className="text-center mb-6">
+          <h2 className="record-hero-title">Record a new {currentWorkspace?.type === 'web-demo' ? 'FH Web' : 'D365'} flow</h2>
+          <p className="record-hero-subtitle">
+            Launch a browser, run through your scenario, then review steps and generate Playwright code.
+          </p>
+        </div>
+
+        {/* Recording Mode Toggle */}
+        {!isRecording && (
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-sm text-base-content/70">Recording Mode:</span>
+            <div className="join">
+              <button
+                className={`btn btn-sm join-item ${recordingMode === 'standard' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setRecordingMode('standard')}
               >
-                {isRecording ? 'Recording' : 'Idle'}
-              </Badge>
-              <Select
-                value={recordingEngine}
-                onChange={handleRecordingEngineChange}
-                data={[
-                  { value: 'qaStudio', label: 'QA Studio Recorder' },
-                  { value: 'playwright', label: 'Playwright Codegen' },
-                ]}
-                disabled={isRecording}
-                size="xs"
-                style={{ width: 200 }}
-                variant="default"
-              />
-            </Group>
-            <Text fw={600} size="xl">Record Flow</Text>
-            <Text c="dimmed" size="sm" mb="sm">
-              {currentWorkspace?.type === 'web-demo'
-                ? 'Launch a browser, capture your FH web journey, then move into cleanup and parameterization.'
-                : 'Launch a browser, capture your D365 flow, then move into cleanup and parameterization.'}
-            </Text>
-            {currentWorkspace?.type === 'web-demo' && (
-              <Group gap="xs" mb="sm">
-                <Text size="xs" c="dimmed">
-                  Save your login to avoid repeated authentication:
-                </Text>
-                <Button
-                  size="xs"
-                  variant="light"
-                  leftSection={<LogIn size={14} />}
-                  onClick={() => setShowWebLogin(true)}
-                >
-                  Login to FH Web
-                </Button>
-              </Group>
-            )}
-            <Group gap="md">
-              {envUrl && (
-                <Text size="sm" c="dimmed">
-                  Environment: <Text span fw={600}>{envUrl}</Text>
-                </Text>
-              )}
-              {lastCodeUpdateAt && (
-                <Group gap={4}>
-                  <Clock size={14} />
-                  <Text size="sm" c="dimmed">
-                    Updated {formatTimestamp(lastCodeUpdateAt)}
-                  </Text>
-                </Group>
-              )}
-            </Group>
+                Standard Mode
+              </button>
+              <button
+                className={`btn btn-sm join-item ${recordingMode === 'advanced' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setRecordingMode('advanced')}
+              >
+                Advanced Mode
+              </button>
+            </div>
+            <span className="text-xs text-base-content/50 ml-2">
+              {recordingMode === 'standard' ? 'Normal click capture' : 'Includes hover events, keyboard shortcuts'}
+            </span>
           </div>
-          <div>
-            {!isRecording ? (
-              <Button
-                leftSection={<CircleDot size={18} />}
-                size="md"
-                color="green"
-                onClick={handleStartRecording}
-                loading={loading}
-                disabled={loading}
+        )}
+
+        {/* Status and Engine Selection */}
+        <div className="flex items-center justify-center gap-3 mb-6 flex-wrap">
+          {isRecording && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="recording-dot-pulse"></span>
+                <span className="text-sm font-medium">Recording</span>
+              </div>
+              <span className="text-base-content/40">•</span>
+              <div className="flex items-center gap-2 text-sm">
+                <Clock size={14} />
+                <span>{formatDuration(sessionDuration)}</span>
+              </div>
+              <span className="text-base-content/40">•</span>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium">{stepCount}</span>
+                <span className="text-base-content/60">steps captured</span>
+              </div>
+            </>
+          )}
+          {!isRecording && (
+            <>
+              <span className={`record-status-pill ${isRecording ? 'recording' : 'idle'}`}>
+                Idle
+              </span>
+              <span className="text-base-content/40">•</span>
+              <select
+                value={recordingEngine}
+                onChange={(e) => handleRecordingEngineChange(e.target.value)}
+                disabled={isRecording}
+                className="select select-sm select-bordered bg-base-100 border-base-300 text-base-content"
+                style={{ width: 'auto', minWidth: '180px' }}
               >
-                Start Recording
-              </Button>
-            ) : (
-              <Button
-                leftSection={<Square size={18} />}
+                <option value="qaStudio">QA Studio Recorder</option>
+                <option value="playwright">Playwright Codegen</option>
+              </select>
+            </>
+          )}
+        </div>
+
+        {/* Primary Action Buttons */}
+        <div className="mb-4 flex flex-col items-center gap-3">
+          {!isRecording ? (
+            <CustomButton
+              variant="primary"
+              size="lg"
+              onClick={handleStartRecording}
+              loading={loading}
+              icon={CircleDot}
+            >
+              Start Recording
+            </CustomButton>
+          ) : (
+            <div className="flex gap-2">
+              <CustomButton
+                variant={isPaused ? 'primary' : 'secondary'}
                 size="md"
-                color="red"
+                onClick={() => {
+                  setIsPaused(!isPaused);
+                  notifications.show({
+                    message: isPaused ? 'Recording resumed' : 'Recording paused',
+                    color: 'info',
+                  });
+                }}
+                icon={isPaused ? Play : Pause}
+              >
+                {isPaused ? 'Resume' : 'Pause'}
+              </CustomButton>
+              <CustomButton
+                variant="primary"
+                size="md"
                 onClick={handleStopRecording}
                 loading={loading}
-                disabled={loading}
+                icon={Square}
               >
                 Stop Recording
-              </Button>
-            )}
-          </div>
-        </Group>
-        {error && (
-          <Alert icon={<Info size={16} />} title="Error" color="red" mt="md">
-            {error}
-          </Alert>
-        )}
-      </Card>
+              </CustomButton>
+            </div>
+          )}
+        </div>
 
-      <Grid gutter="md" mt="md">
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Stack gap="md">
+        {/* Keyboard Shortcuts Panel Toggle */}
+        <div className="mb-4 text-center">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShowShortcutsPanel(true)}
+          >
+            <span className="text-xs">Keyboard Shortcuts</span>
+            <span className="ml-2 text-base-content/50">?</span>
+          </button>
+        </div>
+
+        {/* Subtle engine info */}
+        <p className="text-xs text-base-content/50 text-center">
+          Recording engine: {getRecordingEngineLabel()}
+        </p>
+
+        {/* Web Login for FH Web workspaces */}
+        {currentWorkspace?.type === 'web-demo' && !isRecording && (
+          <div className="mt-4 text-center">
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setShowWebLogin(true)}
+            >
+              <LogIn size={14} className="mr-2" />
+              Login to FH Web
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="alert alert-error mt-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Secondary Row: Two Columns */}
+      <div className="record-secondary-row">
+        {/* Left: How Recording Works */}
+        <div className="record-workflow-card">
             {isRecording && (
               <Alert icon={<Play size={16} />} title="Recording" color="blue">
                 <Group gap="xs">
@@ -445,27 +553,61 @@ const RecordScreen: React.FC = () => {
               </Alert>
             )}
 
-            <Card padding="lg" radius="md" withBorder>
+            <Card 
+              padding="lg" 
+              radius="md" 
+              withBorder
+              style={{ cursor: 'pointer' }}
+              onClick={() => setVisualBuilderOpen(true)}
+            >
               <Group justify="space-between" mb="sm">
                 <Text fw={600}>Workflow</Text>
                 <Button
                   leftSection={<Sparkles size={16} />}
                   variant="light"
                   size="xs"
-                  onClick={() => setVisualBuilderOpen(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setVisualBuilderOpen(true);
+                  }}
                 >
                   Visual Builder <Badge size="xs" ml="xs" color="violet">BETA</Badge>
                 </Button>
               </Group>
               <List spacing="xs" size="sm" c="dimmed">
                 <List.Item>
-                  {currentWorkspace?.type === 'web-demo'
-                    ? 'Launch the recorder and run through your FH web scenario.'
-                    : 'Launch the recorder and run through your D365 scenario.'}
+                  <div className="flex items-center gap-2">
+                    <span>1.</span>
+                    <span>{currentWorkspace?.type === 'web-demo'
+                      ? 'Launch the recorder and run through your FH web scenario.'
+                      : 'Launch the recorder and run through your D365 scenario.'}</span>
+                    {isRecording && <Badge size="xs" color="blue">In Progress</Badge>}
+                  </div>
                 </List.Item>
-                <List.Item>Stop recording to review steps and cleanup locators.</List.Item>
-                <List.Item>Parameterize inputs and generate the final Playwright test.</List.Item>
+                <List.Item>
+                  <div className="flex items-center gap-2">
+                    <span>2.</span>
+                    <span>Stop recording to review steps and cleanup locators.</span>
+                  </div>
+                </List.Item>
+                <List.Item>
+                  <div className="flex items-center gap-2">
+                    <span>3.</span>
+                    <span>Parameterize inputs and generate the final Playwright test.</span>
+                  </div>
+                </List.Item>
               </List>
+              {isRecording && (
+                <div className="mt-4">
+                  <div className="text-xs text-base-content/60 mb-2">Progress</div>
+                  <div className="w-full bg-base-300 rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min((stepCount / 20) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </Card>
 
             {steps.length > 0 && (
@@ -495,98 +637,139 @@ const RecordScreen: React.FC = () => {
                 </ScrollArea>
               </Card>
             )}
-          </Stack>
-        </Grid.Col>
+          </div>
 
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Card padding="lg" radius="md" withBorder style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Group justify="space-between" mb="md">
-              <div>
-                <Text fw={600} size="lg">Code Preview</Text>
-                <Text size="sm" c="dimmed">
-                  Generated Playwright script updates in real time while you record.
-                </Text>
-              </div>
-              {lastCodeUpdateAt && (
-                <Group gap={4}>
-                  <Clock size={14} />
-                  <Text size="xs" c="dimmed">Updated {formatTimestamp(lastCodeUpdateAt)}</Text>
-                </Group>
+        {/* Right: Code Preview */}
+        <div className={`record-code-preview-card ${isFullscreen ? 'fixed inset-4 z-50' : ''}`}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="record-code-preview-title">Code Preview</h3>
+            <div className="flex items-center gap-2">
+              {!isRecording && (
+                <select
+                  className="select select-xs select-bordered bg-base-100"
+                  defaultValue="typescript"
+                >
+                  <option value="typescript">TypeScript</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="python">Python</option>
+                </select>
               )}
-            </Group>
-
-            {!liveCodeContent && !isRecording ? (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                <div>
-                  <Text size="4rem" mb="md">📝</Text>
-                  <Text size="lg" fw={600} mb="xs">No recording yet</Text>
-                  <Text c="dimmed">Start recording to stream code into this panel.</Text>
+              {liveCodeContent && (
+                <CopyButton
+                  text={liveCodeContent}
+                  label="Copy Code"
+                  size="sm"
+                  variant="icon"
+                />
+              )}
+              <button
+                className="btn btn-ghost btn-xs"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              >
+                {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+            </div>
+          </div>
+          {!liveCodeContent && !isRecording ? (
+            <div className="record-code-preview-empty">
+              <div>
+                <div className="text-4xl mb-3 opacity-50">📝</div>
+                <p className="text-sm text-base-content/60">No recording yet.</p>
+                <p className="text-xs text-base-content/50 mt-1">Start recording to stream generated code into this panel.</p>
+                <div className="mt-4 p-3 bg-base-300 rounded text-xs font-mono text-left">
+                  <div className="text-primary">// Example code preview</div>
+                  <div className="text-base-content/70">await page.goto('https://example.com');</div>
+                  <div className="text-base-content/70">await page.click('button');</div>
                 </div>
               </div>
-            ) : (
-              <>
-                <ScrollArea h="calc(100vh - 400px)" style={{ flex: 1 }}>
-                  <Code block style={{ 
-                    background: '#0b1020', 
-                    color: '#d4d4d4',
-                    padding: '16px',
-                    borderRadius: '8px',
-                    fontFamily: "'Courier New', monospace",
-                    fontSize: '0.875rem',
-                    lineHeight: 1.6,
-                  }}>
-                    {liveCodeContent?.split('\n').map((line, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          backgroundColor: selectedStepLine === index + 1 ? 'rgba(59, 130, 246, 0.3)' : 'transparent',
-                          padding: '2px 0',
-                        }}
-                      >
-                        {line || ' '}
-                      </div>
-                    )) || 'Waiting for codegen output...'}
-                  </Code>
-                </ScrollArea>
-                
-                {/* Locator Health Summary */}
-                {locatorHealth && locatorHealth.total > 0 && (
-                  <Card padding="md" radius="md" withBorder mt="md" style={{ background: '#1f2937' }}>
-                    <Text fw={600} size="sm" mb="xs">Locator Health Summary</Text>
-                    <Group gap="xl">
-                      <div>
-                        <Text size="xs" c="dimmed">Total Locators</Text>
-                        <Text size="lg" fw={700}>{locatorHealth.total}</Text>
-                      </div>
-                      <div>
-                        <Group gap="xs">
-                          <CheckCircle2 size={16} color="green" />
-                          <Text size="xs" c="dimmed">Good</Text>
-                        </Group>
-                        <Text size="lg" fw={700} c="green">{locatorHealth.good}</Text>
-                      </div>
-                      <div>
-                        <Group gap="xs">
-                          <AlertTriangle size={16} color="yellow" />
-                          <Text size="xs" c="dimmed">Medium</Text>
-                        </Group>
-                        <Text size="lg" fw={700} c="yellow">{locatorHealth.medium}</Text>
-                      </div>
-                      <div>
-                        <Group gap="xs">
-                          <XCircle size={16} color="red" />
-                          <Text size="xs" c="dimmed">Bad</Text>
-                        </Group>
-                        <Text size="lg" fw={700} c="red">{locatorHealth.bad}</Text>
-                      </div>
-                    </Group>
-                  </Card>
+            </div>
+          ) : (
+            <>
+              <div 
+                ref={codePreviewRef}
+                className="record-code-preview-content"
+                style={{ maxHeight: isFullscreen ? 'calc(100vh - 200px)' : '400px' }}
+              >
+                {liveCodeContent?.split('\n').map((line, index) => (
+                  <div
+                    key={index}
+                    className={`code-line ${selectedStepLine === index + 1 ? 'highlighted' : ''}`}
+                  >
+                    <span className="line-number text-base-content/40 mr-3 select-none">{index + 1}</span>
+                    <span className="code-content">{line || ' '}</span>
+                  </div>
+                )) || (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <div className="loading loading-spinner loading-md mb-2"></div>
+                      <p className="text-sm text-base-content/60">Waiting for codegen output...</p>
+                    </div>
+                  </div>
                 )}
-              </>
-            )}
-          </Card>
-        </Grid.Col>
-      </Grid>
+              </div>
+              {liveCodeContent && (
+                <div className="record-code-stats flex items-center justify-between">
+                  <div>
+                    {liveCodeContent.split('\n').length} lines
+                    {lastCodeUpdateAt && ` • Updated ${formatTimestamp(lastCodeUpdateAt)}`}
+                  </div>
+                  {isRecording && (
+                    <div className="flex items-center gap-2 text-xs text-base-content/60">
+                      <span className="recording-dot-pulse-small"></span>
+                      Streaming...
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Keyboard Shortcuts Panel */}
+      <KeyboardShortcutsPanel
+        isOpen={showShortcutsPanel}
+        onClose={() => setShowShortcutsPanel(false)}
+        shortcuts={[
+          {
+            key: 'a',
+            ctrlKey: true,
+            shiftKey: true,
+            description: 'Add assertion',
+            handler: () => {
+              if (isRecording) {
+                notifications.show({
+                  message: 'Add assertion feature coming soon',
+                  color: 'info',
+                });
+              }
+            },
+          },
+          {
+            key: 'p',
+            ctrlKey: true,
+            shiftKey: true,
+            description: 'Pause/Resume recording',
+            handler: () => {
+              if (isRecording) {
+                setIsPaused(!isPaused);
+              }
+            },
+          },
+          {
+            key: 's',
+            ctrlKey: true,
+            shiftKey: true,
+            description: 'Stop recording',
+            handler: () => {
+              if (isRecording) {
+                handleStopRecording();
+              }
+            },
+          },
+        ]}
+      />
 
       {/* Visual Test Builder (BETA) */}
       {workspacePath && (

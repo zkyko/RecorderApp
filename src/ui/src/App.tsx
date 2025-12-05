@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import { notifications } from '@mantine/notifications';
+import { notifications } from './utils/notifications';
 import { AlertTriangle } from 'lucide-react';
 import AppLayout from './components/AppLayout';
 import Dashboard from './components/Dashboard';
@@ -31,9 +31,12 @@ import JiraScreen from './components/JiraScreen';
 import JiraIssuesList from './components/JiraIssuesList';
 import JiraIssueDetails from './components/JiraIssueDetails';
 import DiagnosticsScreen from './components/DiagnosticsScreen';
+import KeyboardShortcutsPanel from './components/KeyboardShortcutsPanel';
 import { useWorkspaceStore } from './store/workspace-store';
+import { useThemeStore } from './store/theme-store';
 import { ipc } from './ipc';
 import { getBackend } from './ipc-backend';
+import { useKeyboardShortcuts, KeyboardShortcut } from './hooks/useKeyboardShortcuts';
 import './App.css';
 
 function AppContent() {
@@ -46,10 +49,19 @@ function AppContent() {
     isSwitchingWorkspace,
     switchingToName,
   } = useWorkspaceStore();
+  
+  // Initialize theme on mount
+  const { theme } = useThemeStore();
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
   const [showLogin, setShowLogin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [config, setConfig] = useState<any>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [showShortcutsPanel, setShowShortcutsPanel] = useState(false);
   const expiredNotificationShown = useRef(false);
   const storageStateCheckInterval = useRef<NodeJS.Timeout | null>(null);
   const debugLogsRef = useRef<string[]>([]);
@@ -94,7 +106,7 @@ function AppContent() {
               id: 'update-available',
               title: 'Update Available',
               message: `Version ${data?.version} is available${sizeLabel}. Click to download.`,
-              color: 'blue',
+              color: 'info',
               autoClose: false,
               onClick: () => {
                 ipc.updater.download();
@@ -102,7 +114,7 @@ function AppContent() {
                   id: 'update-downloading',
                   title: 'Downloading Update',
                   message: 'Preparing download...',
-                  color: 'blue',
+                  color: 'info',
                   autoClose: false,
                 });
               },
@@ -129,7 +141,7 @@ function AppContent() {
               id: 'update-downloaded',
               title: 'Update Ready',
               message: 'Update downloaded. Restart to install?',
-              color: 'green',
+              color: 'success',
               autoClose: false,
               onClick: () => {
                 ipc.updater.install();
@@ -141,7 +153,7 @@ function AppContent() {
               id: 'update-error',
               title: 'Update Error',
               message: data?.message || 'Failed to check for updates',
-              color: 'red',
+              color: 'error',
               autoClose: 5000,
             });
             break;
@@ -153,6 +165,83 @@ function AppContent() {
       };
     }
   }, []);
+
+  // Keyboard shortcuts
+  const shortcuts: KeyboardShortcut[] = [
+    {
+      key: 'k',
+      ctrlKey: true,
+      handler: () => {
+        // Global search - can be implemented later
+        notifications.show({
+          message: 'Global search coming soon',
+          color: 'info',
+        });
+      },
+      description: 'Global search',
+      global: true,
+    },
+    {
+      key: 'r',
+      ctrlKey: true,
+      handler: () => {
+        navigate('/record');
+      },
+      description: 'Start recording',
+      global: true,
+    },
+    {
+      key: 's',
+      ctrlKey: true,
+      handler: () => {
+        // Save/Stop - context dependent, can be enhanced
+        notifications.show({
+          message: 'Save/Stop action',
+          color: 'info',
+        });
+      },
+      description: 'Save/Stop',
+      global: true,
+    },
+    {
+      key: 'b',
+      ctrlKey: true,
+      handler: () => {
+        navigate('/runs');
+      },
+      description: 'Run tests',
+      global: true,
+    },
+    {
+      key: ',',
+      ctrlKey: true,
+      handler: () => {
+        navigate('/settings');
+      },
+      description: 'Open settings',
+      global: true,
+    },
+    {
+      key: 'Escape',
+      handler: () => {
+        // Close modals/dismiss notifications
+        notifications.clear();
+        setShowShortcutsPanel(false);
+      },
+      description: 'Close modals/dismiss notifications',
+      global: true,
+    },
+    {
+      key: '?',
+      handler: () => {
+        setShowShortcutsPanel(true);
+      },
+      description: 'Show shortcuts panel',
+      global: true,
+    },
+  ];
+
+  useKeyboardShortcuts(shortcuts);
 
   const checkStorageStateStatus = useCallback(async () => {
     const backend = getBackend();
@@ -169,10 +258,8 @@ function AppContent() {
           id: 'storage-state-expired',
           title: 'Authentication Expired',
           message: `Your ${authType} authentication has expired. Please re-authenticate in Settings.`,
-          color: 'orange',
-          icon: <AlertTriangle size={16} />,
+          color: 'warning',
           autoClose: false,
-          withCloseButton: true,
           onClose: () => {
             expiredNotificationShown.current = false;
           },
@@ -503,6 +590,11 @@ function AppContent() {
           <Route path="/settings" element={<SettingsScreen />} />
         </Route>
       </Routes>
+      <KeyboardShortcutsPanel
+        isOpen={showShortcutsPanel}
+        onClose={() => setShowShortcutsPanel(false)}
+        shortcuts={shortcuts}
+      />
     </div>
   );
 }

@@ -1,32 +1,50 @@
-import React from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
 import { MantineProvider, createTheme } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
 import '@mantine/core/styles.css';
-import '@mantine/notifications/styles.css';
 import Sidebar from './Sidebar';
 import TopToolbar from './TopToolbar';
 import HintPanel from './HintPanel';
+import { useThemeStore } from '../store/theme-store';
 import './AppLayout.css';
 
+// Mantine themes for both modes
 const darkTheme = createTheme({
   colorScheme: 'dark',
   primaryColor: 'blue',
   colors: {
     dark: [
-      '#f3f4f6', // 0 - text
-      '#9ca3af', // 1 - secondary text
-      '#6b7280', // 2 - muted
-      '#4b5563', // 3 - borders
-      '#374151', // 4 - hover
-      '#1f2937', // 5 - cards
-      '#111827', // 6 - main bg
-      '#0b1020', // 7 - sidebar bg
-      '#030712', // 8 - darkest
+      '#e2e8f0', // 0 - text
+      '#cbd5e1', // 1 - secondary text
+      '#94a3b8', // 2 - muted
+      '#64748b', // 3 - borders
+      '#475569', // 4 - hover
+      '#334155', // 5 - cards
+      '#252b3d', // 6 - main bg
+      '#1a1f2e', // 7 - sidebar bg
+      '#0f1419', // 8 - darkest
+      '#0a0f14', // 9 - extra
     ],
   },
-  defaultRadius: 'md',
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+});
+
+const lightTheme = createTheme({
+  colorScheme: 'light',
+  primaryColor: 'blue',
+  colors: {
+    gray: [
+      '#f8fafc', // 0 - lightest
+      '#f1f5f9', // 1
+      '#e2e8f0', // 2
+      '#cbd5e1', // 3
+      '#94a3b8', // 4
+      '#64748b', // 5
+      '#475569', // 6
+      '#334155', // 7
+      '#1e293b', // 8
+      '#0f172a', // 9 - darkest
+    ],
+  },
 });
 
 interface AppLayoutProps {
@@ -34,31 +52,28 @@ interface AppLayoutProps {
 }
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
-  const location = useLocation();
+  const { theme } = useThemeStore();
+  const isDark = theme === 'qa-studio-dark';
 
-  // Check if we're in demo mode
-  const isDemoMode = typeof window !== 'undefined' && !window.electronAPI;
+  // Apply theme to HTML element on mount and theme change
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
 
-  const content = (
-    <div className="app-layout">
-      <Sidebar />
-      <div className="app-main">
-        <TopToolbar />
-        <div className="app-content">
-          <HintPanel />
-          {children || <Outlet />}
+  return (
+    <MantineProvider theme={isDark ? darkTheme : lightTheme} defaultColorScheme={isDark ? 'dark' : 'light'}>
+      <div className="app-layout" data-theme={theme}>
+        <Sidebar />
+        <div className="app-main">
+          <TopToolbar />
+          <div className="app-content">
+            <HintPanel />
+            {children || <Outlet />}
+          </div>
         </div>
       </div>
-    </div>
-  );
-
-  // Always provide MantineProvider because HashRouter creates a separate React tree
-  // In demo mode, the Next.js layout also has MantineProvider, but HashRouter
-  // components need their own provider in the same tree
-  return (
-    <MantineProvider theme={darkTheme} defaultColorScheme="dark">
-      <Notifications position="top-right" zIndex={1000} />
-      {content}
     </MantineProvider>
   );
 };

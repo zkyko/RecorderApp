@@ -29,15 +29,17 @@ QA Studio is the internal “recorder-to-runner” workbench for Dynamics 365 (D
 | Assertion Engine | First-class assertion support with parameterized expected values, integrated into flow model and code generation. | `src/generators/spec-generator.ts`, `src/ui/src/components/AssertionEditorModal.tsx` |
 | Execution & Feedback | Local and BrowserStack Automate execution with Test Management sync, log/perf telemetry, and Jira defect creation. | `src/main/services/test-runner.ts`, `src/main/services/browserstackTmService.ts`, `playwright*.config.ts` |
 | Enterprise Integrations | BrowserStack Test Management and Jira integration for centralized tracking and defect management. | `src/main/services/browserstackTmService.ts`, `src/main/services/jiraService.ts` |
-| Experience Layer | Mantine/React-based "Studio" UX for workspace switching, settings, session orchestration, and artifact review. | `src/ui/src` |
+| Diagnostics & Health | Built-in diagnostics for environment validation, workspace health, and integration connectivity checks. | `src/ElectronTest/`, `src/main/services/` |
+| Experience Layer | Mantine/React-based "Studio" UX for workspace switching, settings, session orchestration, artifact review, and diagnostics. | `src/ui/src` |
 
 ### Version 2.0 Achievements
-1. **Universal Assertion Engine:** First-class assertion support integrated into flows and code generation, enabling data-driven validation with parameterized expected values.
-2. **Multi-Workspace Architecture:** Web Demo workspace alongside D365, demonstrating unified architecture with workspace switching and platform-agnostic design.
-3. **BrowserStack Integration:** BrowserStack Automate execution backend and Test Management sync for centralized test tracking and reporting.
-4. **Jira Integration:** One-click defect creation from failed test runs with pre-filled context, repro steps, and BrowserStack session links.
-5. **Stabilized Runtime:** Fixed bundled Playwright runtime detection, removed hard dependency on cmd.exe, and improved error handling.
-6. **Auto-Updates:** Automatic updates via GitHub Releases using electron-updater with download progress and one-click installation.
+1. **Universal Assertion Engine:** First-class assertion support integrated into flows and code generation, enabling data-driven validation with parameterized expected values. Supports 8 assertion types (toHaveText, toContainText, toBeVisible, toHaveURL, toHaveTitle, toBeChecked, toHaveValue, toHaveAttribute) with locator and page-level checks.
+2. **Multi-Workspace Architecture:** Web Demo workspace alongside D365, demonstrating unified architecture with workspace switching and platform-agnostic design. Each workspace maintains its own tests, data, and configuration while sharing core infrastructure.
+3. **BrowserStack Integration:** BrowserStack Automate execution backend and Test Management sync for centralized test tracking and reporting. Automatic test case creation and run publishing to BrowserStack TM project.
+4. **Jira Integration:** One-click defect creation from failed test runs with pre-filled context, repro steps, and BrowserStack session links. Connection verification and field schema support for proper defect formatting.
+5. **Diagnostics & Self-Test:** Built-in diagnostics screen for environment, workspace, and integration health checks. Verify Playwright runtime, workspace configuration, BrowserStack connectivity, Jira connectivity, and RAG service availability.
+6. **Stabilized Runtime:** Fixed bundled Playwright runtime detection, removed hard dependency on cmd.exe, and improved error handling. Enhanced logging with proper stream lifecycle management.
+7. **Auto-Updates:** Automatic updates via GitHub Releases using electron-updater with download progress and one-click installation. Checks for updates on startup and provides seamless update experience.
 
 ### Near-Term Narrative
 1. **Precision Recording:** Continue refining spatial heuristics and MI-based registry updates to reduce manual locator edits by >60%.

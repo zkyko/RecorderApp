@@ -1,6 +1,5 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Button, Group } from '@mantine/core';
 import { 
   Plus, 
   Play, 
@@ -13,6 +12,8 @@ import {
   Download,
   Home
 } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
+import NotificationCenter from './NotificationCenter';
 import './TopToolbar.css';
 
 // Check if we're in demo mode (web environment)
@@ -44,14 +45,13 @@ const TopToolbar: React.FC = () => {
         title: 'Dashboard',
         left: null,
         right: (
-          <Button
-            leftSection={<Plus size={16} />}
+          <button
+            className="btn btn-primary"
             onClick={() => navigate('/record')}
-            variant="filled"
-            color="blue"
           >
+            <Plus size={16} />
             New Test
-          </Button>
+          </button>
         ),
       };
     }
@@ -62,50 +62,29 @@ const TopToolbar: React.FC = () => {
         title: 'Test Library',
         left: null,
         right: (
-          <Group gap="xs">
-            <Button
-              leftSection={<Filter size={16} />}
-              variant="subtle"
-              color="gray"
-            >
+          <div className="flex gap-2">
+            <button className="btn btn-ghost btn-sm">
+              <Filter size={16} />
               Filter
-            </Button>
-            <Button
-              leftSection={<Plus size={16} />}
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
               onClick={() => navigate('/record')}
-              variant="filled"
-              color="blue"
             >
+              <Plus size={16} />
               New Test
-            </Button>
-          </Group>
+            </button>
+          </div>
         ),
       };
     }
 
-    // Record
+    // Record - show status instead of buttons (buttons are in main panel)
     if (path.startsWith('/record')) {
       return {
-        title: 'Record Flow',
+        title: 'Record',
         left: null,
-        right: (
-          <Group gap="xs">
-            <Button
-              leftSection={<CircleDot size={16} />}
-              variant="filled"
-              color="green"
-            >
-              Start Recording
-            </Button>
-            <Button
-              leftSection={<Square size={16} />}
-              variant="filled"
-              color="red"
-            >
-              Stop Recording
-            </Button>
-          </Group>
-        ),
+        right: null, // Status will be shown in the main panel, not toolbar
       };
     }
 
@@ -115,22 +94,16 @@ const TopToolbar: React.FC = () => {
         title: 'Test Runs',
         left: null,
         right: (
-          <Group gap="xs">
-            <Button
-              leftSection={<RefreshCw size={16} />}
-              variant="subtle"
-              color="gray"
-            >
+          <div className="flex gap-2">
+            <button className="btn btn-ghost btn-sm">
+              <RefreshCw size={16} />
               Refresh
-            </Button>
-            <Button
-              leftSection={<Play size={16} />}
-              variant="filled"
-              color="blue"
-            >
+            </button>
+            <button className="btn btn-primary btn-sm">
+              <Play size={16} />
               Run Tests
-            </Button>
-          </Group>
+            </button>
+          </div>
         ),
       };
     }
@@ -141,22 +114,16 @@ const TopToolbar: React.FC = () => {
         title: 'Data Editor',
         left: null,
         right: (
-          <Group gap="xs">
-            <Button
-              leftSection={<Plus size={16} />}
-              variant="subtle"
-              color="gray"
-            >
+          <div className="flex gap-2">
+            <button className="btn btn-ghost btn-sm">
+              <Plus size={16} />
               Add Row
-            </Button>
-            <Button
-              leftSection={<Save size={16} />}
-              variant="filled"
-              color="blue"
-            >
+            </button>
+            <button className="btn btn-primary btn-sm">
+              <Save size={16} />
               Save Changes
-            </Button>
-          </Group>
+            </button>
+          </div>
         ),
       };
     }
@@ -167,22 +134,16 @@ const TopToolbar: React.FC = () => {
         title: 'Test Report',
         left: null,
         right: (
-          <Group gap="xs">
-            <Button
-              leftSection={<Download size={16} />}
-              variant="subtle"
-              color="gray"
-            >
+          <div className="flex gap-2">
+            <button className="btn btn-ghost btn-sm">
+              <Download size={16} />
               Export
-            </Button>
-            <Button
-              leftSection={<RefreshCw size={16} />}
-              variant="subtle"
-              color="gray"
-            >
+            </button>
+            <button className="btn btn-ghost btn-sm">
+              <RefreshCw size={16} />
               Refresh
-            </Button>
-          </Group>
+            </button>
+          </div>
         ),
       };
     }
@@ -193,13 +154,10 @@ const TopToolbar: React.FC = () => {
         title: 'Settings',
         left: null,
         right: (
-          <Button
-            leftSection={<Save size={16} />}
-            variant="filled"
-            color="blue"
-          >
+          <button className="btn btn-primary btn-sm">
+            <Save size={16} />
             Save Settings
-          </Button>
+          </button>
         ),
       };
     }
@@ -223,31 +181,26 @@ const TopToolbar: React.FC = () => {
         <div className="toolbar-right">
           {isDemoMode && (
             <>
-              <Button
-                component="a"
+              <a
                 href={`${basePath}/`}
-                leftSection={<Home size={16} />}
-                variant="subtle"
-                color="gray"
-                size="sm"
-                style={{ marginRight: '8px' }}
+                className="btn btn-ghost btn-sm mr-2"
               >
+                <Home size={16} />
                 Exit Demo
-              </Button>
-              <Button
-                component="a"
+              </a>
+              <a
                 href={`${basePath}/download`}
                 target="_blank"
-                leftSection={<Download size={16} />}
-                variant="filled"
-                color="blue"
-                size="sm"
+                className="btn btn-primary btn-sm"
                 style={{ marginRight: right ? '8px' : 0 }}
               >
+                <Download size={16} />
                 Download Desktop App
-              </Button>
+              </a>
             </>
           )}
+          <NotificationCenter />
+          <ThemeToggle />
           {right}
         </div>
       </div>

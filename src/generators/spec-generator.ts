@@ -281,7 +281,7 @@ export class SpecGenerator {
       if (step.action === 'assert' && step.assertion) {
         const assertionCode = this.generateAssertionCode(step, pageInstances.get(step.pageId) || 'page');
         if (assertionCode) {
-          content += `      ${assertionCode}\n`;
+          content += assertionCode;
         }
         continue;
       }
@@ -327,56 +327,89 @@ export class SpecGenerator {
   /**
    * Generate assertion code from an assert step
    */
-  private generateAssertionCode(step: RecordedStep, instanceName: string): string | null {
+  private generateAssertionCode(step: RecordedStep, instanceName: string, indent: string = '      '): string | null {
     if (step.action !== 'assert' || !step.assertion) {
       return null;
     }
 
-    const assertion = step.assertion;
-    const targetKind = step.targetKind || 'locator';
-    const expected = step.expected || step.value || '';
-    const customMessage = step.customMessage;
+    const isPage = step.targetKind === 'page';
+    const isSoft = !!step.soft;
+    const isNot = !!step.not;
+    const expectIdent = isSoft ? 'expect.soft' : 'expect';
 
     // Resolve the target locator or page
-    let target: string;
-    if (targetKind === 'page') {
-      target = 'page';
+    let subject: string;
+    if (isPage) {
+      subject = 'page';
     } else {
       // Use locator from step - resolve from POM if fieldName/methodName available
-      if (step.fieldName && instanceName !== 'page') {
+      if (step.target && step.fieldName && instanceName !== 'page') {
         // Try to get locator from POM instance
-        target = `${instanceName}.${step.fieldName}`;
+        subject = `${instanceName}.${step.fieldName}`;
       } else if (step.locator) {
         // Build locator from LocatorDefinition
-        target = this.buildLocatorFromDefinition(step.locator, instanceName);
+        subject = this.buildLocatorFromDefinition(step.locator, instanceName);
+      } else if (step.target) {
+        // Use target as locator selector
+        subject = `page.locator(${JSON.stringify(step.target)})`;
       } else {
         // Fallback to page locator
-        target = 'page.locator(\'body\')';
+        subject = 'page.locator(\'body\')';
       }
     }
 
+    // Build args array: [subjectExpr] + optional customMessage
+    const args: string[] = [subject];
+    if (step.customMessage) {
+      args.push(JSON.stringify(step.customMessage));
+    }
+
+    // Build the expect call line
+    let line = `${indent}await ${expectIdent}(${args.join(', ')})`;
+
+    if (isNot) {
+      line += `.not`;
+    }
+
     // Resolve expected value (support {{param}} syntax)
-    let expectedValue: string;
-    if (expected.startsWith('{{') && expected.endsWith('}}')) {
-      // Parameterized value - extract field name
-      const paramName = expected.slice(2, -2).trim();
-      expectedValue = `data.${this.toCamelCase(paramName)}`;
-    } else {
-      // Literal value
-      expectedValue = `'${this.escapeString(expected)}'`;
+    const expected = step.expected || step.value || '';
+    let expectedValue: string | undefined;
+    if (expected) {
+      if (expected.startsWith('{{') && expected.endsWith('}}')) {
+        // Parameterized value - extract field name
+        const paramName = expected.slice(2, -2).trim();
+        expectedValue = `data.${this.toCamelCase(paramName)}`;
+      } else {
+        // Literal value
+        expectedValue = JSON.stringify(expected);
+      }
     }
 
-    // Build expect call
-    let expectCall = `await expect(${target})`;
-    
-    // Add custom message if provided
-    if (customMessage) {
-      expectCall += `, '${this.escapeString(customMessage)}'`;
+    // Generate matcher call based on assertion type
+    switch (step.assertion) {
+      case 'toHaveText':
+      case 'toContainText':
+      case 'toHaveURL':
+      case 'toHaveTitle':
+      case 'toHaveValue':
+      case 'toHaveAttribute':
+        if (expectedValue) {
+          line += `.${step.assertion}(${expectedValue})`;
+        } else {
+          // Fallback - should not happen for these types
+          line += `.${step.assertion}('')`;
+        }
+        break;
+      case 'toBeVisible':
+      case 'toBeChecked':
+        line += `.${step.assertion}()`;
+        break;
+      default:
+        // Unknown assertion type
+        return null;
     }
-    
-    expectCall += `.${assertion}(${expectedValue});`;
 
-    return expectCall;
+    return line + ';\n';
   }
 
   /**

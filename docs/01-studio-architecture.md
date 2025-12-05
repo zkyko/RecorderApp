@@ -52,7 +52,9 @@ The workspace system ensures that QA Studio can adapt to any enterprise applicat
 | 6. Assertion processing | `src/generators/spec-generator.ts` | Assertion metadata in run summaries | Processes AssertStep entries, resolves parameterized values, and generates Playwright expect() calls. |
 | 7. Execution & feedback | `src/main/services/test-runner.ts`, `playwright*.config.ts`, `log/performance-report` | Run logs, screenshots, BrowserStack metadata | Supports local and BrowserStack Automate execution, with Test Management sync and performance snapshots. |
 | 8. Enterprise integrations | `src/main/services/browserstackTmService.ts`, `src/main/services/jiraService.ts` | BrowserStack TM test cases/runs, Jira defects | Syncs test cases and runs to BrowserStack TM, creates Jira defects from failed tests. |
-| 9. UI orchestration | `src/ui/src/components/*`, `src/ui/src/store` | Settings, timeline, diff viewers, workspace selector | React screens call main-process IPC endpoints to drive recording, review generated files, trigger runs, and manage workspaces. |
+| 9. Diagnostics & health checks | `src/ElectronTest/`, `src/main/services/` | Environment validation, workspace health, integration connectivity | Built-in diagnostics for runtime, workspace, BrowserStack, Jira, and RAG service verification. |
+| 10. Auto-updates | `src/main/services/updaterService.ts` | Update notifications, downloads, installation | Automatic updates via GitHub Releases with download progress and one-click restart. |
+| 11. UI orchestration | `src/ui/src/components/*`, `src/ui/src/store` | Settings, timeline, diff viewers, workspace selector, diagnostics | React screens call main-process IPC endpoints to drive recording, review generated files, trigger runs, manage workspaces, and run diagnostics. |
 
 ### Data Flow Snapshot
 1. **User selects workspace and hits "Record" in SettingsScreen (`src/ui/src/components/SettingsScreen.tsx`).**
@@ -69,6 +71,8 @@ The workspace system ensures that QA Studio can adapt to any enterprise applicat
 8. Optional: `test-runner.ts` runs the new spec locally or via BrowserStack Automate, streaming logs back into the UI console.
 9. On test completion: `browserstackTmService.ts` syncs test case and run to BrowserStack TM.
 10. On test failure: User can create Jira defect via `jiraService.ts` with pre-filled failure context.
+11. Diagnostics: User can run health checks via diagnostics screen to verify environment, workspace, and integration connectivity.
+12. Auto-updates: `updaterService.ts` checks for updates on startup and provides seamless update experience.
 
 ### Branch-Specific Concerns
 - **Core branch:** TypeScript targeting browser contexts; prioritize lightweight dependencies and guard against leaking Node APIs.
@@ -89,6 +93,7 @@ The workspace system ensures that QA Studio can adapt to any enterprise applicat
 - **Introduce a new artifact:** Create a generator in `src/generators/` and register it inside `codegen-service.ts` so the UI can expose it as another export toggle.
 - **Wire a new execution target:** Implement a runner in `src/main/services/test-runner.ts` and surface it as a selectable profile in the Settings screen.
 - **Add a new integration:** Create a service in `src/main/services/` (e.g., `newIntegrationService.ts`), add IPC handlers in `bridge.ts`, and create UI components in `src/ui/src/components/`.
+- **Add diagnostics check:** Create a check in `src/ElectronTest/checks/` and register it in the diagnostics screen for environment validation.
 
 Use this document as the “map of maps.” For contributor-level detail see `02-developer-guide.md`; for step-by-step UX flows see `03-user-guide.md`.
 

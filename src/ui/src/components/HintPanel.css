@@ -1,35 +1,13 @@
 .hint-panel {
-  margin-bottom: 1rem;
-  border-left: 3px solid #3b82f6;
-  animation: slideIn 0.3s ease-out;
+  @apply mb-4 border border-base-300 bg-base-200/50;
+  padding: 0.75rem 1rem !important;
+  transition: all 0.2s ease;
 }
 
 .hint-panel-collapsed {
-  margin-bottom: 0.5rem;
-  display: flex;
-  justify-content: flex-end;
+  @apply mb-4;
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.hint-panel .mantine-Card-body {
-  padding: 0.75rem 1rem;
-}
-
-.hint-panel .mantine-Text-root {
-  line-height: 1.5;
-}
-
-.hint-panel svg[data-icon="lightbulb"] {
-  flex-shrink: 0;
-  margin-top: 2px;
+.hint-panel .mantine-Card-root {
+  @apply bg-transparent border-0 shadow-none p-0;
 }

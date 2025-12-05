@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Card,
   Text,
@@ -49,14 +49,20 @@ import {
   Eye,
   Key,
   Activity,
+  Search,
+  Info,
+  X,
 } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { RecordingEngine, WorkspaceMeta } from '../../../types/v1.5';
 import LoginDialog from './LoginDialog';
 import WebLoginDialog from './WebLoginDialog';
+import CustomButton from './Button';
+import Spinner from './Spinner';
+import { notifications } from '../utils/notifications';
+import { formatDate } from '../utils/formatDate';
 import { Bug } from 'lucide-react';
-// Using simple alerts for now - can be replaced with Mantine notifications if provider is set up
 import './SettingsScreen.css';
 
 type StorageStateStatus = {
@@ -96,7 +102,13 @@ const SettingsScreen: React.FC = () => {
     project: '',
     buildPrefix: '',
   });
+  const [browserstackTmSettings, setBrowserstackTmSettings] = useState({
+    projectId: 'PR-25',
+    suiteName: 'TestManagement For StudioAPP',
+    apiToken: '',
+  });
   const [testingConnection, setTestingConnection] = useState(false);
+  const [testingTmConnection, setTestingTmConnection] = useState(false);
   const [jiraSettings, setJiraSettings] = useState({
     baseUrl: '',
     email: '',
@@ -135,6 +147,10 @@ const SettingsScreen: React.FC = () => {
   const [loadingStats, setLoadingStats] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [rawConfig, setRawConfig] = useState<any>(null);
+  const [settingsSearchQuery, setSettingsSearchQuery] = useState('');
+  const [unsavedChanges, setUnsavedChanges] = useState<Set<string>>(new Set());
+  const [lastSaved, setLastSaved] = useState<Record<string, Date>>({});
+  const originalValuesRef = useRef<Record<string, any>>({});
   const [playwrightStatus, setPlaywrightStatus] = useState<{
     cliAvailable?: boolean;
     browsersInstalled?: boolean;
@@ -160,6 +176,7 @@ const SettingsScreen: React.FC = () => {
   useEffect(() => {
     if (workspacePath) {
       loadBrowserStackSettings();
+      loadBrowserStackTmSettings();
       loadJiraSettings();
       loadRecordingEngine();
       loadWorkspaceStats();
@@ -187,6 +204,57 @@ const SettingsScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load BrowserStack settings:', error);
+    }
+  };
+
+  const loadBrowserStackTmSettings = async () => {
+    try {
+      const response = await ipc.settings.getBrowserStackTmConfig();
+      if (response.success && response.config) {
+        setBrowserstackTmSettings({
+          projectId: response.config.projectId || 'PR-25',
+          suiteName: response.config.suiteName || 'TestManagement For StudioAPP',
+          apiToken: response.config.apiToken || '',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load BrowserStack TM settings:', error);
+    }
+  };
+
+  const handleSaveBrowserStackTm = async () => {
+    setLoading(true);
+    try {
+      const response = await ipc.settings.updateBrowserStackTmConfig({
+        projectId: browserstackTmSettings.projectId,
+        suiteName: browserstackTmSettings.suiteName,
+        apiToken: browserstackTmSettings.apiToken,
+      });
+      if (response.success) {
+        alert('BrowserStack TM settings have been saved successfully.');
+      } else {
+        alert(`Failed to save settings: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Failed to save settings: ${error.message || 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestTmConnection = async () => {
+    setTestingTmConnection(true);
+    try {
+      const result = await ipc.browserstackTm.testConnection();
+      if (result.success) {
+        alert(`Connection successful! Connected to ${result.projectName || 'BrowserStack TM'}.`);
+      } else {
+        alert(`Connection failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      alert(`Connection failed: ${error.message || 'Unknown error'}`);
+    } finally {
+      setTestingTmConnection(false);
     }
   };
 
@@ -688,16 +756,27 @@ const SettingsScreen: React.FC = () => {
 
     setStorageStatusLoading(true);
     try {
-      // Pass workspace type and path to check the appropriate storage state
+      // Add timeout handling (10s max)
+      const timeoutPromise = new Promise<StorageStateStatus>((_, reject) => {
+        setTimeout(() => reject(new Error('Check timed out')), 10000);
+      });
+
       const workspaceType = currentWorkspace?.type;
-      const status = await electronAPI.checkStorageState(workspaceType, workspacePath);
+      const checkPromise = electronAPI.checkStorageState(workspaceType, workspacePath);
+      
+      const status = await Promise.race([checkPromise, timeoutPromise]);
       setStorageStateStatus(status);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to check storage state:', error);
+      const isTimeout = error?.message?.includes('timed out');
       setStorageStateStatus({
         status: 'error',
-        message: 'Unable to read storage state status',
-        nextSteps: ['Try refreshing the status or re-authenticate.'],
+        message: isTimeout 
+          ? 'Check timed out after 10 seconds. The storage state file may be locked or inaccessible.'
+          : 'Unable to read storage state status',
+        nextSteps: isTimeout
+          ? ['Click Retry to check again', 'If the issue persists, try re-authenticating']
+          : ['Try refreshing the status or re-authenticate.'],
         storageStatePath: '',
       });
     } finally {
@@ -832,46 +911,117 @@ const SettingsScreen: React.FC = () => {
     <div className="settings-screen">
       <Breadcrumbs mb="md">{breadcrumbs}</Breadcrumbs>
 
-      <Card padding="lg" radius="md" withBorder style={{ maxWidth: 1000, margin: '0 auto' }}>
-        <Group justify="space-between" mb="lg">
-          <Text size="xl" fw={600}>Settings</Text>
-          <Group gap="xs">
-            <Text size="sm" c="dimmed">Developer Mode</Text>
-            <Switch
-              checked={devMode}
-              onChange={async (e) => {
-                const newValue = e.currentTarget.checked;
-                setDevMode(newValue);
-                setSavingDevMode(true);
-                try {
-                  const response = await ipc.settings.updateDevMode({ devMode: newValue });
-                  if (!response.success) {
-                    alert(`Failed to save dev mode: ${response.error || 'Unknown error'}`);
-                    setDevMode(!newValue); // Revert on error
+      <div className="glass-card" style={{ maxWidth: 1400, margin: '0 auto' }}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-semibold">Settings</h1>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-base-content/70">Developer Mode</span>
+              <input
+                type="checkbox"
+                className="toggle toggle-sm"
+                checked={devMode}
+                onChange={async (e) => {
+                  const newValue = e.target.checked;
+                  setDevMode(newValue);
+                  setSavingDevMode(true);
+                  try {
+                    const response = await ipc.settings.updateDevMode({ devMode: newValue });
+                    if (!response.success) {
+                      notifications.show({
+                        message: `Failed to save dev mode: ${response.error || 'Unknown error'}`,
+                        color: 'error',
+                      });
+                      setDevMode(!newValue);
+                    } else {
+                      notifications.show({
+                        message: 'Developer mode updated',
+                        color: 'success',
+                      });
+                    }
+                  } catch (error: any) {
+                    notifications.show({
+                      message: `Error: ${error.message || 'Failed to save dev mode'}`,
+                      color: 'error',
+                    });
+                    setDevMode(!newValue);
+                  } finally {
+                    setSavingDevMode(false);
                   }
-                } catch (error: any) {
-                  alert(`Error: ${error.message || 'Failed to save dev mode'}`);
-                  setDevMode(!newValue); // Revert on error
-                } finally {
-                  setSavingDevMode(false);
-                }
-              }}
-              disabled={savingDevMode}
-            />
-            {savingDevMode && <Loader size="xs" />}
-          </Group>
-        </Group>
+                }}
+                disabled={savingDevMode}
+              />
+              {savingDevMode && <Spinner size="sm" />}
+            </div>
+          </div>
 
-        <Tabs value={activeTab} onChange={setActiveTab}>
-          <Tabs.List>
-            <Tabs.Tab value="authentication">Authentication</Tabs.Tab>
-            <Tabs.Tab value="workspace">Workspace</Tabs.Tab>
-            <Tabs.Tab value="recording">Recording</Tabs.Tab>
-            <Tabs.Tab value="ai">AI Debugging</Tabs.Tab>
-            <Tabs.Tab value="browserstack">BrowserStack</Tabs.Tab>
-            <Tabs.Tab value="jira" leftSection={<Bug size={16} />}>Jira</Tabs.Tab>
-            {devMode && <Tabs.Tab value="developer" leftSection={<CodeIcon size={16} />}>Developer</Tabs.Tab>}
-          </Tabs.List>
+          {/* Settings Search */}
+          <div className="mb-6">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
+              <input
+                type="text"
+                placeholder="Search settings..."
+                className="input input-bordered w-full pl-10 bg-base-100"
+                value={settingsSearchQuery}
+                onChange={(e) => setSettingsSearchQuery(e.target.value)}
+              />
+              {settingsSearchQuery && (
+                <button
+                  className="absolute right-3 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs"
+                  onClick={() => setSettingsSearchQuery('')}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Vertical Sidebar Layout */}
+          <div className="flex gap-6">
+            {/* Sidebar Navigation */}
+            <div className="w-64 flex-shrink-0">
+              <nav className="space-y-1">
+                {[
+                  { id: 'authentication', label: 'Authentication', icon: ShieldCheck },
+                  { id: 'workspace', label: 'Workspace', icon: Folder },
+                  { id: 'recording', label: 'Recording', icon: Video },
+                  { id: 'ai', label: 'AI Debugging', icon: ShieldCheck },
+                  { id: 'browserstack', label: 'BrowserStack', icon: Cloud },
+                  { id: 'jira', label: 'Jira', icon: Bug },
+                  ...(devMode ? [{ id: 'developer', label: 'Developer', icon: CodeIcon }] : []),
+                ]
+                  .filter(tab => !settingsSearchQuery || tab.label.toLowerCase().includes(settingsSearchQuery.toLowerCase()))
+                  .map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    const hasUnsavedChanges = unsavedChanges.has(tab.id);
+                    return (
+                      <button
+                        key={tab.id}
+                        className={`
+                          w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors
+                          ${isActive
+                            ? 'bg-[#4C6EF5] text-white border-l-4 border-[#4C6EF5]'
+                            : 'text-base-content/70 hover:bg-base-300'
+                          }
+                        `.trim().replace(/\s+/g, ' ')}
+                        onClick={() => setActiveTab(tab.id)}
+                      >
+                        <Icon size={18} />
+                        <span className="flex-1 font-medium">{tab.label}</span>
+                        {hasUnsavedChanges && (
+                          <span className="badge badge-warning badge-xs">Modified</span>
+                        )}
+                      </button>
+                    );
+                  })}
+              </nav>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 min-w-0">
+              <Tabs value={activeTab} onChange={setActiveTab}>
 
           {/* Authentication & Storage State Tab */}
           <Tabs.Panel value="authentication" pt="md">
@@ -897,11 +1047,28 @@ const SettingsScreen: React.FC = () => {
                       <Text fw={600}>Storage state</Text>
                     </Group>
                     <Text size="sm" c="dimmed">
-                      {storageStateStatus?.message || 'Storage state status unavailable'}
+                      {storageStatusLoading 
+                        ? 'Checking authentication status...'
+                        : storageStateStatus?.message || 'Storage state status unavailable'}
                     </Text>
+                    {storageStateStatus && !storageStatusLoading && (
+                      <Text size="xs" c="dimmed" mt={4}>
+                        Last checked: {formatDate(new Date().toISOString())}
+                      </Text>
+                    )}
                   </div>
                 </Group>
-                {storageStatusLoading && <Loader size="sm" />}
+                <div className="flex items-center gap-2">
+                  {storageStatusLoading && <Spinner size="sm" />}
+                  <button
+                    className="btn btn-ghost btn-xs"
+                    onClick={refreshStorageStateStatus}
+                    disabled={storageStatusLoading}
+                    aria-label="Refresh storage state status"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                </div>
               </Group>
 
               {storageStateStatus?.details && (
@@ -931,6 +1098,23 @@ const SettingsScreen: React.FC = () => {
                   </ul>
                 </Stack>
               ) : null}
+
+              {storageStateStatus?.status === 'error' && storageStateStatus.message?.includes('timed out') && (
+                <div className="alert alert-warning mt-4">
+                  <AlertTriangle size={16} />
+                  <div>
+                    <div className="font-medium">Check timed out</div>
+                    <div className="text-sm">The storage state check took longer than 10 seconds.</div>
+                  </div>
+                  <button
+                    className="btn btn-sm btn-warning"
+                    onClick={refreshStorageStateStatus}
+                    disabled={storageStatusLoading}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
 
               <Group gap="xs" mt="md">
                 <Button
@@ -1395,6 +1579,59 @@ const SettingsScreen: React.FC = () => {
                   </Button>
                 </Group>
               </div>
+
+              <div>
+                <Group gap="xs" mb="md" mt="xl">
+                  <ListChecks size={20} />
+                  <Text size="lg" fw={600}>BrowserStack Test Management</Text>
+                </Group>
+                <Text size="sm" c="dimmed" mb="md">
+                  Configure BrowserStack Test Management (TM) project and suite settings for test case synchronization.
+                </Text>
+
+                <Stack gap="md">
+                  <TextInput
+                    label="Project ID"
+                    placeholder="PR-25"
+                    value={browserstackTmSettings.projectId}
+                    onChange={(e) => setBrowserstackTmSettings({ ...browserstackTmSettings, projectId: e.target.value })}
+                    description="BrowserStack TM project identifier (e.g., PR-25)"
+                  />
+                  <TextInput
+                    label="Suite Name"
+                    placeholder="TestManagement For StudioAPP"
+                    value={browserstackTmSettings.suiteName}
+                    onChange={(e) => setBrowserstackTmSettings({ ...browserstackTmSettings, suiteName: e.target.value })}
+                    description="Default suite name for test cases"
+                  />
+                  <TextInput
+                    label="TM API Token (Optional)"
+                    placeholder="username:accessKey or accessKey only"
+                    type="password"
+                    value={browserstackTmSettings.apiToken}
+                    onChange={(e) => setBrowserstackTmSettings({ ...browserstackTmSettings, apiToken: e.target.value })}
+                    description="Optional: Separate TM API token. Leave blank to use BrowserStack Automate credentials above. Format: 'username:accessKey' or just 'accessKey'."
+                  />
+                </Stack>
+
+                <Group gap="xs" mt="md">
+                  <Button
+                    leftSection={<CheckCircle size={16} />}
+                    onClick={handleTestTmConnection}
+                    loading={testingTmConnection}
+                    variant="light"
+                  >
+                    Test TM Connection
+                  </Button>
+                  <Button
+                    leftSection={<Save size={16} />}
+                    onClick={handleSaveBrowserStackTm}
+                    loading={loading}
+                  >
+                    Save TM Settings
+                  </Button>
+                </Group>
+              </div>
             </Stack>
           </Tabs.Panel>
 
@@ -1807,8 +2044,11 @@ const SettingsScreen: React.FC = () => {
               </Stack>
             </Tabs.Panel>
           )}
-        </Tabs>
-      </Card>
+              </Tabs>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Delete Confirmation Modal */}
       <Modal

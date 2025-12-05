@@ -22,7 +22,7 @@ import {
 import { ipc } from '../ipc';
 import { getBackend } from '../ipc-backend';
 import { useWorkspaceStore } from '../store/workspace-store';
-import { notifications } from '@mantine/notifications';
+import { notifications } from '../utils/notifications';
 
 interface LocatorEvaluation {
   locator: {

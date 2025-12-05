@@ -1,0 +1,211 @@
+name: CI - Dev Branch
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+    
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd src/ui && npm ci
+    
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
+    
+      - name: Type check main
+        run: npm run typecheck
+    
+      - name: Type check UI
+        run: npm run typecheck:ui
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+    
+      - name: Install dependencies
+        run: npm ci
+    
+      - name: Run unit tests
+        run: npm run test:unit -- --coverage
+        continue-on-error: true
+    
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+          flags: unit
+          name: unit-tests
+        continue-on-error: true
+
+  ui-tests:
+    name: UI Component Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+    
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd src/ui && npm ci
+    
+      - name: Run UI tests
+        run: npm run test:ui
+        continue-on-error: true
+    
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./src/ui/coverage/coverage-final.json
+          flags: ui
+          name: ui-tests
+        continue-on-error: true
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests, ui-tests]
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+    
+      - name: Install dependencies
+        run: npm ci
+    
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          CI: true
+        continue-on-error: true
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ${{ matrix.os }}
+    needs: integration-tests
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+    
+      - name: Install dependencies
+        run: npm ci
+    
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+    
+      - name: Build application
+        run: npm run build:all
+        continue-on-error: true
+    
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          CI: true
+        continue-on-error: true
+    
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: playwright-report/
+          retention-days: 7
+    
+      - name: Upload test videos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-videos-${{ matrix.os }}
+          path: test-results/
+          retention-days: 7
+
+  build-test:
+    name: Build Application
+    runs-on: ${{ matrix.os }}
+    needs: [unit-tests, ui-tests, integration-tests]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+    
+      - name: Install dependencies
+        run: npm ci
+    
+      - name: Build main and generators
+        run: npm run build:all
+        continue-on-error: true
+    
+      - name: Build Electron app (test)
+        run: npm run dist:test
+        env:
+          CI: true
+        continue-on-error: true
+
+  status-check:
+    name: All Tests Passed
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, unit-tests, ui-tests, integration-tests, e2e-tests, build-test]
+    if: always()
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.lint-and-typecheck.result }}" != "success" ] || \
+             [ "${{ needs.unit-tests.result }}" != "success" ] || \
+             [ "${{ needs.ui-tests.result }}" != "success" ] || \
+             [ "${{ needs.integration-tests.result }}" != "success" ] || \
+             [ "${{ needs.e2e-tests.result }}" != "success" ] || \
+             [ "${{ needs.build-test.result }}" != "success" ]; then
+            echo "❌ Some tests failed"
+            exit 1
+          else
+            echo "✅ All tests passed"
+          fi

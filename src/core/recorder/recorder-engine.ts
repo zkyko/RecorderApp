@@ -489,6 +489,7 @@ export class RecorderEngine {
       const pageUrl = this.page?.url() || '';
       
       return {
+        id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         pageId: pageClassification.pageId,
         action: 'click',
         description: description,
@@ -768,6 +769,7 @@ export class RecorderEngine {
       const pageUrl = this.page?.url() || '';
       
       return {
+        id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         pageId: pageClassification.pageId,
         action: 'fill',
         description: description,
@@ -837,6 +839,7 @@ export class RecorderEngine {
       const pageUrl = this.page?.url() || '';
       
       return {
+        id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         pageId: pageClassification.pageId,
         action: 'select',
         description: description,
@@ -879,6 +882,7 @@ export class RecorderEngine {
       const pageClassification = await this.pageClassifier.classifyPage(this.page);
       
       return {
+        id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         pageId: pageClassification.pageId,
         action: 'navigate',
         description: `Navigate to ${pageUrl}`,

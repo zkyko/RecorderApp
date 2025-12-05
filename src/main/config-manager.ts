@@ -11,6 +11,9 @@ interface ConfigSchema {
   isSetupComplete: boolean;
   browserstackUsername?: string;
   browserstackAccessKey?: string;
+  browserstackTmProjectId?: string;
+  browserstackTmSuiteName?: string;
+  browserstackTmApiToken?: string;
   aiProvider?: 'openai' | 'deepseek' | 'custom';
   aiApiKey?: string;
   aiModel?: string;
@@ -308,6 +311,52 @@ export class ConfigManager {
     }
     if (config.projectKey !== undefined) {
       this.storeAccess.set('jiraProjectKey', config.projectKey);
+    }
+  }
+
+  /**
+   * Get BrowserStack Test Management configuration
+   */
+  getBrowserStackTmConfig(): {
+    username: string | undefined;
+    accessKey: string | undefined;
+    projectId: string | undefined;
+    suiteName: string | undefined;
+    apiToken: string | undefined;
+  } {
+    return {
+      username: this.storeAccess.get('browserstackUsername') || undefined,
+      accessKey: this.storeAccess.get('browserstackAccessKey') || undefined,
+      projectId: this.storeAccess.get('browserstackTmProjectId') || undefined,
+      suiteName: this.storeAccess.get('browserstackTmSuiteName') || undefined,
+      apiToken: this.storeAccess.get('browserstackTmApiToken') || undefined,
+    };
+  }
+
+  /**
+   * Set BrowserStack Test Management configuration
+   */
+  setBrowserStackTmConfig(config: {
+    username?: string;
+    accessKey?: string;
+    projectId?: string;
+    suiteName?: string;
+    apiToken?: string;
+  }): void {
+    if (config.username !== undefined) {
+      this.storeAccess.set('browserstackUsername', config.username);
+    }
+    if (config.accessKey !== undefined) {
+      this.storeAccess.set('browserstackAccessKey', config.accessKey);
+    }
+    if (config.projectId !== undefined) {
+      this.storeAccess.set('browserstackTmProjectId', config.projectId);
+    }
+    if (config.suiteName !== undefined) {
+      this.storeAccess.set('browserstackTmSuiteName', config.suiteName);
+    }
+    if (config.apiToken !== undefined) {
+      this.storeAccess.set('browserstackTmApiToken', config.apiToken);
     }
   }
 }

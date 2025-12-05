@@ -19,7 +19,7 @@ import {
 } from '@mantine/core';
 import { Bug, ArrowLeft, ExternalLink, MessageSquare, Edit, Check, X, RefreshCw } from 'lucide-react';
 import { ipc } from '../ipc';
-import { notifications } from '@mantine/notifications';
+import { notifications } from '../utils/notifications';
 
 const JiraIssueDetails: React.FC = () => {
   const { issueKey } = useParams<{ issueKey: string }>();

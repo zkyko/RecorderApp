@@ -16,7 +16,7 @@ import {
 } from '@mantine/core';
 import { Cloud, ArrowLeft, ExternalLink, RefreshCw, Play } from 'lucide-react';
 import { ipc } from '../ipc';
-import { notifications } from '@mantine/notifications';
+import { notifications } from '../utils/notifications';
 
 const BrowserStackTMTestCaseDetails: React.FC = () => {
   const { testCaseId } = useParams<{ testCaseId: string }>();

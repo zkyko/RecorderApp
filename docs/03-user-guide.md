@@ -14,7 +14,15 @@ This document explains how product owners, QA engineers, and analysts use QA Stu
   - Execution profile (Local Playwright, BrowserStack Automate).
   - **BrowserStack credentials** (optional) - For cloud test execution and Test Management sync.
   - **Jira integration** (optional) - For one-click defect creation from failed tests.
-- **Verify dependencies:** Use the "Diagnostics" card to ensure Playwright browsers, Node, and BrowserStack creds (if selected) are reachable.
+- **Verify dependencies:** Use the **Diagnostics** screen (v2.0) to run comprehensive health checks:
+  - **Runtime Check** - Verify Playwright runtime and browser installation
+  - **Workspace Check** - Validate workspace configuration and structure
+  - **BrowserStack Check** - Test BrowserStack Automate connectivity
+  - **BrowserStack TM Check** - Verify Test Management API access
+  - **Jira Check** - Test Jira API connectivity and credentials
+  - **RAG Check** - Verify AI debugging service configuration
+  - **Config Check** - Validate application configuration
+  - **Flow Local Run Check** - Test local test execution capability
 
 **Note:** QA Studio v2.0 supports D365 and Web Demo workspaces. Additional workspaces for Koerber, Salesforce, and other platforms will be added in future releases. Each workspace uses platform-specific locator algorithms while sharing the same recording, code generation, assertion engine, and execution infrastructure.
 
@@ -72,20 +80,50 @@ Tips:
 - **Export artifacts:** Use "Export Bundle" to zip specs + registry snapshot for sharing with other squads.
 - **BrowserStack TM sync:** Test cases and runs are automatically synced to BrowserStack Test Management (if configured) for centralized tracking.
 
-### 6. Troubleshooting
+### 6. Diagnostics & Health Checks (v2.0)
+QA Studio includes a built-in diagnostics screen to help troubleshoot environment and integration issues:
+
+1. **Access Diagnostics:** Navigate to the Diagnostics screen from the main menu or Settings
+2. **Run Health Checks:** Click individual check buttons or "Run All Checks" to verify:
+   - **Runtime Check** - Validates Playwright runtime installation and browser availability
+   - **Workspace Check** - Verifies workspace structure, configuration, and test bundle integrity
+   - **BrowserStack Check** - Tests BrowserStack Automate API connectivity and credentials
+   - **BrowserStack TM Check** - Validates Test Management API access and project configuration
+   - **Jira Check** - Tests Jira API connectivity, credentials, and project access
+   - **RAG Check** - Verifies AI provider configuration and API connectivity
+   - **Config Check** - Validates application configuration and settings
+   - **Flow Local Run Check** - Tests local test execution capability and Playwright setup
+3. **Review Results:** Each check provides detailed status, error messages, and suggestions for fixing issues
+4. **Use for Troubleshooting:** Run diagnostics when experiencing integration or execution issues
+
+### 7. Troubleshooting
 | Symptom | Fix |
 | --- | --- |
 | No events captured | Ensure the recorder window has focus; if running headless, disable headless mode in Settings for debugging. |
 | Wrong module in file path | Update the Module selector before recording; paths are derived from that setting (D365 workspace). |
 | Locator looks like `body` | Recorder discards non-interactive clicks; re-record with the navigation pane open or use the "Force Capture" hotkey. |
 | Assertion not generating code | Verify assertion step has valid target (locator name or 'page') and expected value. Check SpecGenerator logs. |
-| BrowserStack job stuck | Check network/proxy access first; verify credentials in Settings → BrowserStack. Review `log/performance-report/modified-key-metrics.json` for hints. |
-| BrowserStack TM sync failing | Verify TM Project ID in Settings → BrowserStack Test Management. Check credentials and network connectivity. |
-| Jira defect creation failing | Test connection in Settings → Jira. Verify project key, API token, and custom field mappings in JiraRestAPI.json. |
+| BrowserStack job stuck | Run BrowserStack check in Diagnostics. Check network/proxy access first; verify credentials in Settings → BrowserStack. Review `log/performance-report/modified-key-metrics.json` for hints. |
+| BrowserStack TM sync failing | Run BrowserStack TM check in Diagnostics. Verify TM Project ID in Settings → BrowserStack Test Management. Check credentials and network connectivity. |
+| Jira defect creation failing | Run Jira check in Diagnostics. Test connection in Settings → Jira. Verify project key, API token, and custom field mappings in JiraRestAPI.json. |
 | Spec fails on login | Verify credentials in Settings → Security, and confirm workspace configuration matches your tenant's redirects. |
-| Workspace not loading | Check `workspaces/<id>/workspace.json` exists and is valid JSON. Verify workspace manager logs in main process console. |
+| Workspace not loading | Run Workspace check in Diagnostics. Check `workspaces/<id>/workspace.json` exists and is valid JSON. Verify workspace manager logs in main process console. |
+| Runtime not detected | Run Runtime check in Diagnostics. Verify bundled runtime exists or system Playwright is installed. Check `playwright-runtime/` directory. |
+| Auto-updates not working | Verify `package.json` has correct `publish` configuration. Check GitHub Releases for available updates. Review updater service logs. |
 
-### 7. Best Practices
+### 8. Auto-Updates (v2.0)
+QA Studio v2.0 includes automatic update functionality:
+
+1. **Automatic Checks:** The app checks for updates on startup
+2. **Update Notifications:** When an update is available, you'll see a notification with version details
+3. **Download Progress:** Updates download in the background with progress indicators
+4. **One-Click Install:** Click "Restart to Install" to apply the update
+5. **Release Notes:** View what's new in each update before installing
+6. **Manual Check:** You can manually check for updates from the Settings screen
+
+Updates are delivered through GitHub Releases and use electron-updater for seamless installation.
+
+### 9. Best Practices
 - **Workspace organization:** Use appropriate workspace for your platform. D365 for Finance & Operations, Web Demo for web applications.
 - **Recording:** Record the "happy path" first, then layer validations/assertions using the assertion editor.
 - **Assertions:** Use parameterized assertions (`{{param}}`) for data-driven validation. Add custom messages for better failure context.

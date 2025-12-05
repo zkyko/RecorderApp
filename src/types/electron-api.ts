@@ -216,6 +216,8 @@ export interface ElectronAPI {
   clearBrowserStackTMSession: () => Promise<{ success: boolean; error?: string }>;
   settingsGetJiraConfig: () => Promise<{ success: boolean; config?: { baseUrl?: string; email?: string; projectKey?: string }; error?: string }>;
   settingsUpdateJiraConfig: (request: { baseUrl: string; email: string; apiToken: string; projectKey: string }) => Promise<{ success: boolean; error?: string }>;
+  settingsGetBrowserStackTmConfig: () => Promise<{ success: boolean; config?: { projectId?: string; suiteName?: string; apiToken?: string }; error?: string }>;
+  settingsUpdateBrowserStackTmConfig: (request: { projectId?: string; suiteName?: string; apiToken?: string }) => Promise<{ success: boolean; error?: string }>;
   clearJiraSession: () => Promise<{ success: boolean; error?: string }>;
   settingsGetRecordingEngine: (request: { workspacePath: string }) => Promise<{ success: boolean; recordingEngine?: 'playwright' | 'qaStudio'; error?: string }>;
   settingsUpdateRecordingEngine: (request: { workspacePath: string; recordingEngine: 'playwright' | 'qaStudio' }) => Promise<{ success: boolean; error?: string }>;
@@ -299,6 +301,7 @@ export interface ElectronAPI {
     jql?: string;
     maxResults?: number;
     startAt?: number;
+    nextPageToken?: string;
   }) => Promise<{
     success: boolean;
     issues?: Array<{
@@ -314,6 +317,7 @@ export interface ElectronAPI {
     total?: number;
     startAt?: number;
     maxResults?: number;
+    nextPageToken?: string;
     error?: string;
   }>;
   jiraGetIssue: (issueKey: string) => Promise<{ success: boolean; issue?: any; error?: string }>;

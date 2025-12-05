@@ -115,6 +115,7 @@ export class CodegenParser {
       if (args.length > 0 && Node.isStringLiteral(args[0])) {
         const url = args[0].getText().slice(1, -1); // Remove quotes
         return {
+          id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           order,
           action: 'navigate',
           pageUrl: url,
@@ -136,6 +137,7 @@ export class CodegenParser {
       const locator = this.extractLocator(callExpr);
       if (locator) {
         return {
+          id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           order,
           action: 'click',
           locator,
@@ -162,6 +164,7 @@ export class CodegenParser {
 
       if (locator) {
         return {
+          id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           order,
           action: 'fill',
           locator,
@@ -189,6 +192,7 @@ export class CodegenParser {
 
       if (locator) {
         return {
+          id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           order,
           action: 'select',
           locator,
@@ -216,6 +220,7 @@ export class CodegenParser {
 
       if (locator && key) {
         return {
+          id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           order,
           action: 'wait', // Keypress is treated as wait
           locator,

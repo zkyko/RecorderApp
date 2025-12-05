@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
@@ -58,9 +57,9 @@ export function Navbar() {
             >
               Download
             </Link>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/docs/getting-started">Get Started</Link>
-            </Button>
+            <Link href="/docs/getting-started" className="btn btn-outline btn-sm">
+              Get Started
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -111,11 +110,13 @@ export function Navbar() {
             >
               Download
             </Link>
-            <Button variant="outline" size="sm" asChild className="w-full mt-2">
-              <Link href="/docs/getting-started" onClick={() => setMobileMenuOpen(false)}>
-                Get Started
-              </Link>
-            </Button>
+            <Link 
+              href="/docs/getting-started" 
+              className="btn btn-outline btn-sm w-full mt-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Get Started
+            </Link>
           </div>
         )}
       </div>

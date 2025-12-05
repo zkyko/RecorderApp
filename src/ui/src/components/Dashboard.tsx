@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Grid, Text, Group, Button, Loader, Center, Badge } from '@mantine/core';
-import { Library, PlayCircle, BarChart3, Plus, Bug, Eye, Play } from 'lucide-react';
+import { Library, PlayCircle, BarChart3, Plus, Bug, Eye, Play, Lightbulb, CheckCircle2, XCircle, Circle, FileText, Clock, Activity } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { TestSummary } from '../../../types/v1.5';
+import MetricCard from './MetricCard';
+import StatusBadge from './StatusBadge';
+import { formatDate, formatDateWithTooltip } from '../utils/formatDate';
+import Skeleton from './Skeleton';
+import EmptyState from './EmptyState';
 import './Dashboard.css';
 
 // Check if we're in demo mode (web environment)
@@ -83,9 +87,14 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <Center h="100%">
-        <Loader size="lg" />
-      </Center>
+      <div className="p-6">
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <Skeleton variant="card" height={120} />
+          <Skeleton variant="card" height={120} />
+          <Skeleton variant="card" height={120} />
+          <Skeleton variant="card" height={120} />
+        </div>
+      </div>
     );
   }
 
@@ -96,214 +105,257 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="dashboard">
+      {/* Professional Header Section */}
+      <div className="dashboard-header">
+        <div className="dashboard-header-content">
+          <div className="dashboard-header-title-section">
+            <div className="dashboard-header-icon">
+              <Lightbulb size={24} />
+            </div>
+            <div>
+              <h1 className="dashboard-header-title">Workspace Overview</h1>
+              <p className="dashboard-header-description">
+                Your workspace contains all tests, recordings, and generated code. Keep it organized for better test management.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Demo Tour CTA */}
       {isDemoMode && (
-        <Card padding="md" radius="md" withBorder mb="xl" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)' }}>
-          <Group justify="space-between" align="center">
-            <div>
-              <Text fw={600} size="lg" mb={4}>New to QA Studio?</Text>
-              <Text size="sm" c="dimmed">
-                Take a guided tour to learn about all the features and capabilities
-              </Text>
+        <div className="card bg-gradient-to-br from-primary/10 to-secondary/10 border border-base-300 mb-6">
+          <div className="card-body">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-semibold mb-1">New to QA Studio?</h3>
+                <p className="text-sm text-base-content/70">
+                  Take a guided tour to learn about all the features and capabilities
+                </p>
+              </div>
+              <button
+                className="btn btn-primary"
+                onClick={handleStartTour}
+              >
+                <Play size={16} />
+                Start Tour
+              </button>
             </div>
-            <Button
-              leftSection={<Play size={16} />}
-              variant="filled"
-              color="blue"
-              onClick={handleStartTour}
-            >
-              Start Tour
-            </Button>
-          </Group>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* Stats Cards */}
-      <Grid gutter="md" mb="xl">
-        <Grid.Col span={{ base: 12, sm: 6, md: 4, lg: 2.4 }}>
-          <Card padding="lg" radius="md" withBorder className="stat-card">
-            <Group gap="md">
-              <Text size="2rem">📊</Text>
-              <div>
-                <Text size="xl" fw={700}>{stats.totalTests}</Text>
-                <Text size="sm" c="dimmed">Total Tests</Text>
-              </div>
-            </Group>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4, lg: 2.4 }}>
-          <Card padding="lg" radius="md" withBorder className="stat-card success">
-            <Group gap="md">
-              <Text size="2rem">✅</Text>
-              <div>
-                <Text size="xl" fw={700}>{stats.passedTests}</Text>
-                <Text size="sm" c="dimmed">Passed</Text>
-              </div>
-            </Group>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4, lg: 2.4 }}>
-          <Card padding="lg" radius="md" withBorder className="stat-card error">
-            <Group gap="md">
-              <Text size="2rem">❌</Text>
-              <div>
-                <Text size="xl" fw={700}>{stats.failedTests}</Text>
-                <Text size="sm" c="dimmed">Failed</Text>
-              </div>
-            </Group>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4, lg: 2.4 }}>
-          <Card padding="lg" radius="md" withBorder className="stat-card">
-            <Group gap="md">
-              <Text size="2rem">⚪</Text>
-              <div>
-                <Text size="xl" fw={700}>{stats.neverRun}</Text>
-                <Text size="sm" c="dimmed">Never Run</Text>
-              </div>
-            </Group>
-          </Card>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6, md: 4, lg: 2.4 }}>
-          <Card padding="lg" radius="md" withBorder className="stat-card">
-            <Group gap="md">
-              <Text size="2rem">📝</Text>
-              <div>
-                <Text size="xl" fw={700}>{stats.totalDatasets}</Text>
-                <Text size="sm" c="dimmed">Total Datasets</Text>
-              </div>
-            </Group>
-          </Card>
-        </Grid.Col>
-      </Grid>
+      {/* Metrics Section - Compact 4-column grid with trends */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <MetricCard
+          title="Total Tests"
+          value={stats.totalTests}
+          icon={BarChart3}
+          trend={stats.totalTests > 0 ? { direction: 'neutral', value: '' } : undefined}
+        />
+        <MetricCard
+          title="Passed"
+          value={stats.passedTests}
+          icon={CheckCircle2}
+          trend={
+            stats.totalTests > 0
+              ? {
+                  direction: stats.passedTests / stats.totalTests > 0.8 ? 'up' : 'neutral',
+                  value: `${Math.round((stats.passedTests / stats.totalTests) * 100)}%`,
+                }
+              : undefined
+          }
+        />
+        <MetricCard
+          title="Failed"
+          value={stats.failedTests}
+          icon={XCircle}
+          trend={
+            stats.totalTests > 0
+              ? {
+                  direction: stats.failedTests > 0 ? 'down' : 'neutral',
+                  value: `${Math.round((stats.failedTests / stats.totalTests) * 100)}%`,
+                }
+              : undefined
+          }
+        />
+        <MetricCard
+          title="Never Run"
+          value={stats.neverRun}
+          icon={Circle}
+          trend={
+            stats.totalTests > 0
+              ? {
+                  direction: stats.neverRun > 0 ? 'down' : 'neutral',
+                  value: `${Math.round((stats.neverRun / stats.totalTests) * 100)}%`,
+                }
+              : undefined
+          }
+        />
+      </div>
 
-      {/* Quick Actions */}
-      <Card padding="lg" radius="md" withBorder mb="xl">
-        <Text size="lg" fw={600} mb="md">Quick Actions</Text>
-        <Group gap="md">
-          <Button
-            leftSection={<PlayCircle size={18} />}
+      {/* Recent Activity Timeline */}
+      {recentTests.length > 0 && (
+        <div className="glass-card mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Activity size={20} />
+              Recent Activity
+            </h3>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => navigate('/runs')}
+            >
+              View All Activity →
+            </button>
+          </div>
+          <div className="space-y-2">
+            {recentTests.slice(0, 10).map((test) => {
+              const { display, tooltip } = formatDateWithTooltip(test.lastRunAt || null);
+              return (
+                <div
+                  key={test.testName}
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-base-300 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/tests/${test.testName}`)}
+                  title={tooltip}
+                >
+                  <div className="flex-shrink-0">
+                    {test.lastStatus === 'passed' ? (
+                      <CheckCircle2 size={16} className="text-[#2B8A3E]" />
+                    ) : test.lastStatus === 'failed' ? (
+                      <XCircle size={16} className="text-[#C92A2A]" />
+                    ) : (
+                      <Circle size={16} className="text-base-content/40" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{test.testName}</div>
+                    <div className="text-xs text-base-content/60 flex items-center gap-2">
+                      <Clock size={12} />
+                      {display}
+                    </div>
+                  </div>
+                  <StatusBadge status={test.lastStatus} size="sm" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Actions - Uniform size with keyboard shortcuts */}
+      <div className="dashboard-actions mb-6">
+        <h3 className="dashboard-actions-title mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <button
+            className="btn btn-primary h-[50px] flex flex-col items-center justify-between py-2 group relative"
             onClick={() => navigate('/record')}
-            variant="filled"
-            size="md"
+            style={{ width: '160px' }}
           >
-            Record New Test
-          </Button>
-          <Button
-            leftSection={<Library size={18} />}
+            <div className="flex flex-col items-center gap-1">
+              <PlayCircle size={18} />
+              <span>Record New Test</span>
+            </div>
+            <span className="text-xs opacity-0 group-hover:opacity-70 transition-opacity">Ctrl+R</span>
+          </button>
+          <button
+            className="btn btn-outline h-[50px] flex flex-col items-center justify-center gap-1"
             onClick={() => navigate('/library')}
-            variant="light"
-            size="md"
+            style={{ width: '160px' }}
           >
-            Test Library
-          </Button>
-          <Button
-            leftSection={<BarChart3 size={18} />}
+            <Library size={18} />
+            <span>Test Library</span>
+          </button>
+          <button
+            className="btn btn-outline h-[50px] flex flex-col items-center justify-center gap-1"
             onClick={() => navigate('/report')}
-            variant="light"
-            size="md"
+            style={{ width: '160px' }}
           >
-            View Reports
-          </Button>
-        </Group>
-      </Card>
+            <BarChart3 size={18} />
+            <span>View Reports</span>
+          </button>
+        </div>
+      </div>
 
       {/* Recent Tests */}
       {recentTests.length > 0 && (
-        <Card padding="lg" radius="md" withBorder mb="xl">
-          <Text size="lg" fw={600} mb="md">Recent Test Runs</Text>
+        <div className="dashboard-recent">
+          <h3 className="dashboard-recent-title">Recent Test Runs</h3>
           <div className="recent-tests">
             {recentTests.map((test) => (
-              <Card
+              <div
                 key={test.testName}
-                padding="md"
-                radius="md"
-                withBorder
                 className="recent-test-card"
                 onClick={() => navigate(`/tests/${test.testName}`)}
-                style={{ cursor: 'pointer', marginBottom: '8px' }}
               >
-                <Group justify="space-between">
+                <div className="recent-test-header">
                   <div>
-                    <Text fw={500}>{test.testName}</Text>
-                    <Text size="sm" c="dimmed">
+                    <div className="recent-test-name">{test.testName}</div>
+                    <div className="recent-test-meta">
                       {test.module || 'No module'} • {test.datasetCount} datasets • {new Date(test.lastRunAt!).toLocaleString()}
-                    </Text>
+                    </div>
                   </div>
-                  <Text size="sm" c={getStatusColor(test.lastStatus)} fw={500}>
+                  <span className={`badge badge-${getStatusColor(test.lastStatus) === 'green' ? 'success' : getStatusColor(test.lastStatus) === 'red' ? 'error' : 'info'}`}>
                     {test.lastStatus}
-                  </Text>
-                </Group>
-              </Card>
+                  </span>
+                </div>
+              </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       {/* All Tests Table (Compact) */}
       {tests.length > 0 && (
-        <Card padding="lg" radius="md" withBorder>
-          <Group justify="space-between" mb="md">
-            <Text size="lg" fw={600}>All Tests</Text>
-            <Button
-              variant="subtle"
+        <div className="dashboard-all-tests">
+          <div className="dashboard-all-tests-header">
+            <h3 className="dashboard-all-tests-title">All Tests</h3>
+            <button
+              className="btn btn-ghost btn-sm"
               onClick={() => navigate('/library')}
             >
               View All →
-            </Button>
-          </Group>
+            </button>
+          </div>
           <div className="tests-table-compact">
             {tests.slice(0, 10).map((test) => (
-              <Card
+              <div
                 key={test.testName}
-                padding="sm"
-                radius="md"
-                withBorder
-                mb="xs"
-                style={{ cursor: 'pointer' }}
+                className="test-row"
                 onClick={() => navigate(`/tests/${test.testName}`)}
               >
-                <Group justify="space-between">
-                  <div>
-                    <Text fw={500}>{test.testName}</Text>
-                    <Text size="xs" c="dimmed">
+                <div className="test-row-content">
+                  <div className="test-row-info">
+                    <div className="test-row-name">{test.testName}</div>
+                    <div className="test-row-meta">
                       {test.module || '-'} • {test.datasetCount} datasets • {test.lastRunAt ? new Date(test.lastRunAt).toLocaleDateString() : 'Never'}
-                    </Text>
+                    </div>
                   </div>
-                  <Button
-                    size="xs"
-                    variant="light"
+                  <button
+                    className="btn btn-ghost btn-xs"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/tests/${test.testName}`);
                     }}
                   >
                     View
-                  </Button>
-                </Group>
-              </Card>
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       {tests.length === 0 && (
-        <Card padding="xl" radius="md" withBorder>
-          <Center>
-            <div style={{ textAlign: 'center' }}>
-              <Text size="4rem" mb="md">🎬</Text>
-              <Text size="xl" fw={600} mb="xs">No tests yet</Text>
-              <Text c="dimmed" mb="lg">Get started by recording your first test flow</Text>
-              <Button
-                leftSection={<Plus size={18} />}
-                onClick={() => navigate('/record')}
-                size="md"
-              >
-                Record Your First Test
-              </Button>
-            </div>
-          </Center>
-        </Card>
+        <EmptyState
+          icon={PlayCircle}
+          title="No tests yet"
+          description="Get started by recording your first test flow"
+          actionLabel="Record Your First Test"
+          onAction={() => navigate('/record')}
+          tip="Use keyboard shortcut Ctrl+R to start recording"
+        />
       )}
     </div>
   );

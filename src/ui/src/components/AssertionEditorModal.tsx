@@ -9,24 +9,19 @@ import {
   Text,
   Alert,
   Radio,
+  Checkbox,
 } from '@mantine/core';
 import { CheckCircle } from 'lucide-react';
-import { AssertionKind } from '../../../types';
+import { AssertionKind, RecordedStep } from '../../../types';
 
 interface AssertionEditorModalProps {
   opened: boolean;
   onClose: () => void;
-  onSave: (assertion: AssertionStep) => void;
-  existingStep?: AssertionStep | null;
+  onSave: (assertion: RecordedStep) => void;
+  existingStep?: RecordedStep | null;
   availableLocators?: Array<{ fieldName?: string; methodName?: string; description?: string }>;
-}
-
-export interface AssertionStep {
-  assertion: AssertionKind;
-  targetKind: 'locator' | 'page';
-  target?: string; // POM locator name or 'page'
-  expected?: string; // literal value or {{param}}
-  customMessage?: string;
+  pageId?: string; // For creating new assertions
+  prefillLocator?: string; // Auto-select locator from previous step
 }
 
 const ASSERTION_OPTIONS: Array<{ value: AssertionKind; label: string; requiresValue: boolean }> = [
@@ -46,45 +41,84 @@ const AssertionEditorModal: React.FC<AssertionEditorModalProps> = ({
   onSave,
   existingStep,
   availableLocators = [],
+  pageId = 'unknown',
+  prefillLocator,
 }) => {
   const [assertionType, setAssertionType] = useState<AssertionKind>('toBeVisible');
   const [targetKind, setTargetKind] = useState<'locator' | 'page'>('locator');
   const [selectedLocator, setSelectedLocator] = useState<string>('');
   const [expectedValue, setExpectedValue] = useState<string>('');
   const [customMessage, setCustomMessage] = useState<string>('');
+  const [notFlag, setNotFlag] = useState<boolean>(false);
+  const [softFlag, setSoftFlag] = useState<boolean>(false);
 
   useEffect(() => {
     if (opened) {
-      if (existingStep) {
-        setAssertionType(existingStep.assertion);
-        setTargetKind(existingStep.targetKind);
+      if (existingStep && existingStep.action === 'assert') {
+        setAssertionType(existingStep.assertion!);
+        setTargetKind(existingStep.targetKind || 'locator');
         setSelectedLocator(existingStep.target || '');
         setExpectedValue(existingStep.expected || '');
         setCustomMessage(existingStep.customMessage || '');
+        setNotFlag(existingStep.not ?? false);
+        setSoftFlag(existingStep.soft ?? false);
       } else {
         // Reset to defaults
         setAssertionType('toBeVisible');
         setTargetKind('locator');
-        setSelectedLocator('');
+        setSelectedLocator(prefillLocator || '');
         setExpectedValue('');
         setCustomMessage('');
+        setNotFlag(false);
+        setSoftFlag(false);
       }
     }
-  }, [opened, existingStep]);
+  }, [opened, existingStep, prefillLocator]);
 
   const selectedAssertion = ASSERTION_OPTIONS.find(opt => opt.value === assertionType);
   const requiresValue = selectedAssertion?.requiresValue ?? false;
 
   const handleSave = () => {
-    const assertion: AssertionStep = {
+    // Generate description
+    const assertionLabels: Record<AssertionKind, string> = {
+      toHaveText: 'Has Text',
+      toContainText: 'Contains Text',
+      toBeVisible: 'Is Visible',
+      toHaveURL: 'Has URL',
+      toHaveTitle: 'Has Title',
+      toBeChecked: 'Is Checked',
+      toHaveValue: 'Has Value',
+      toHaveAttribute: 'Has Attribute',
+    };
+
+    const targetLabel = targetKind === 'page' ? 'page' : (selectedLocator || 'element');
+    const expectedLabel = requiresValue && expectedValue ? ` "${expectedValue}"` : '';
+    
+    // Build flags label
+    const flags: string[] = [];
+    if (softFlag) flags.push('soft');
+    if (notFlag) flags.push('not');
+    const flagsLabel = flags.length ? ` (${flags.join(', ')})` : '';
+    
+    const description = `ASSERT${flagsLabel} → ${notFlag ? 'not.' : ''}${assertionType} on [${targetLabel}]${expectedLabel}`;
+
+    const assertionStep: RecordedStep = {
+      id: existingStep?.id || `assert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      pageId: existingStep?.pageId || pageId,
+      action: 'assert',
+      description,
+      order: existingStep?.order || 0, // Will be set by parent
+      timestamp: existingStep?.timestamp || new Date(),
       assertion: assertionType,
       targetKind,
       target: targetKind === 'locator' ? selectedLocator : 'page',
       expected: requiresValue ? expectedValue : undefined,
       customMessage: customMessage.trim() || undefined,
+      not: notFlag || undefined,
+      soft: softFlag || undefined,
     };
 
-    onSave(assertion);
+    onSave(assertionStep);
     onClose();
   };
 
@@ -169,6 +203,21 @@ const AssertionEditorModal: React.FC<AssertionEditorModalProps> = ({
           value={customMessage}
           onChange={(e) => setCustomMessage(e.target.value)}
         />
+
+        <Stack gap="xs">
+          <Checkbox
+            label="Negate assertion"
+            description="Generate .not.<matcher>() for negated assertions"
+            checked={notFlag}
+            onChange={(e) => setNotFlag(e.currentTarget.checked)}
+          />
+          <Checkbox
+            label="Soft assertion"
+            description="Use expect.soft(...) - doesn't stop test on failure"
+            checked={softFlag}
+            onChange={(e) => setSoftFlag(e.currentTarget.checked)}
+          />
+        </Stack>
 
         <Group justify="flex-end" mt="md">
           <Button variant="subtle" onClick={onClose}>

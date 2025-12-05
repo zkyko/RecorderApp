@@ -9,7 +9,7 @@ dotenv.config();
  * Uses Chrome DevTools Protocol (CDP) to connect to BrowserStack
  */
 export default defineConfig({
-  testDir: './Recordings/tests',
+  testDir: './tests', // Supports both bundle structure (tests/d365/specs/...) and flat structure
   
   /* Run tests sequentially on BrowserStack */
   fullyParallel: false,

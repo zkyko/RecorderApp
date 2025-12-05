@@ -3,32 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, Text, Button, Group, Stack, TextInput, Badge, ScrollArea, ActionIcon, Checkbox, Alert, Menu, Code } from '@mantine/core';
 import { ArrowRight, Trash2, Edit2, Check, X, Plus, Clock, MessageSquare, CheckCircle } from 'lucide-react';
 import { ipc } from '../ipc';
-import AssertionEditorModal, { AssertionStep } from './AssertionEditorModal';
-import { AssertionKind } from '../../../types';
+import AssertionEditorModal from './AssertionEditorModal';
+import { AssertionKind, RecordedStep } from '../../../types';
 import './StepEditorScreen.css';
-
-interface RecordedStep {
-  pageId: string;
-  action: 'click' | 'fill' | 'select' | 'navigate' | 'wait' | 'custom' | 'comment' | 'assert';
-  description: string;
-  locator?: any;
-  value?: string;
-  order: number;
-  timestamp: Date;
-  fieldName?: string;
-  methodName?: string;
-  pageUrl?: string;
-  mi?: string;
-  cmp?: string;
-  pageType?: 'list' | 'details' | 'dialog' | 'workspace' | 'unknown';
-  customAction?: 'waitForD365'; // For custom action type
-  // Assertion fields
-  assertion?: AssertionKind;
-  targetKind?: 'locator' | 'page';
-  target?: string;
-  expected?: string;
-  customMessage?: string;
-}
 
 const StepEditorScreen: React.FC = () => {
   const navigate = useNavigate();
@@ -39,13 +16,19 @@ const StepEditorScreen: React.FC = () => {
   const [editedValue, setEditedValue] = useState<string>('');
   const [showCleanupAlert, setShowCleanupAlert] = useState(false);
   const [assertionModalOpen, setAssertionModalOpen] = useState(false);
-  const [assertionEditIndex, setAssertionEditIndex] = useState<number | null>(null);
+  const [assertionIndex, setAssertionIndex] = useState<number | null>(null);
+  const [editingAssertion, setEditingAssertion] = useState<RecordedStep | null>(null);
   const [availableLocators, setAvailableLocators] = useState<Array<{ fieldName?: string; methodName?: string; description?: string }>>([]);
 
   useEffect(() => {
     const state = location.state as { rawCode?: string; steps?: RecordedStep[] };
     if (state?.steps) {
-      setSteps(state.steps);
+      // Ensure all steps have id
+      const stepsWithIds = state.steps.map(step => ({
+        ...step,
+        id: step.id || `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      }));
+      setSteps(stepsWithIds);
     }
     if (state?.rawCode) {
       setRawCode(state.rawCode);
@@ -208,14 +191,26 @@ const StepEditorScreen: React.FC = () => {
     regenerateCode(newSteps);
   };
 
+  const handleAddAssertionClick = (index: number) => {
+    setAssertionIndex(index); // insert AFTER this index
+    setEditingAssertion(null); // "add" mode
+    setAssertionModalOpen(true);
+  };
+
+  const handleEditAssertionClick = (step: RecordedStep, index: number) => {
+    setAssertionIndex(index);
+    setEditingAssertion(step); // "edit" mode
+    setAssertionModalOpen(true);
+  };
+
   const handleInsertStep = (index: number, stepType: 'waitForD365' | 'wait' | 'comment' | 'assert') => {
     if (stepType === 'assert') {
-      setAssertionEditIndex(index);
-      setAssertionModalOpen(true);
+      handleAddAssertionClick(index);
       return;
     }
 
     const newStep: RecordedStep = {
+      id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       pageId: steps[index]?.pageId || 'unknown',
       action: stepType === 'comment' ? 'comment' : stepType === 'waitForD365' ? 'custom' : 'wait',
       description: stepType === 'waitForD365' 
@@ -242,64 +237,56 @@ const StepEditorScreen: React.FC = () => {
     regenerateCode(newSteps);
   };
 
-  const handleSaveAssertion = (assertion: AssertionStep) => {
-    const index = assertionEditIndex !== null ? assertionEditIndex : steps.length;
-    const assertionLabels: Record<AssertionKind, string> = {
-      toHaveText: 'Has Text',
-      toContainText: 'Contains Text',
-      toBeVisible: 'Is Visible',
-      toHaveURL: 'Has URL',
-      toHaveTitle: 'Has Title',
-      toBeChecked: 'Is Checked',
-      toHaveValue: 'Has Value',
-      toHaveAttribute: 'Has Attribute',
-    };
-
-    const targetLabel = assertion.targetKind === 'page' ? 'page' : (assertion.target || 'element');
-    const expectedLabel = assertion.expected ? ` "${assertion.expected}"` : '';
-    const description = `Assert ${targetLabel} ${assertionLabels[assertion.assertion]}${expectedLabel}`;
-
-    const newStep: RecordedStep = {
-      pageId: steps[Math.max(0, index - 1)]?.pageId || 'unknown',
-      action: 'assert',
-      description,
-      order: index + 1,
-      timestamp: new Date(),
-      assertion: assertion.assertion,
-      targetKind: assertion.targetKind,
-      target: assertion.target,
-      expected: assertion.expected,
-      customMessage: assertion.customMessage,
-    };
-
-    const newSteps = [...steps];
-    if (assertionEditIndex !== null) {
-      // Editing existing assertion
-      newSteps[assertionEditIndex] = newStep;
-    } else {
-      // Adding new assertion
-      newSteps.splice(index, 0, newStep);
+  const handleSaveAssertion = (assertionStep: RecordedStep) => {
+    setSteps(prev => {
+      if (editingAssertion) {
+        // Edit existing one by id
+        const updated = prev.map(s => s.id === assertionStep.id ? { ...assertionStep, order: s.order } : s);
+        // Update available locators
+        const locators: Array<{ fieldName?: string; methodName?: string; description?: string }> = [];
+        updated.forEach(step => {
+          if (step.fieldName || step.methodName) {
+            locators.push({
+              fieldName: step.fieldName,
+              methodName: step.methodName,
+              description: step.description,
+            });
+          }
+        });
+        setAvailableLocators(locators);
+        regenerateCode(updated);
+        return updated;
+      }
+      // Insert new assertion after assertionIndex
+      const insertAt = (assertionIndex ?? prev.length - 1) + 1;
+      const newSteps = [
+        ...prev.slice(0, insertAt),
+        { ...assertionStep, order: insertAt + 1 },
+        ...prev.slice(insertAt),
+      ];
       // Re-number all steps
       newSteps.forEach((step, idx) => {
         step.order = idx + 1;
       });
-    }
-
-    setSteps(newSteps);
-    regenerateCode(newSteps);
-    setAssertionEditIndex(null);
-    // Update available locators
-    const locators: Array<{ fieldName?: string; methodName?: string; description?: string }> = [];
-    newSteps.forEach(step => {
-      if (step.fieldName || step.methodName) {
-        locators.push({
-          fieldName: step.fieldName,
-          methodName: step.methodName,
-          description: step.description,
-        });
-      }
+      // Update available locators
+      const locators: Array<{ fieldName?: string; methodName?: string; description?: string }> = [];
+      newSteps.forEach(step => {
+        if (step.fieldName || step.methodName) {
+          locators.push({
+            fieldName: step.fieldName,
+            methodName: step.methodName,
+            description: step.description,
+          });
+        }
+      });
+      setAvailableLocators(locators);
+      regenerateCode(newSteps);
+      return newSteps;
     });
-    setAvailableLocators(locators);
+    
+    setAssertionModalOpen(false);
+    setAssertionIndex(null);
+    setEditingAssertion(null);
   };
 
   const getActionBadgeColor = (action: string) => {
@@ -426,6 +413,14 @@ const StepEditorScreen: React.FC = () => {
                           <Text size="sm" c="dimmed">
                             <strong>Type:</strong> {step.assertion} | <strong>Target:</strong> {step.targetKind === 'page' ? 'page' : (step.target || 'element')}
                             {step.expected && ` | <strong>Expected:</strong> ${step.expected}`}
+                            {(step.soft || step.not) && (
+                              <>
+                                {' | <strong>Flags:</strong> '}
+                                {step.soft && 'soft'}
+                                {step.soft && step.not && ', '}
+                                {step.not && 'not'}
+                              </>
+                            )}
                           </Text>
                         </div>
                       )}
@@ -506,10 +501,7 @@ const StepEditorScreen: React.FC = () => {
                       <ActionIcon
                         color="blue"
                         variant="light"
-                        onClick={() => {
-                          setAssertionEditIndex(index);
-                          setAssertionModalOpen(true);
-                        }}
+                        onClick={() => handleEditAssertionClick(step, index)}
                       >
                         <Edit2 size={18} />
                       </ActionIcon>
@@ -572,24 +564,18 @@ const StepEditorScreen: React.FC = () => {
         opened={assertionModalOpen}
         onClose={() => {
           setAssertionModalOpen(false);
-          setAssertionEditIndex(null);
+          setAssertionIndex(null);
+          setEditingAssertion(null);
         }}
         onSave={handleSaveAssertion}
-        existingStep={
-          assertionEditIndex !== null &&
-          assertionEditIndex >= 0 &&
-          assertionEditIndex < steps.length &&
-          steps[assertionEditIndex].action === 'assert'
-            ? {
-                assertion: steps[assertionEditIndex].assertion!,
-                targetKind: steps[assertionEditIndex].targetKind || 'locator',
-                target: steps[assertionEditIndex].target,
-                expected: steps[assertionEditIndex].expected,
-                customMessage: steps[assertionEditIndex].customMessage,
-              }
-            : null
-        }
+        existingStep={editingAssertion}
         availableLocators={availableLocators}
+        pageId={assertionIndex !== null && assertionIndex >= 0 ? steps[assertionIndex]?.pageId : steps[0]?.pageId || 'unknown'}
+        prefillLocator={
+          assertionIndex !== null && assertionIndex >= 0 && steps[assertionIndex]?.action !== 'assert'
+            ? steps[assertionIndex]?.fieldName || steps[assertionIndex]?.methodName
+            : undefined
+        }
       />
 
       <Group justify="space-between" mt="md">

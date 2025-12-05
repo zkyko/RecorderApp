@@ -1,0 +1,10 @@
+{
+  "username": "<REDACTED_USERNAME>",
+  "accessKey": "<REDACTED_ACCESS_KEY>",
+  "projectId": "PR-25",
+  "projectName": "ZZ Archive - QA & Test Automation 1",
+  "suiteName": "TestManagement For StudioAPP",
+  "baseUrl": "https://test-management.browserstack.com/api/v2"
+}
+
+
