@@ -7,6 +7,7 @@ import { WorkspaceManager } from './workspace-manager';
 import { DataWriter } from './data-writer';
 import { SpecGenerator } from '../../generators/spec-generator';
 import { BrowserStackTMService } from './browserstackTmService';
+import { SpecCleanupService } from './spec-cleanup-service';
 
 /**
  * Service for writing flat Playwright spec files
@@ -17,6 +18,7 @@ export class SpecWriter {
   private dataWriter: DataWriter;
   private specGenerator: SpecGenerator;
   private browserStackTMService: BrowserStackTMService;
+  private cleanupService: SpecCleanupService;
 
   constructor(workspaceManager: WorkspaceManager, browserStackTMService: BrowserStackTMService) {
     this.workspaceManager = workspaceManager;
@@ -24,6 +26,7 @@ export class SpecWriter {
     this.dataWriter = new DataWriter();
     this.specGenerator = new SpecGenerator();
     this.browserStackTMService = browserStackTMService;
+    this.cleanupService = new SpecCleanupService();
   }
 
   /**
@@ -98,19 +101,22 @@ export async function waitForD365(page: Page): Promise<void> {
       this.parameterizeCode(sourceFile, paramMap);
 
       // Generate data-driven test structure
-      const specContent = this.generateSpecContent(
+      let specContent = this.generateSpecContent(
         request.testName,
         request.module,
         sourceFile.getFullText(),
         workspaceType
       );
 
+      // Apply cleanup: remove duplicate waits, add assertions, etc.
+      specContent = this.cleanupService.cleanupSpecCode(specContent, workspaceType);
+
       // Convert test name to kebab-case filename (same as SpecGenerator)
       const fileName = this.specGenerator.flowNameToFileName(request.testName);
       const formattedTestName = this.specGenerator.formatTestName(request.testName);
 
       // Choose platform-specific subfolder based on workspace type
-      const platformDir = workspaceType === 'd365' ? 'd365' : 'web';
+      const platformDir = workspaceType === 'd365' ? 'd365' : workspaceType === 'web-demo' ? 'web-demo' : 'web';
 
       // Create bundle directory structure: tests/<platformDir>/specs/<TestName>/
       const bundleDir = path.join(testsDir, platformDir, 'specs', fileName);
@@ -118,6 +124,15 @@ export async function waitForD365(page: Page): Promise<void> {
 
       // Write spec file to bundle directory
       const specPath = path.join(bundleDir, `${fileName}.spec.ts`);
+      
+      // For web-demo workspaces, remove test.use() override - use global config instead
+      // The playwright.config.ts already has storageState: 'storage_state/web.json' configured globally
+      // This path is relative to the workspace root, which is correct
+      if (workspaceType === 'web-demo') {
+        // Remove any test.use() blocks - they will inherit from the global config
+        specContent = specContent.replace(/test\.use\s*\(\s*\{[\s\S]*?storageState[\s\S]*?\}\s*\);?\s*\n?/g, '');
+        console.log(`[SpecWriter] Removed test.use() override for web-demo - using global config storageState`);
+      }
       fs.writeFileSync(specPath, specContent, 'utf-8');
 
       // Fix data import path in spec content (from ../data/ to ../../data/)
@@ -181,55 +196,57 @@ export async function waitForD365(page: Page): Promise<void> {
         parameters = Array.from(foundParams);
       }
 
-      // Create or update data file with parameter columns
+      // Always create or update data file (even if no parameters, create empty default)
       // Data file should be at tests/<platformDir>/data/<TestName>Data.json
-      if (parameters.length > 0) {
-        // Use the dataDir we already defined above
-        fs.mkdirSync(dataDir, { recursive: true });
-        
-        const dataPath = path.join(dataDir, `${fileName}Data.json`);
-        
-        let existingRows: DataRow[] = [];
-        let existingColumns = new Set<string>();
-        
-        // Load existing data if file exists
-        if (fs.existsSync(dataPath)) {
-          try {
-            const existingContent = fs.readFileSync(dataPath, 'utf-8');
-            existingRows = JSON.parse(existingContent);
-            if (Array.isArray(existingRows) && existingRows.length > 0) {
-              existingColumns = new Set(Object.keys(existingRows[0]));
-            }
-          } catch (e) {
-            // If can't parse, start fresh
-            existingRows = [];
+      // Use the dataDir we already defined above
+      fs.mkdirSync(dataDir, { recursive: true });
+      
+      const dataPath = path.join(dataDir, `${fileName}Data.json`);
+      
+      let existingRows: DataRow[] = [];
+      let existingColumns = new Set<string>();
+      
+      // Load existing data if file exists
+      if (fs.existsSync(dataPath)) {
+        try {
+          const existingContent = fs.readFileSync(dataPath, 'utf-8');
+          existingRows = JSON.parse(existingContent);
+          if (Array.isArray(existingRows) && existingRows.length > 0) {
+            existingColumns = new Set(Object.keys(existingRows[0]));
           }
+        } catch (e) {
+          // If can't parse, start fresh
+          existingRows = [];
         }
+      }
+      
+      // Create default row with all parameters included
+      const createDefaultRow = (): DataRow => {
+        const defaultRow: DataRow = {
+          id: Date.now().toString(),
+          enabled: true,
+          name: 'Default',
+        };
         
+        // Dynamically add all parameter keys with empty strings
+        parameters.forEach(paramName => {
+          defaultRow[paramName] = '';
+        });
+        
+        return defaultRow;
+      };
+      
+      let updatedRows: DataRow[] = [];
+      
+      if (parameters.length > 0) {
         // Get all parameter column names
         const paramColumnSet = new Set(parameters);
         
         // Merge with existing columns
         const allColumns = new Set([...existingColumns, ...paramColumnSet]);
         
-        // Create default row with all parameters included
-        const createDefaultRow = (): DataRow => {
-          const defaultRow: DataRow = {
-            id: Date.now().toString(),
-            enabled: true,
-            name: 'Default',
-          };
-          
-          // Dynamically add all parameter keys with empty strings
-          parameters.forEach(paramName => {
-            defaultRow[paramName] = '';
-          });
-          
-          return defaultRow;
-        };
-        
         // Update existing rows to include all columns
-        const updatedRows = existingRows.length > 0 
+        updatedRows = existingRows.length > 0 
           ? existingRows.map(row => {
               const updated: DataRow = { ...row };
               // Add missing parameter columns with empty values
@@ -246,11 +263,22 @@ export async function waitForD365(page: Page): Promise<void> {
         if (updatedRows.length === 0) {
           updatedRows.push(createDefaultRow());
         }
-        
-        // Write updated data file
-        const dataContent = JSON.stringify(updatedRows, null, 2);
-        fs.writeFileSync(dataPath, dataContent, 'utf-8');
+      } else {
+        // No parameters - create a simple default row so the test can run
+        if (existingRows.length > 0) {
+          updatedRows = existingRows;
+        } else {
+          updatedRows = [{
+            id: Date.now().toString(),
+            enabled: true,
+            name: 'Default',
+          }];
+        }
       }
+      
+      // Write updated data file
+      const dataContent = JSON.stringify(updatedRows, null, 2);
+      fs.writeFileSync(dataPath, dataContent, 'utf-8');
 
       return {
         success: true,
@@ -385,11 +413,14 @@ export async function waitForD365(page: Page): Promise<void> {
     testBody = testBody.replace(/test\.setTimeout\([^)]*\);?\s*/g, '');
     
     // 2. Remove test.use() calls (storage state is configured in playwright.config.ts)
-    // Match test.use({ ... }) with proper handling of nested braces and multi-line
-    testBody = testBody.replace(/test\.use\s*\(\s*\{[\s\S]*?\}\s*\);?\s*/g, '');
-    
-    // 3. Remove any standalone storageState assignments
-    testBody = testBody.replace(/storageState\s*[:=]\s*['"][^'"]*['"];?\s*/gi, '');
+    // BUT: For web-demo workspaces, keep test.use() in the spec file
+    if (workspaceType !== 'web-demo') {
+      // Match test.use({ ... }) with proper handling of nested braces and multi-line
+      testBody = testBody.replace(/test\.use\s*\(\s*\{[\s\S]*?\}\s*\);?\s*/g, '');
+      
+      // 3. Remove any standalone storageState assignments
+      testBody = testBody.replace(/storageState\s*[:=]\s*['"][^'"]*['"];?\s*/gi, '');
+    }
     
     // 4. Clean up extra blank lines
     testBody = testBody.replace(/\n\s*\n\s*\n/g, '\n\n');
@@ -402,6 +433,18 @@ export async function waitForD365(page: Page): Promise<void> {
     const fileName = this.specGenerator.flowNameToFileName(testName);
     let content = `import { test } from '@playwright/test';\n`;
     content += `import data from '../../data/${fileName}Data.json';\n`;
+    
+    // For web-demo workspaces, preserve test.use() if it exists in the test body
+    // Extract test.use() from testBody before building content
+    let testUseBlock = '';
+    if (workspaceType === 'web-demo') {
+      const testUseMatch = testBody.match(/test\.use\s*\(\s*\{[\s\S]*?\}\s*\);?\s*/);
+      if (testUseMatch) {
+        testUseBlock = testUseMatch[0] + '\n\n';
+        // Remove it from testBody so it doesn't appear twice
+        testBody = testBody.replace(/test\.use\s*\(\s*\{[\s\S]*?\}\s*\);?\s*/g, '');
+      }
+    }
     
     // Add waitForD365 import for D365 workspaces
     // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
@@ -423,6 +466,11 @@ export async function waitForD365(page: Page): Promise<void> {
 
     content += `test.describe('${testDescription}', () => {\n`;
     content += `  test.setTimeout(120_000); // 2 minutes for D365\n\n`;
+    
+    // For web-demo workspaces, don't add test.use() - use global config instead
+    // The playwright.config.ts already has storageState configured globally
+    // For other workspace types, test.use() is removed by cleanup service
+    
     content += `  for (const row of data) {\n`;
     content += `    test(\`\${row.name || row.id || 'Test'}\`, async ({ page }) => {\n`;
     
