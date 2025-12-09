@@ -132,18 +132,29 @@ const AssertionEditorModal: React.FC<AssertionEditorModalProps> = ({
         </Radio.Group>
 
         {targetKind === 'locator' && (
-          <Select
-            label="Select Locator"
-            placeholder="Choose a locator"
-            value={selectedLocator}
-            onChange={(value) => setSelectedLocator(value || '')}
-            data={availableLocators.map(loc => ({
-              value: loc.fieldName || loc.methodName || '',
-              label: loc.description || loc.fieldName || loc.methodName || 'Unknown',
-            }))}
-            searchable
-            required
-          />
+          <Stack gap="xs">
+            {availableLocators.length > 0 ? (
+              <Select
+                label="Select Locator"
+                placeholder="Choose a locator from library"
+                value={selectedLocator}
+                onChange={(value) => setSelectedLocator(value || '')}
+                data={availableLocators.map(loc => ({
+                  value: loc.description || loc.fieldName || loc.methodName || '',
+                  label: `${loc.fieldName || loc.methodName || 'Unknown'} - ${loc.description || ''}`,
+                }))}
+                searchable
+              />
+            ) : null}
+            <TextInput
+              label={availableLocators.length > 0 ? "Or Enter Locator Manually" : "Enter Locator"}
+              placeholder="e.g., page.getByText('SO000168119 : Nicole Roby')"
+              value={selectedLocator}
+              onChange={(e) => setSelectedLocator(e.currentTarget.value)}
+              description="Enter a Playwright locator expression (e.g., page.getByText('...'), page.locator('#id'))"
+              required
+            />
+          </Stack>
         )}
 
         {targetKind === 'page' && (

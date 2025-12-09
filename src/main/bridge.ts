@@ -606,14 +606,30 @@ export class IPCBridge {
     // Get spec file content
     ipcMain.handle('test:getSpec', async (_, request: TestGetSpecRequest): Promise<TestGetSpecResponse> => {
       try {
-        // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
         const fileName = this.specGenerator.flowNameToFileName(request.testName);
-        const specPath = path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
-        if (!fs.existsSync(specPath)) {
-          return { success: false, error: `Spec file not found: ${request.testName}` };
+        
+        // Try multiple possible locations (same logic as TestRunner.resolveSpecPath)
+        const possiblePaths = [
+          // New bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`),
+          // Web bundle structure: tests/web/specs/<TestName>/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.spec.ts`),
+          // Web-demo bundle structure: tests/web-demo/specs/<TestName>/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.spec.ts`),
+          // Old module structure: tests/d365/<TestName>/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', 'd365', fileName, `${fileName}.spec.ts`),
+          // Old flat structure: tests/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', `${fileName}.spec.ts`),
+        ];
+        
+        for (const specPath of possiblePaths) {
+          if (fs.existsSync(specPath)) {
+            const content = fs.readFileSync(specPath, 'utf-8');
+            return { success: true, content };
+          }
         }
-        const content = fs.readFileSync(specPath, 'utf-8');
-        return { success: true, content };
+        
+        return { success: false, error: `Spec file not found: ${request.testName}` };
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to read spec file' };
       }
@@ -642,12 +658,34 @@ export class IPCBridge {
     // Parse locators from spec file
     ipcMain.handle('test:parseLocators', async (_, request: TestParseLocatorsRequest): Promise<TestParseLocatorsResponse> => {
       try {
-        // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
         const fileName = this.specGenerator.flowNameToFileName(request.testName);
-        const specPath = path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
-        if (!fs.existsSync(specPath)) {
+        
+        // Try multiple possible locations (same logic as test:getSpec)
+        const possiblePaths = [
+          // New bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`),
+          // Web bundle structure: tests/web/specs/<TestName>/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.spec.ts`),
+          // Web-demo bundle structure: tests/web-demo/specs/<TestName>/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.spec.ts`),
+          // Old module structure: tests/d365/<TestName>/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', 'd365', fileName, `${fileName}.spec.ts`),
+          // Old flat structure: tests/<TestName>.spec.ts
+          path.join(request.workspacePath, 'tests', `${fileName}.spec.ts`),
+        ];
+        
+        let specPath: string | null = null;
+        for (const possiblePath of possiblePaths) {
+          if (fs.existsSync(possiblePath)) {
+            specPath = possiblePath;
+            break;
+          }
+        }
+        
+        if (!specPath) {
           return { success: false, error: `Spec file not found: ${request.testName}` };
         }
+        
         const content = fs.readFileSync(specPath, 'utf-8');
         const lines = content.split('\n');
         const locators: LocatorInfo[] = [];
@@ -2066,24 +2104,9 @@ export class IPCBridge {
       'browserstackTm:syncTestCaseForBundle',
       async (_event, args: { workspacePath: string; testName: string }) => {
         try {
-          // Check if BrowserStack TM is configured
-          try {
-            const config = this.configManager.getConfig();
-            const tmApiToken = (config as any).browserstackTmApiToken || '';
-            if (!tmApiToken) {
-              console.warn('[IPCBridge] BrowserStack TM API token not configured, skipping sync');
-              return {
-                success: false,
-                error: 'BrowserStack Test Management is not configured. Please set the API token in Settings.',
-              };
-            }
-          } catch (configError: any) {
-            console.warn('[IPCBridge] Failed to check BrowserStack TM configuration:', configError.message);
-            return {
-              success: false,
-              error: 'BrowserStack Test Management is not configured. Please configure it in Settings.',
-            };
-          }
+          // BrowserStack TM service has hardcoded defaults, so we can proceed
+          // The service will use defaults if no explicit config is found
+          // This allows linking even without explicit Settings configuration
 
           const { workspacePath, testName } = args;
           const fileName = testName

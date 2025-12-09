@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { ParamCandidate } from '../../../types/v1.5';
+import BrowserStackTMLinkModal from './BrowserStackTMLinkModal';
 import './ParameterMappingScreen.css';
 
 const ParameterMappingScreen: React.FC = () => {
@@ -20,6 +21,8 @@ const ParameterMappingScreen: React.FC = () => {
   const [isRegenerate, setIsRegenerate] = useState(false);
   const [syncingTm, setSyncingTm] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [browserstackTmModalOpened, setBrowserstackTmModalOpened] = useState(false);
+  const [linkedTestCaseId, setLinkedTestCaseId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const state = location.state as {
@@ -29,6 +32,13 @@ const ParameterMappingScreen: React.FC = () => {
       module?: string;
       mode?: 'regenerate' | 'new';
     };
+    
+    // Load existing linked test case ID if test already exists
+    if (state.testName && workspacePath) {
+      loadLinkedTestCaseId(state.testName, workspacePath).catch(() => {
+        // Ignore errors - test might not exist yet
+      });
+    }
 
     if (state?.cleanedCode) {
       setCleanedCode(state.cleanedCode);
@@ -59,6 +69,15 @@ const ParameterMappingScreen: React.FC = () => {
       }
     }
   }, [location]);
+
+  // Load linked test case ID when testName changes
+  useEffect(() => {
+    if (testName && workspacePath) {
+      loadLinkedTestCaseId(testName, workspacePath).catch(() => {
+        // Ignore errors - test might not exist yet
+      });
+    }
+  }, [testName, workspacePath]);
 
   const handleDetectParams = async (code?: string) => {
     const codeToAnalyze = code || cleanedCode;
@@ -100,6 +119,21 @@ const ParameterMappingScreen: React.FC = () => {
     const newMap = new Map(selectedParams);
     newMap.set(id, name);
     setSelectedParams(newMap);
+  };
+
+  const loadLinkedTestCaseId = async (testName: string, workspacePath: string) => {
+    try {
+      const testsResponse = await ipc.workspace.testsList({ workspacePath });
+      const test = testsResponse.tests?.find(t => t.testName === testName);
+      if (test?.metaPath) {
+        const metaContent = await window.electronAPI?.loadTestData?.(test.metaPath);
+        if (metaContent?.success && metaContent.data?.browserstack?.tmTestCaseId) {
+          setLinkedTestCaseId(metaContent.data.browserstack.tmTestCaseId);
+        }
+      }
+    } catch (e) {
+      // Ignore errors - test might not exist yet
+    }
   };
 
   const handleGenerate = async () => {
@@ -161,31 +195,56 @@ const ParameterMappingScreen: React.FC = () => {
       <Card padding="lg" radius="md" withBorder mb="md">
         <Group justify="space-between" mb="xs">
           <Text fw={600}>BrowserStack Test Management</Text>
-          <Button
-            size="xs"
-            variant="light"
-            loading={syncingTm}
-            disabled={!testName || !workspacePath}
-            onClick={async () => {
-              if (!testName || !workspacePath) return;
-              setSyncingTm(true);
-              setSyncMessage(null);
-              try {
-                const result = await ipc.browserstackTm.syncTestCaseForBundle({ workspacePath, testName });
-                if (result.success) {
-                  setSyncMessage('BrowserStack TM test case synced successfully.');
-                } else {
-                  setSyncMessage(result.error || 'Failed to sync with BrowserStack TM.');
+          <Group gap="xs">
+            <Button
+              size="xs"
+              variant="light"
+              disabled={!testName || !workspacePath}
+              onClick={() => setBrowserstackTmModalOpened(true)}
+            >
+              {linkedTestCaseId ? 'Change Link' : 'Link Test Case'}
+            </Button>
+            <Button
+              size="xs"
+              variant="light"
+              loading={syncingTm}
+              disabled={!testName || !workspacePath}
+              onClick={async () => {
+                if (!testName || !workspacePath) return;
+                setSyncingTm(true);
+                setSyncMessage(null);
+                try {
+                  const result = await ipc.browserstackTm.syncTestCaseForBundle({ workspacePath, testName });
+                  if (result.success) {
+                    setSyncMessage('BrowserStack TM test case synced successfully.');
+                    // Reload linked test case ID if available
+                    if (workspacePath && testName) {
+                      try {
+                        const testsResponse = await ipc.workspace.testsList({ workspacePath });
+                        const test = testsResponse.tests?.find(t => t.testName === testName);
+                        if (test?.metaPath) {
+                          const metaContent = await window.electronAPI?.loadTestData?.(test.metaPath);
+                          if (metaContent?.success && metaContent.data?.browserstack?.tmTestCaseId) {
+                            setLinkedTestCaseId(metaContent.data.browserstack.tmTestCaseId);
+                          }
+                        }
+                      } catch (e) {
+                        // Ignore errors loading meta
+                      }
+                    }
+                  } else {
+                    setSyncMessage(result.error || 'Failed to sync with BrowserStack TM.');
+                  }
+                } catch (error: any) {
+                  setSyncMessage(error.message || 'Failed to sync with BrowserStack TM.');
+                } finally {
+                  setSyncingTm(false);
                 }
-              } catch (error: any) {
-                setSyncMessage(error.message || 'Failed to sync with BrowserStack TM.');
-              } finally {
-                setSyncingTm(false);
-              }
-            }}
-          >
-            Sync with BrowserStack TM
-          </Button>
+              }}
+            >
+              Sync with BrowserStack TM
+            </Button>
+          </Group>
         </Group>
         <Group gap="sm" mb="xs">
           <Text size="sm" c="dimmed">Project:</Text>
@@ -195,9 +254,16 @@ const ParameterMappingScreen: React.FC = () => {
           <Text size="sm" c="dimmed">Suite:</Text>
           <Text size="sm">TestManagement For StudioAPP</Text>
         </Group>
-        <Text size="sm" c="dimmed">
-          Not linked yet. A new test case will be created when you click <strong>Generate Test</strong>.
-        </Text>
+        {linkedTestCaseId ? (
+          <Group gap="xs" mb="xs">
+            <Text size="sm" c="dimmed">Linked Test Case:</Text>
+            <Badge variant="light" color="blue">{linkedTestCaseId}</Badge>
+          </Group>
+        ) : (
+          <Text size="sm" c="dimmed">
+            Not linked yet. A new test case will be created when you click <strong>Generate Test</strong>, or you can link to an existing test case.
+          </Text>
+        )}
         {syncMessage && (
           <Text
             size="xs"
@@ -288,6 +354,35 @@ const ParameterMappingScreen: React.FC = () => {
           </Text>
         )}
       </Card>
+
+      {testName && workspacePath && (
+        <BrowserStackTMLinkModal
+          opened={browserstackTmModalOpened}
+          onClose={() => setBrowserstackTmModalOpened(false)}
+          onLink={async (testCaseId, testCaseUrl) => {
+            if (!testCaseId) {
+              // Unlink
+              setLinkedTestCaseId(undefined);
+              return;
+            }
+            const result = await ipc.browserstackTm.linkTestCase({
+              workspacePath,
+              testName,
+              testCaseId,
+              testCaseUrl,
+            });
+            if (result.success) {
+              setLinkedTestCaseId(testCaseId);
+              setSyncMessage('Test case linked successfully.');
+            } else {
+              throw new Error(result.error || 'Failed to link test case');
+            }
+          }}
+          currentTestCaseId={linkedTestCaseId}
+          workspacePath={workspacePath}
+          testName={testName}
+        />
+      )}
     </div>
   );
 };

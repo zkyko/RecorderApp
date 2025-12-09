@@ -92,6 +92,12 @@ export class TestRunner {
         return d365BundleSpecPath;
       }
 
+      // Check web-demo first (since spec-writer uses 'web-demo' for web-demo workspaces)
+      const webDemoBundleSpecPath = path.join(workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.spec.ts`);
+      if (fs.existsSync(webDemoBundleSpecPath)) {
+        return webDemoBundleSpecPath;
+      }
+
       const webBundleSpecPath = path.join(workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.spec.ts`);
       if (fs.existsSync(webBundleSpecPath)) {
         return webBundleSpecPath;
@@ -166,6 +172,9 @@ export class TestRunner {
 
       // Ensure workspace has playwright.config.ts (skip browser install for BrowserStack)
       await this.ensureWorkspaceConfig(request.workspacePath, runId, request.runMode === 'browserstack', workspaceType);
+
+      // Ensure data file exists (create default if missing)
+      await this.ensureDataFile(request.workspacePath, testName, workspaceType);
 
       // Prepare run directories
       const tracesDir = path.join(request.workspacePath, 'traces', runId);
@@ -277,6 +286,9 @@ export class TestRunner {
       this.currentProcess.stdout?.on('data', (data) => {
         const output = data.toString();
         
+        // Log to console for debugging
+        console.log('[TestRunner] stdout:', output);
+        
         // Parse BrowserStack session information from output
         if (request.runMode === 'browserstack') {
           // Look for BrowserStack session URLs and IDs in output
@@ -306,6 +318,9 @@ export class TestRunner {
       this.currentProcess.stderr?.on('data', (data) => {
         const error = data.toString();
         
+        // Log to console for debugging
+        console.error('[TestRunner] stderr:', error);
+        
         // Also check stderr for BrowserStack metadata
         if (request.runMode === 'browserstack') {
           const sessionMatch = error.match(/browserstack\.com\/automate\/builds\/([^\/]+)\/sessions\/([^\s\)]+)/i);
@@ -329,6 +344,9 @@ export class TestRunner {
         const finishedAt = new Date().toISOString();
         const status = code === 0 ? 'passed' : 'failed';
         
+        // Log exit code for debugging
+        console.log(`[TestRunner] Process closed with exit code: ${code}, status: ${status}`);
+        
         // Move traces from test-results to traces/<runId>/<testName>.zip
         const tracePaths = await this.moveTracesToRunDir(
           request.workspacePath, 
@@ -344,8 +362,10 @@ export class TestRunner {
         let assertionFailures: Array<{ assertionType: string; target: string; expected?: string; actual?: string; line?: number }> | undefined;
         if (status === 'failed') {
           try {
-            const bundlePath = path.join(request.workspacePath, 'tests', 'd365', 'specs', testName);
-            const failureFilePath = path.join(bundlePath, `${testName}_failure.json`);
+            // Determine bundle path from spec path
+            const bundlePath = path.dirname(workspaceSpecPath);
+            const fileName = path.basename(workspaceSpecPath, '.spec.ts');
+            const failureFilePath = path.join(bundlePath, `${fileName}_failure.json`);
             if (fs.existsSync(failureFilePath)) {
               const failureContent = fs.readFileSync(failureFilePath, 'utf-8');
               const failureData = JSON.parse(failureContent);
@@ -419,11 +439,12 @@ export class TestRunner {
         }
 
         // Update TestMeta with last run status and timestamp
-        this.updateTestMeta(request.workspacePath, testName, status, finishedAt, runId);
+        // Pass the spec path to determine correct workspace type
+        this.updateTestMeta(request.workspacePath, testName, status, finishedAt, runId, workspaceSpecPath);
         
         // If test failed, process failure artifacts and update locator status
         if (status === 'failed') {
-          await this.processFailureArtifacts(request.workspacePath, testName);
+          await this.processFailureArtifacts(request.workspacePath, testName, workspaceSpecPath);
         }
         
         console.log('[TestRunner] Run completed:', {
@@ -455,7 +476,7 @@ export class TestRunner {
         this.saveRunMeta(request.workspacePath, updatedRunMeta);
         
         // Update TestMeta with failed status
-        this.updateTestMeta(request.workspacePath, testName, 'failed', finishedAt, runId);
+        this.updateTestMeta(request.workspacePath, testName, 'failed', finishedAt, runId, workspaceSpecPath);
 
         this.emitEvent(runId, {
           type: 'error',
@@ -469,8 +490,14 @@ export class TestRunner {
       return { runId };
     } catch (error: any) {
       const finishedAt = new Date().toISOString();
-      const testName = path.basename(request.specPath, '.spec.ts');
-      const specRelPath = request.specPath;
+      // Try to resolve spec path even in error case
+      const workspaceSpecPath = this.resolveSpecPath(request.workspacePath, request.specPath);
+      const testName = workspaceSpecPath 
+        ? path.basename(workspaceSpecPath, '.spec.ts')
+        : path.basename(request.specPath, '.spec.ts');
+      const specRelPath = workspaceSpecPath 
+        ? path.relative(request.workspacePath, workspaceSpecPath).replace(/\\/g, '/')
+        : request.specPath;
       
       const runMeta: TestRunMeta = {
         runId,
@@ -488,6 +515,10 @@ export class TestRunner {
         message: error.message || 'Failed to start test',
         timestamp: new Date().toISOString(),
       });
+      
+      // Update TestMeta with failed status (pass spec path if available)
+      this.updateTestMeta(request.workspacePath, testName, 'failed', finishedAt, runId, workspaceSpecPath || undefined);
+      
       return { runId };
     }
   }
@@ -908,7 +939,35 @@ function getBrowserStackEndpoint(): string {
     // Copy ErrorGrabber reporter to workspace runtime directory
     this.copyReporterToWorkspace(workspacePath);
     
-    const storageStatePath = workspaceType === 'web-demo' ? 'storage_state/web.json' : 'storage_state/d365.json';
+    // Determine storage state path based on workspace type
+    // For web-demo and web workspaces, use web.json; for others, use d365.json
+    const storageStatePath = (workspaceType === 'web-demo' || workspaceType === 'web') 
+      ? 'storage_state/web.json' 
+      : 'storage_state/d365.json';
+    
+    // Determine baseURL based on workspace type
+    let baseURL = "process.env.D365_URL || 'https://fourhands-test.sandbox.operations.dynamics.com/'";
+    if (workspaceType === 'web-demo' || workspaceType === 'web') {
+      // For web workspaces, try to get baseUrl from workspace.json
+      try {
+        const workspaceJsonPath = path.join(workspacePath, 'workspace.json');
+        if (fs.existsSync(workspaceJsonPath)) {
+          const workspaceMeta = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
+          const settings = workspaceMeta.settings || {};
+          const webBaseUrl = settings.baseUrl;
+          if (webBaseUrl) {
+            baseURL = `'${webBaseUrl}'`;
+          } else {
+            baseURL = "'https://fh-test-fourhandscom.azurewebsites.net/'";
+          }
+        } else {
+          baseURL = "'https://fh-test-fourhandscom.azurewebsites.net/'";
+        }
+      } catch (e) {
+        // Fallback to default web URL
+        baseURL = "'https://fh-test-fourhandscom.azurewebsites.net/'";
+      }
+    }
     
     return `import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
@@ -934,7 +993,7 @@ export default defineConfig({
   ],
   
   use: {
-    baseURL: process.env.D365_URL || 'https://fourhands-test.sandbox.operations.dynamics.com/',
+    baseURL: ${baseURL},
     trace: 'on',              // Always trace for QA Studio runs
     screenshot: 'on',          // Capture screenshots
     video: 'off',             // Disable video to save space
@@ -953,11 +1012,43 @@ export default defineConfig({
   }
 
   /**
+   * Ensure data file exists for a test (create default if missing)
+   */
+  private async ensureDataFile(workspacePath: string, testName: string, workspaceType?: string): Promise<void> {
+    try {
+      // Determine platform directory
+      const platformDir = workspaceType === 'd365' ? 'd365' : workspaceType === 'web-demo' ? 'web-demo' : 'web';
+      
+      // Convert test name to file name (kebab-case, lowercase)
+      const fileName = testName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      
+      // Data file path: tests/<platformDir>/data/<TestName>Data.json
+      const dataDir = path.join(workspacePath, 'tests', platformDir, 'data');
+      const dataFilePath = path.join(dataDir, `${fileName}Data.json`);
+      
+      // If data file doesn't exist, create a default one
+      if (!fs.existsSync(dataFilePath)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+        const defaultData = [{
+          id: Date.now().toString(),
+          enabled: true,
+          name: 'Default',
+        }];
+        fs.writeFileSync(dataFilePath, JSON.stringify(defaultData, null, 2), 'utf-8');
+        console.log(`[TestRunner] Created default data file: ${dataFilePath}`);
+      }
+    } catch (error: any) {
+      console.warn(`[TestRunner] Failed to ensure data file for ${testName}:`, error.message);
+      // Don't fail the test run if we can't create the data file
+    }
+  }
+
+  /**
    * Ensure storage state exists in workspace
    */
   private async ensureStorageState(workspacePath: string, workspaceType?: string): Promise<void> {
-    // For web-demo workspaces, use web.json instead of d365.json
-    const storageStateFileName = workspaceType === 'web-demo' ? 'web.json' : 'd365.json';
+    // For web-demo and web workspaces, use web.json instead of d365.json
+    const storageStateFileName = (workspaceType === 'web-demo' || workspaceType === 'web') ? 'web.json' : 'd365.json';
     const workspaceStorageState = path.join(workspacePath, 'storage_state', storageStateFileName);
     
     if (fs.existsSync(workspaceStorageState)) {
@@ -965,7 +1056,7 @@ export default defineConfig({
     }
 
     // For D365 workspaces, copy from default location
-    if (workspaceType !== 'web-demo') {
+    if (workspaceType !== 'web-demo' && workspaceType !== 'web') {
       // Try default QA Studio location
       const defaultStorageState = path.join(
         process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
@@ -1212,30 +1303,72 @@ export default defineConfig({
 
   /**
    * Update TestMeta with last run status and timestamp
-   * Updates the .meta.json file in the test bundle: tests/d365/specs/<TestName>/<TestName>.meta.json
+   * Updates the .meta.json file in the test bundle based on the actual spec path location
    */
-  private updateTestMeta(workspacePath: string, testName: string, status: 'passed' | 'failed', finishedAt: string, runId: string): void {
+  private updateTestMeta(workspacePath: string, testName: string, status: 'passed' | 'failed', finishedAt: string, runId: string, specPath?: string): void {
     try {
       // Convert test name to file name (kebab-case, lowercase)
       const fileName = testName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       
-      // Try new bundle structure first: tests/d365/specs/<TestName>/<TestName>.meta.json
-      let metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+      let metaPath: string | null = null;
       
-      // Fallback to old structures if bundle doesn't exist
-      if (!fs.existsSync(metaPath)) {
-        // Old module structure: tests/d365/<TestName>/<TestName>.meta.json
-        const oldModulePath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.meta.json`);
-        if (fs.existsSync(oldModulePath)) {
-          metaPath = oldModulePath;
+      // If we have the spec path, determine workspace type from it
+      if (specPath) {
+        const specDir = path.dirname(specPath);
+        // Check if spec is in web, web-demo, or d365 directory
+        if (specPath.includes(path.join('tests', 'web', 'specs'))) {
+          metaPath = path.join(specDir, `${fileName}.meta.json`);
+        } else if (specPath.includes(path.join('tests', 'web-demo', 'specs'))) {
+          metaPath = path.join(specDir, `${fileName}.meta.json`);
+        } else if (specPath.includes(path.join('tests', 'd365', 'specs'))) {
+          metaPath = path.join(specDir, `${fileName}.meta.json`);
+        } else if (specPath.includes(path.join('tests', 'd365'))) {
+          // Old module structure
+          metaPath = path.join(specDir, `${fileName}.meta.json`);
         } else {
-          // Even older structure: tests/<TestName>.meta.json
-          const oldFlatPath = path.join(workspacePath, 'tests', `${fileName}.meta.json`);
-          if (fs.existsSync(oldFlatPath)) {
-            metaPath = oldFlatPath;
+          // Old flat structure or unknown - try to find meta in same directory
+          metaPath = path.join(specDir, `${fileName}.meta.json`);
+        }
+      }
+      
+      // If meta path not determined from spec path, try all possible locations
+      if (!metaPath || !fs.existsSync(metaPath)) {
+        // Try new bundle structure: tests/d365/specs/<TestName>/<TestName>.meta.json
+        metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+        
+        // Fallback to other structures if bundle doesn't exist
+        if (!fs.existsSync(metaPath)) {
+          // Try web bundle structure
+          const webMetaPath = path.join(workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.meta.json`);
+          if (fs.existsSync(webMetaPath)) {
+            metaPath = webMetaPath;
           } else {
-            // If no meta file exists, use bundle structure (will be created)
-            metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+            // Try web-demo bundle structure
+            const webDemoMetaPath = path.join(workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.meta.json`);
+            if (fs.existsSync(webDemoMetaPath)) {
+              metaPath = webDemoMetaPath;
+            } else {
+              // Old module structure: tests/d365/<TestName>/<TestName>.meta.json
+              const oldModulePath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.meta.json`);
+              if (fs.existsSync(oldModulePath)) {
+                metaPath = oldModulePath;
+              } else {
+                // Even older structure: tests/<TestName>.meta.json
+                const oldFlatPath = path.join(workspacePath, 'tests', `${fileName}.meta.json`);
+                if (fs.existsSync(oldFlatPath)) {
+                  metaPath = oldFlatPath;
+                } else {
+                  // If no meta file exists, use bundle structure based on spec path or default to d365
+                  if (specPath && specPath.includes(path.join('tests', 'web'))) {
+                    metaPath = path.join(workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.meta.json`);
+                  } else if (specPath && specPath.includes(path.join('tests', 'web-demo'))) {
+                    metaPath = path.join(workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.meta.json`);
+                  } else {
+                    metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -1302,27 +1435,26 @@ export default defineConfig({
     try {
       const fileName = testName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-      // New bundle structure: tests/d365/specs/<TestName>/<TestName>.meta.json
-      let metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+      // Try all possible locations
+      const possibleMetaPaths = [
+        // New bundle structures
+        path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`),
+        path.join(workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.meta.json`),
+        path.join(workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.meta.json`),
+        // Old module structure
+        path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.meta.json`),
+        // Old flat structure
+        path.join(workspacePath, 'tests', `${fileName}.meta.json`),
+      ];
 
-      if (!fs.existsSync(metaPath)) {
-        // Old module structure: tests/d365/<TestName>/<TestName>.meta.json
-        const oldModulePath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.meta.json`);
-        if (fs.existsSync(oldModulePath)) {
-          metaPath = oldModulePath;
-        } else {
-          // Even older structure: tests/<TestName>.meta.json
-          const oldFlatPath = path.join(workspacePath, 'tests', `${fileName}.meta.json`);
-          if (fs.existsSync(oldFlatPath)) {
-            metaPath = oldFlatPath;
-          } else {
-            // If no meta file exists, fall back to new bundle structure
-            metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
-          }
+      for (const metaPath of possibleMetaPaths) {
+        if (fs.existsSync(metaPath)) {
+          return path.dirname(metaPath);
         }
       }
 
-      return path.dirname(metaPath);
+      // If no meta file exists, fall back to new bundle structure (default to d365)
+      return path.join(workspacePath, 'tests', 'd365', 'specs', fileName);
     } catch (e: any) {
       console.warn('[TestRunner] Failed to resolve bundle directory for test:', testName, e.message);
       return null;
@@ -1332,22 +1464,60 @@ export default defineConfig({
   /**
    * Process failure artifacts and update locator status for failed locators
    */
-  private async processFailureArtifacts(workspacePath: string, testName: string): Promise<void> {
+  private async processFailureArtifacts(workspacePath: string, testName: string, specPath?: string): Promise<void> {
     if (!this.locatorMaintenance) {
       console.log('[TestRunner] LocatorMaintenanceService not available, skipping locator status update');
       return;
     }
 
     try {
-      // Resolve bundle path: prefer new bundle structure for D365 and Web workspaces
-      let bundlePath = path.join(workspacePath, 'tests', 'd365', 'specs', testName);
-      if (!fs.existsSync(bundlePath)) {
-        const webBundlePath = path.join(workspacePath, 'tests', 'web', 'specs', testName);
-        if (fs.existsSync(webBundlePath)) {
-          bundlePath = webBundlePath;
+      // Convert test name to kebab-case (same as getBundleDirForTest)
+      const fileName = testName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      
+      let bundlePath: string | null = null;
+      
+      // If we have the spec path, determine bundle path from it
+      if (specPath) {
+        bundlePath = path.dirname(specPath);
+      }
+      
+      // If bundle path not determined, try all possible locations
+      if (!bundlePath || !fs.existsSync(bundlePath)) {
+        // Resolve bundle path: prefer new bundle structure for D365 and Web workspaces
+        bundlePath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName);
+        if (!fs.existsSync(bundlePath)) {
+          const webBundlePath = path.join(workspacePath, 'tests', 'web', 'specs', fileName);
+          if (fs.existsSync(webBundlePath)) {
+            bundlePath = webBundlePath;
+          } else {
+            const webDemoBundlePath = path.join(workspacePath, 'tests', 'web-demo', 'specs', fileName);
+            if (fs.existsSync(webDemoBundlePath)) {
+              bundlePath = webDemoBundlePath;
+            } else {
+              // Try old structures as fallback
+              const oldD365Path = path.join(workspacePath, 'tests', 'd365', fileName);
+              if (fs.existsSync(oldD365Path)) {
+                bundlePath = oldD365Path;
+              } else {
+                // Even older flat structure
+                const oldFlatPath = path.join(workspacePath, 'tests');
+                if (fs.existsSync(path.join(oldFlatPath, `${fileName}_failure.json`))) {
+                  bundlePath = oldFlatPath;
+                } else {
+                  // Default to web if spec path indicates web, otherwise d365
+                  if (specPath && specPath.includes(path.join('tests', 'web'))) {
+                    bundlePath = path.join(workspacePath, 'tests', 'web', 'specs', fileName);
+                  } else {
+                    bundlePath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName);
+                  }
+                }
+              }
+            }
+          }
         }
       }
-      const failureFilePath = path.join(bundlePath, `${testName}_failure.json`);
+      
+      const failureFilePath = path.join(bundlePath, `${fileName}_failure.json`);
 
       if (!fs.existsSync(failureFilePath)) {
         console.log(`[TestRunner] No failure artifact found at: ${failureFilePath}`);
@@ -1363,21 +1533,21 @@ export default defineConfig({
         const { locatorKey, locator, type } = failureData.failedLocator;
         const errorMessage = failureData.error?.message || 'Test failed';
 
-        console.log(`[TestRunner] Marking locator as failing: ${locatorKey}`);
+        console.log(`[TestRunner] Marking locator as broken: ${locatorKey}`);
 
-        // Update locator status to 'failing' (red)
+        // Update locator status to 'broken' (red) when test fails
         await this.locatorMaintenance.setLocatorStatus(
           {
             workspacePath,
             locatorKey,
-            status: 'failing',
+            status: 'broken',
             note: `Failed in test "${testName}": ${errorMessage.substring(0, 200)}`,
             testName,
           },
           this.mainWindow || undefined
         );
 
-        console.log(`[TestRunner] Successfully marked locator as failing: ${locatorKey}`);
+        console.log(`[TestRunner] Successfully marked locator as broken: ${locatorKey}`);
       } else {
         console.log(`[TestRunner] Failure artifact does not contain failed locator info`);
       }

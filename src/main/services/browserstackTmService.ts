@@ -7,8 +7,8 @@ import { ConfigManager } from '../config-manager';
 
 // Demo configuration for v2.0 – hardcoded project + suite
 const TM_DEMO_CONFIG = {
-  tmProjectId: 'PR-25',
-  tmProjectName: 'ZZ Archive - QA & Test Automation 1',
+  tmProjectId: 'PR-26',
+  tmProjectName: 'StudioAPP',
   tmSuiteName: 'TestManagement For StudioAPP',
 };
 
@@ -575,31 +575,111 @@ export class BrowserStackTMService {
         .replace(/\s+/g, '-')
         .replace(/[^a-z0-9-]/g, '');
 
-      // Try new bundle structure first
-      let metaPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+      // Try to find existing meta.json in different locations
+      let metaPath: string | null = null;
+      let bundleDir: string | null = null;
+      let specPath: string | null = null;
+      let workspaceType: 'd365' | 'web' | 'web-demo' = 'd365';
 
-      if (!fs.existsSync(metaPath)) {
-        // Try old module structure
-        const oldModulePath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.meta.json`);
-        if (fs.existsSync(oldModulePath)) {
-          metaPath = oldModulePath;
-        } else {
-          // Try old flat structure
-          const oldFlatPath = path.join(workspacePath, 'tests', `${fileName}.meta.json`);
-          if (fs.existsSync(oldFlatPath)) {
-            metaPath = oldFlatPath;
-          } else {
-            // Try web-demo structure
-            const webDemoPath = path.join(workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.meta.json`);
-            if (fs.existsSync(webDemoPath)) {
-              metaPath = webDemoPath;
-            } else {
-              throw new Error(`meta.json not found for test: ${testName}`);
-            }
+      // Try new bundle structure first (d365)
+      const d365BundlePath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.meta.json`);
+      const d365SpecPath = path.join(workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
+      if (fs.existsSync(d365SpecPath)) {
+        specPath = d365SpecPath;
+        bundleDir = path.dirname(d365SpecPath);
+        workspaceType = 'd365';
+        if (fs.existsSync(d365BundlePath)) {
+          metaPath = d365BundlePath;
+        }
+      }
+
+      // Try web-demo structure
+      if (!specPath) {
+        const webDemoBundlePath = path.join(workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.meta.json`);
+        const webDemoSpecPath = path.join(workspacePath, 'tests', 'web-demo', 'specs', fileName, `${fileName}.spec.ts`);
+        if (fs.existsSync(webDemoSpecPath)) {
+          specPath = webDemoSpecPath;
+          bundleDir = path.dirname(webDemoSpecPath);
+          workspaceType = 'web-demo';
+          if (fs.existsSync(webDemoBundlePath)) {
+            metaPath = webDemoBundlePath;
           }
         }
       }
 
+      // Try web structure
+      if (!specPath) {
+        const webBundlePath = path.join(workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.meta.json`);
+        const webSpecPath = path.join(workspacePath, 'tests', 'web', 'specs', fileName, `${fileName}.spec.ts`);
+        if (fs.existsSync(webSpecPath)) {
+          specPath = webSpecPath;
+          bundleDir = path.dirname(webSpecPath);
+          workspaceType = 'web';
+          if (fs.existsSync(webBundlePath)) {
+            metaPath = webBundlePath;
+          }
+        }
+      }
+
+      // Try old module structure (d365)
+      if (!specPath) {
+        const oldModuleSpecPath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.spec.ts`);
+        const oldModuleMetaPath = path.join(workspacePath, 'tests', 'd365', fileName, `${fileName}.meta.json`);
+        if (fs.existsSync(oldModuleSpecPath)) {
+          specPath = oldModuleSpecPath;
+          bundleDir = path.dirname(oldModuleSpecPath);
+          workspaceType = 'd365';
+          if (fs.existsSync(oldModuleMetaPath)) {
+            metaPath = oldModuleMetaPath;
+          }
+        }
+      }
+
+      // Try old flat structure
+      if (!specPath) {
+        const oldFlatSpecPath = path.join(workspacePath, 'tests', `${fileName}.spec.ts`);
+        const oldFlatMetaPath = path.join(workspacePath, 'tests', `${fileName}.meta.json`);
+        if (fs.existsSync(oldFlatSpecPath)) {
+          specPath = oldFlatSpecPath;
+          bundleDir = path.dirname(oldFlatSpecPath);
+          workspaceType = 'd365'; // Default
+          if (fs.existsSync(oldFlatMetaPath)) {
+            metaPath = oldFlatMetaPath;
+          }
+        }
+      }
+
+      // If spec file doesn't exist, throw error
+      if (!specPath || !bundleDir) {
+        throw new Error(`Test spec file not found for test: ${testName}. Please generate the test first.`);
+      }
+
+      // If meta.json doesn't exist, create it
+      if (!metaPath) {
+        metaPath = path.join(bundleDir, `${fileName}.meta.json`);
+        
+        // Find data file path
+        const platformDir = workspaceType === 'd365' ? 'd365' : workspaceType === 'web-demo' ? 'web-demo' : 'web';
+        const dataFilePath = path.join(workspacePath, 'tests', platformDir, 'data', `${fileName}Data.json`);
+        const relativeDataPath = path.relative(bundleDir, dataFilePath).replace(/\\/g, '/');
+
+        // Create basic meta.json
+        const meta: any = {
+          testName,
+          module: undefined,
+          createdAt: new Date().toISOString(),
+          dataPath: relativeDataPath,
+          browserstack: {},
+          jira: {},
+        };
+
+        // Ensure directory exists
+        fs.mkdirSync(bundleDir, { recursive: true });
+        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+        console.log(`[BrowserStackTM] Created meta.json for test: ${testName}`);
+      }
+
+      // Load existing meta or use the one we just created
       const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
       const { projectId } = this.getConfig();
 

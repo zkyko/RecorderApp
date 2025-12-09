@@ -430,7 +430,7 @@ export interface DataImportExcelResponse {
   error?: string;
 }
 
-export type LocatorStatusState = 'healthy' | 'warning' | 'failing';
+export type LocatorStatusState = 'healthy' | 'warning' | 'failing' | 'broken';
 
 export interface LocatorStatusRecord {
   state: LocatorStatusState;

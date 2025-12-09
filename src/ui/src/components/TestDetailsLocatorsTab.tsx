@@ -115,6 +115,7 @@ const TestDetailsLocatorsTab: React.FC<TestDetailsLocatorsTabProps> = ({
       case 'healthy': return 'green';
       case 'warning': return 'yellow';
       case 'failing': return 'red';
+      case 'broken': return 'red';
       default: return 'gray';
     }
   };
@@ -310,6 +311,7 @@ const TestDetailsLocatorsTab: React.FC<TestDetailsLocatorsTabProps> = ({
               { label: 'Healthy', value: 'healthy' },
               { label: 'Warning', value: 'warning' },
               { label: 'Failing', value: 'failing' },
+              { label: 'Broken', value: 'broken' },
             ]}
           />
           <Textarea

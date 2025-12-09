@@ -18,6 +18,7 @@ import {
   Tabs,
   Alert,
   Divider,
+  Menu,
 } from '@mantine/core';
 import {
   Edit,
@@ -30,12 +31,15 @@ import {
   Code2,
   Sparkles,
   AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
 import { ipc } from '../ipc';
 import { useWorkspaceStore } from '../store/workspace-store';
 import { LocatorIndexEntry } from '../../../types/v1.5';
 import { notifications } from '@mantine/notifications';
 import VisualTestBuilder from './VisualTestBuilder';
+import AssertionEditorModal, { AssertionStep } from './AssertionEditorModal';
+import { AssertionKind } from '../../../types';
 
 interface Step {
   index: number;
@@ -67,6 +71,8 @@ const EnhancedStepsTab: React.FC<EnhancedStepsTabProps> = ({ specContent, testNa
   const [availableLocators, setAvailableLocators] = useState<LocatorIndexEntry[]>([]);
   const [activeTab, setActiveTab] = useState<string>('steps');
   const [visualBuilderOpen, setVisualBuilderOpen] = useState(false);
+  const [assertionModalOpen, setAssertionModalOpen] = useState(false);
+  const [assertionAfterLine, setAssertionAfterLine] = useState<number | undefined>(undefined);
 
   // Parse steps from spec content
   useEffect(() => {
@@ -77,7 +83,12 @@ const EnhancedStepsTab: React.FC<EnhancedStepsTabProps> = ({ specContent, testNa
 
       lines.forEach((line, index) => {
         const trimmed = line.trim();
-        if (trimmed.startsWith('await page.') || trimmed.startsWith('page.')) {
+        // Match any Playwright action: await page.* or page.* (including expect, waitFor, etc.)
+        if (trimmed.startsWith('await page.') || 
+            trimmed.startsWith('page.') || 
+            trimmed.startsWith('await expect') ||
+            trimmed.startsWith('expect(') ||
+            trimmed.startsWith('await waitFor')) {
           let description = trimmed;
           if (description.length > 60) {
             description = description.substring(0, 60) + '...';
@@ -94,6 +105,9 @@ const EnhancedStepsTab: React.FC<EnhancedStepsTabProps> = ({ specContent, testNa
 
       setSteps(parsedSteps);
       setHasChanges(false);
+    } else {
+      // If specContent is empty, clear steps
+      setSteps([]);
     }
   }, [specContent]);
 
@@ -259,6 +273,123 @@ const EnhancedStepsTab: React.FC<EnhancedStepsTabProps> = ({ specContent, testNa
     setLocatorPickerOpen(false);
   };
 
+  const handleAddAssertion = (afterLine: number) => {
+    setAssertionAfterLine(afterLine);
+    setAssertionModalOpen(true);
+  };
+
+  const handleSaveAssertion = async (assertion: AssertionStep) => {
+    if (!workspacePath || assertionAfterLine === undefined) return;
+
+    // Generate assertion code
+    const assertionCode = generateAssertionCode(assertion);
+    if (!assertionCode) {
+      notifications.show({
+        title: 'Invalid Assertion',
+        message: 'Please fill in all required fields',
+        color: 'red',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await ipc.test.addStep({
+        workspacePath,
+        testName,
+        afterLine: assertionAfterLine,
+        stepContent: assertionCode,
+      });
+
+      if (response.success) {
+        notifications.show({
+          title: 'Assertion Added',
+          message: 'Assertion has been added successfully.',
+          color: 'green',
+        });
+        setAssertionModalOpen(false);
+        setAssertionAfterLine(undefined);
+        if (onSpecUpdate) {
+          await onSpecUpdate();
+        }
+      } else {
+        notifications.show({
+          title: 'Add Failed',
+          message: response.error || 'Failed to add assertion',
+          color: 'red',
+        });
+      }
+    } catch (error: any) {
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to add assertion',
+        color: 'red',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const generateAssertionCode = (assertion: AssertionStep): string | null => {
+    if (assertion.targetKind === 'locator' && !assertion.target) {
+      return null;
+    }
+
+    let target: string;
+    if (assertion.targetKind === 'page') {
+      target = 'page';
+    } else {
+      // For locator, try to find in availableLocators first
+      const locator = availableLocators.find(l => 
+        l.fieldName === assertion.target || l.methodName === assertion.target
+      );
+      
+      if (locator) {
+        // Use the locator from the library
+        // The locator.locator might be like "page.getByText('...')" or "page.locator('#id')"
+        target = locator.locator;
+      } else if (assertion.target) {
+        // If not found, check if it's already a valid Playwright locator expression
+        // (starts with "page.")
+        if (assertion.target.startsWith('page.')) {
+          target = assertion.target;
+        } else {
+          // Otherwise, treat as a CSS selector or text and wrap in page.locator() or page.getByText()
+          // For now, default to page.locator() - user can edit manually if needed
+          target = `page.locator('${assertion.target}')`;
+        }
+      } else {
+        return null;
+      }
+    }
+
+    // Get indentation from the step we're adding after (if available)
+    const indent = '      '; // Default 6 spaces for test body
+
+    let code = `${indent}await expect(${target})`;
+    
+    if (assertion.customMessage) {
+      code += `, '${assertion.customMessage.replace(/'/g, "\\'")}'`;
+    }
+
+    code += `.${assertion.assertion}`;
+
+    if (assertion.expected) {
+      // Check if it's parameterized
+      if (assertion.expected.startsWith('{{') && assertion.expected.endsWith('}}')) {
+        const paramName = assertion.expected.slice(2, -2).trim();
+        code += `(row.${paramName})`;
+      } else {
+        code += `('${assertion.expected.replace(/'/g, "\\'")}')`;
+      }
+    } else {
+      code += '()';
+    }
+
+    code += ';';
+    return code;
+  };
+
   return (
     <div>
       <Card padding="lg" radius="md" withBorder mb="md">
@@ -341,6 +472,24 @@ const EnhancedStepsTab: React.FC<EnhancedStepsTabProps> = ({ specContent, testNa
                             </div>
                             {editMode && (
                               <Group gap="xs">
+                                <Menu shadow="md" width={200}>
+                                  <Menu.Target>
+                                    <ActionIcon variant="light" color="blue">
+                                      <Plus size={16} />
+                                    </ActionIcon>
+                                  </Menu.Target>
+                                  <Menu.Dropdown>
+                                    <Menu.Item
+                                      leftSection={<CheckCircle size={14} />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAddAssertion(step.line);
+                                      }}
+                                    >
+                                      Add Assertion
+                                    </Menu.Item>
+                                  </Menu.Dropdown>
+                                </Menu>
                                 <Tooltip label="Edit">
                                   <ActionIcon
                                     variant="light"
@@ -532,7 +681,8 @@ const EnhancedStepsTab: React.FC<EnhancedStepsTabProps> = ({ specContent, testNa
                             color={
                               locator.status.state === 'healthy' ? 'green' :
                               locator.status.state === 'warning' ? 'yellow' :
-                              'red'
+                              locator.status.state === 'failing' || locator.status.state === 'broken' ? 'red' :
+                              'gray'
                             }
                           >
                             {locator.status.state}
@@ -555,6 +705,22 @@ const EnhancedStepsTab: React.FC<EnhancedStepsTabProps> = ({ specContent, testNa
           </ScrollArea>
         </Stack>
       </Modal>
+
+      {/* Assertion Editor Modal */}
+      <AssertionEditorModal
+        opened={assertionModalOpen}
+        onClose={() => {
+          setAssertionModalOpen(false);
+          setAssertionAfterLine(undefined);
+        }}
+        onSave={handleSaveAssertion}
+        existingStep={null}
+        availableLocators={availableLocators.map(loc => ({
+          fieldName: loc.fieldName,
+          methodName: loc.methodName,
+          description: loc.locator,
+        }))}
+      />
 
       {/* Visual Test Builder (BETA) */}
       {workspacePath && (

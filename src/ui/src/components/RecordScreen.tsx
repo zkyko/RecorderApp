@@ -300,20 +300,33 @@ const RecordScreen: React.FC = () => {
         if (response.rawCode) {
           setLiveCodeContent(response.rawCode);
         }
-        // Navigate to step editor first (if steps available), then to locator cleanup
-        if (response.steps && response.steps.length > 0) {
-          // Navigate to step editor with both steps and rawCode
-          navigate('/record/step-editor', { 
-            state: { 
-              rawCode: response.rawCode,
-              steps: response.steps 
-            } 
-          });
-        } else if (response.rawCode) {
-          // Fallback: if no steps, go directly to locator cleanup
-          navigate('/record/locator-cleanup', { state: { rawCode: response.rawCode } });
+        // For web-demo workspaces, skip locator cleanup and go directly to parameter mapping
+        if (currentWorkspace?.type === 'web-demo') {
+          if (response.rawCode) {
+            navigate('/record/params', { 
+              state: { 
+                cleanedCode: response.rawCode // Use rawCode as cleanedCode for web-demo
+              } 
+            });
+          } else {
+            setError('No code was generated. Please try recording again.');
+          }
         } else {
-          setError('No code was generated. Please try recording again.');
+          // Navigate to step editor first (if steps available), then to locator cleanup
+          if (response.steps && response.steps.length > 0) {
+            // Navigate to step editor with both steps and rawCode
+            navigate('/record/step-editor', { 
+              state: { 
+                rawCode: response.rawCode,
+                steps: response.steps 
+              } 
+            });
+          } else if (response.rawCode) {
+            // Fallback: if no steps, go directly to locator cleanup
+            navigate('/record/locator-cleanup', { state: { rawCode: response.rawCode } });
+          } else {
+            setError('No code was generated. Please try recording again.');
+          }
         }
       } else {
         setError(response.error || 'Failed to stop recording');

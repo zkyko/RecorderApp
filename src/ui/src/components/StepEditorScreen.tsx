@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, Text, Button, Group, Stack, TextInput, Badge, ScrollArea, ActionIcon, Checkbox, Alert, Menu, Code } from '@mantine/core';
 import { ArrowRight, Trash2, Edit2, Check, X, Plus, Clock, MessageSquare, CheckCircle } from 'lucide-react';
 import { ipc } from '../ipc';
+import { useWorkspaceStore } from '../store/workspace-store';
 import AssertionEditorModal, { AssertionStep } from './AssertionEditorModal';
 import { AssertionKind } from '../../../types';
 import './StepEditorScreen.css';
@@ -33,6 +34,7 @@ interface RecordedStep {
 const StepEditorScreen: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentWorkspace } = useWorkspaceStore();
   const [steps, setSteps] = useState<RecordedStep[]>([]);
   const [rawCode, setRawCode] = useState<string>('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -124,14 +126,25 @@ const StepEditorScreen: React.FC = () => {
           })
       : []; // Empty array - parameter detection will happen in parameter mapping screen
 
-    // Navigate to locator cleanup with the final code and parameterized steps
-    navigate('/record/locator-cleanup', { 
-      state: { 
-        rawCode: rawCode,
-        steps: steps,
-        parameterizedSteps: parameterizedSteps
-      } 
-    });
+    // For web-demo workspaces, skip locator cleanup and go directly to parameter mapping
+    if (currentWorkspace?.type === 'web-demo') {
+      navigate('/record/params', { 
+        state: { 
+          cleanedCode: rawCode, // Use rawCode as cleanedCode for web-demo
+          steps: steps,
+          parameterizedSteps: parameterizedSteps
+        } 
+      });
+    } else {
+      // Navigate to locator cleanup with the final code and parameterized steps
+      navigate('/record/locator-cleanup', { 
+        state: { 
+          rawCode: rawCode,
+          steps: steps,
+          parameterizedSteps: parameterizedSteps
+        } 
+      });
+    }
   };
 
   // Helper to generate parameter name from step (matches backend logic)

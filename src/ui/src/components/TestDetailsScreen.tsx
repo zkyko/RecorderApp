@@ -177,6 +177,9 @@ const TestDetailsScreen: React.FC = () => {
       const specResponse = await ipc.test.getSpec({ workspacePath, testName });
       if (specResponse.success && specResponse.content) {
         setSpecContent(specResponse.content);
+      } else {
+        console.error('Failed to load spec:', specResponse.error);
+        setSpecContent(''); // Set empty string if failed to load
       }
 
       // Load runs
@@ -706,6 +709,35 @@ const TestDetailsScreen: React.FC = () => {
             if (result.success) {
               // Reload test data to show updated link
               await loadTestData();
+              
+              // Also directly reload meta file to ensure we get the latest data
+              // Use the same path resolution logic as the backend
+              const fileName = testName
+                .toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '');
+              
+              // Try different meta file paths (same as backend) - use absolute paths
+              // Note: Use path separators that work cross-platform (Electron handles this)
+              const pathSep = workspacePath.includes('\\') ? '\\' : '/';
+              const possibleMetaPaths = [
+                `${workspacePath}${pathSep}tests${pathSep}d365${pathSep}specs${pathSep}${fileName}${pathSep}${fileName}.meta.json`,
+                `${workspacePath}${pathSep}tests${pathSep}d365${pathSep}${fileName}${pathSep}${fileName}.meta.json`,
+                `${workspacePath}${pathSep}tests${pathSep}${fileName}.meta.json`,
+                `${workspacePath}${pathSep}tests${pathSep}web-demo${pathSep}specs${pathSep}${fileName}${pathSep}${fileName}.meta.json`,
+              ];
+              
+              for (const metaPath of possibleMetaPaths) {
+                try {
+                  const metaContent = await window.electronAPI?.loadTestData?.(metaPath);
+                  if (metaContent?.success && metaContent.data) {
+                    setTestMeta(metaContent.data);
+                    break; // Found and loaded, exit loop
+                  }
+                } catch (e) {
+                  // Continue to next path
+                }
+              }
             } else {
               throw new Error(result.error || 'Failed to link test case');
             }
