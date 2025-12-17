@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { Project, SourceFile, Node, CallExpression, StringLiteral } from 'ts-morph';
 import { SpecWriteRequest, SpecWriteResponse, SelectedParam, TestMeta, WorkspaceType, DataRow } from '../../types/v1.5';
 import { D365WaitInjector } from './d365-wait-injector';
@@ -42,6 +43,11 @@ export class SpecWriter {
       // Get workspace type
       const workspace = await this.workspaceManager.loadWorkspace(request.workspacePath);
       const workspaceType: WorkspaceType = workspace?.type || 'd365';
+
+      // Ensure storage state exists in workspace (for D365 and Salesforce workspaces)
+      if (workspaceType === 'd365' || workspaceType === 'salesforce') {
+        await this.ensureStorageState(request.workspacePath, workspaceType);
+      }
 
       // Ensure runtime directory exists for D365 and Salesforce workspaces (they share auth)
       if (workspaceType === 'd365' || workspaceType === 'salesforce') {
@@ -358,23 +364,83 @@ export async function waitForD365(page: Page): Promise<void> {
           `import { waitForD365 } from '../../../../runtime/d365-waits';`
         );
         
-        // Ensure storage state is configured for D365 and Salesforce workspaces
-        // Storage state is at workspace root: storage_state/d365.json (shared)
-        // From bundle: Up 1 (TestName) -> Up 2 (specs) -> Up 3 (platformDir) -> Up 4 (tests) -> Root
-        // Import path: ../../../../storage_state/d365.json
-        if (!/test\.use\s*\(\s*\{[\s\S]*?storageState[\s\S]*?\}\s*\)/.test(updatedCode)) {
-          // Find the position after all imports (before test.describe)
-          const importEndMatch = updatedCode.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)+/);
-          if (importEndMatch) {
-            const insertPos = importEndMatch[0].length;
-            updatedCode = updatedCode.slice(0, insertPos) + 
-              `\ntest.use({ storageState: '../../../../storage_state/d365.json' });\n\n` +
-              updatedCode.slice(insertPos);
+        // Ensure storage state is configured for D365 workspaces (use path.resolve)
+        // For Salesforce, web-demo, and Koerber, use relative paths
+        if (workspaceType === 'd365') {
+          // Storage state is at workspace root: storage_state/d365.json
+          // Use path.resolve(__dirname, ...) to resolve path dynamically
+          const storageStatePattern = /test\.use\s*\(\s*\{[\s\S]*?storageState[\s\S]*?\}\s*\)/;
+          if (!storageStatePattern.test(updatedCode)) {
+            // Find the position after all imports (before test.describe)
+            const importEndMatch = updatedCode.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)+/);
+            if (importEndMatch) {
+              const insertPos = importEndMatch[0].length;
+              // Check if path import exists
+              const hasPathImport = /import\s+.*path.*from\s+['"]path['"]/.test(updatedCode);
+              const pathImport = hasPathImport ? '' : `import * as path from 'path';\n`;
+              updatedCode = updatedCode.slice(0, insertPos) + 
+                pathImport +
+                `\n// 🔐 Resolve storage state dynamically (relative to THIS file)\n` +
+                `const STORAGE_STATE = path.resolve(__dirname, '../../../../storage_state/d365.json');\n\n` +
+                `test.use({ storageState: STORAGE_STATE });\n\n` +
+                updatedCode.slice(insertPos);
+            } else {
+              // If no imports found, add it at the beginning
+              updatedCode = `import * as path from 'path';\n\n` +
+                `// 🔐 Resolve storage state dynamically (relative to THIS file)\n` +
+                `const STORAGE_STATE = path.resolve(__dirname, '../../../../storage_state/d365.json');\n\n` +
+                `test.use({ storageState: STORAGE_STATE });\n\n${updatedCode}`;
+            }
           } else {
-            // If no imports found, add it at the beginning
-            updatedCode = `test.use({ storageState: '../../../../storage_state/d365.json' });\n\n${updatedCode}`;
+            // Replace existing storage state path with path.resolve pattern
+            updatedCode = updatedCode.replace(
+              /test\.use\s*\(\s*\{\s*storageState:\s*['"]([^'"]+)['"]\s*\}\s*\)/,
+              `// 🔐 Resolve storage state dynamically (relative to THIS file)\nconst STORAGE_STATE = path.resolve(__dirname, '../../../../storage_state/d365.json');\n\ntest.use({ storageState: STORAGE_STATE })`
+            );
+            // Ensure path import exists
+            if (!/import\s+.*path.*from\s+['"]path['"]/.test(updatedCode)) {
+              // Add path import after other imports
+              const importEndMatch = updatedCode.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)+/);
+              if (importEndMatch) {
+                const insertPos = importEndMatch[0].length;
+                updatedCode = updatedCode.slice(0, insertPos) + 
+                  `import * as path from 'path';\n` +
+                  updatedCode.slice(insertPos);
+              } else {
+                updatedCode = `import * as path from 'path';\n${updatedCode}`;
+              }
+            }
+          }
+        } else if (workspaceType === 'salesforce') {
+          // Salesforce uses d365.json but with relative path (not path.resolve)
+          const storageStatePattern = /test\.use\s*\(\s*\{[\s\S]*?storageState[\s\S]*?\}\s*\)/;
+          if (!storageStatePattern.test(updatedCode)) {
+            const importEndMatch = updatedCode.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)+/);
+            if (importEndMatch) {
+              const insertPos = importEndMatch[0].length;
+              updatedCode = updatedCode.slice(0, insertPos) + 
+                `\ntest.use({ storageState: '../../../../storage_state/d365.json' });\n\n` +
+                updatedCode.slice(insertPos);
+            } else {
+              updatedCode = `test.use({ storageState: '../../../../storage_state/d365.json' });\n\n${updatedCode}`;
+            }
+          }
+        } else if (workspaceType === 'web-demo') {
+          // Web-demo uses web.json with relative path
+          const storageStatePattern = /test\.use\s*\(\s*\{[\s\S]*?storageState[\s\S]*?\}\s*\)/;
+          if (!storageStatePattern.test(updatedCode)) {
+            const importEndMatch = updatedCode.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)+/);
+            if (importEndMatch) {
+              const insertPos = importEndMatch[0].length;
+              updatedCode = updatedCode.slice(0, insertPos) + 
+                `\ntest.use({ storageState: '../../../../storage_state/web.json' });\n\n` +
+                updatedCode.slice(insertPos);
+            } else {
+              updatedCode = `test.use({ storageState: '../../../../storage_state/web.json' });\n\n${updatedCode}`;
+            }
           }
         }
+        // Koerber and other types would use relative path for d365.json if needed
         
         // Fix combobox fill pattern: D365 comboboxes need to be cleared before filling
         // Also fix double await issues and add waiting logic for OK buttons after Enter
@@ -462,13 +528,21 @@ export async function waitForD365(page: Page): Promise<void> {
     if (workspaceType === 'd365' || workspaceType === 'salesforce') {
       content += `import { waitForD365 } from '../../../../runtime/d365-waits';\n`;
     }
-    content += `\n`;
     
-    // Configure storage state for D365 and Salesforce workspaces (shared)
-    // Storage state is at workspace root: storage_state/d365.json
-    // From bundle: Up 1 (TestName) -> Up 2 (specs) -> Up 3 (platformDir) -> Up 4 (tests) -> Root
-    // Import path: ../../../../storage_state/d365.json
-    if (workspaceType === 'd365' || workspaceType === 'salesforce') {
+    // Configure storage state based on workspace type
+    // D365: use path.resolve pattern
+    // Salesforce, web-demo, Koerber: use relative paths
+    if (workspaceType === 'd365') {
+      content += `import * as path from 'path';\n`;
+      content += `\n`;
+      content += `// 🔐 Resolve storage state dynamically (relative to THIS file)\n`;
+      content += `const STORAGE_STATE = path.resolve(__dirname, '../../../../storage_state/d365.json');\n\n`;
+      content += `test.use({ storageState: STORAGE_STATE });\n\n`;
+    } else if (workspaceType === 'salesforce') {
+      content += `test.use({ storageState: '../../../../storage_state/d365.json' });\n\n`;
+    } else if (workspaceType === 'web-demo') {
+      content += `test.use({ storageState: '../../../../storage_state/web.json' });\n\n`;
+    } else if (workspaceType === 'koerber') {
       content += `test.use({ storageState: '../../../../storage_state/d365.json' });\n\n`;
     }
     
@@ -513,6 +587,40 @@ export async function waitForD365(page: Page): Promise<void> {
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  /**
+   * Ensure storage state exists in workspace
+   */
+  private async ensureStorageState(workspacePath: string, workspaceType: WorkspaceType): Promise<void> {
+    const storageStateFileName = workspaceType === 'web-demo' 
+      ? 'web.json' 
+      : 'd365.json'; // D365 and Salesforce share d365.json
+    const workspaceStorageState = path.join(workspacePath, 'storage_state', storageStateFileName);
+    
+    if (fs.existsSync(workspaceStorageState)) {
+      return; // Already exists
+    }
+
+    // For D365/Salesforce workspaces, try to copy from default location
+    if (workspaceType !== 'web-demo') {
+      // Try default FourHands Automation Suite location
+      const defaultStorageState = path.join(
+        process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
+        'FourHands-Automation-Suite',
+        'storage_state',
+        'd365.json'
+      );
+
+      if (fs.existsSync(defaultStorageState)) {
+        const workspaceStorageStateDir = path.dirname(workspaceStorageState);
+        fs.mkdirSync(workspaceStorageStateDir, { recursive: true });
+        fs.copyFileSync(defaultStorageState, workspaceStorageState);
+        console.log('[SpecWriter] Copied storage state to workspace');
+      } else {
+        console.warn('[SpecWriter] Storage state not found. Tests may fail without authentication.');
+      }
+    }
   }
 
   /**

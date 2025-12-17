@@ -200,8 +200,24 @@ export class IPCBridge {
       }
     }
     
+    // For D365 workspaces, check for workspace-specific storage state first
+    if ((workspaceType === 'd365' || !workspaceType) && workspacePath) {
+      const d365StorageStatePath = path.join(workspacePath, 'storage_state', 'd365.json');
+      if (fs.existsSync(d365StorageStatePath)) {
+        return d365StorageStatePath;
+      }
+    }
+    
     // For Salesforce, use D365 storage state (they share the same auth)
     if (workspaceType === 'salesforce') {
+      // First check workspace-specific storage state
+      if (workspacePath) {
+        const salesforceStorageStatePath = path.join(workspacePath, 'storage_state', 'd365.json');
+        if (fs.existsSync(salesforceStorageStatePath)) {
+          return salesforceStorageStatePath;
+        }
+      }
+      // Fallback to config
       const config = this.configManager.getConfig();
       if (config.storageStatePath && fs.existsSync(config.storageStatePath)) {
         return config.storageStatePath;

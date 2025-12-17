@@ -141,9 +141,61 @@ export class TestBundleImporter {
         specContent = specContent.replace(waitImportRegex, `import { waitForD365 } from '../../../../runtime/d365-waits'`);
       }
 
-      // Update storage state path if present
+      // Update storage state path based on workspace type
+      // D365: use path.resolve pattern
+      // Others: use relative paths
       if (workspaceType === 'd365') {
-        const storageStateRegex = /test\.use\(\s*\{\s*storageState:\s*['"]([^'"]+)['"]\s*\}\s*\)/;
+        // Check if path import exists
+        const hasPathImport = /import\s+.*path.*from\s+['"]path['"]/.test(specContent);
+        const pathImport = hasPathImport ? '' : `import * as path from 'path';\n`;
+        
+        // Replace existing storage state with path.resolve pattern
+        const storageStateRegex = /test\.use\s*\(\s*\{\s*storageState:\s*['"]([^'"]+)['"]\s*\}\s*\)/;
+        if (storageStateRegex.test(specContent)) {
+          specContent = specContent.replace(storageStateRegex, 
+            `// 🔐 Resolve storage state dynamically (relative to THIS file)\nconst STORAGE_STATE = path.resolve(__dirname, '../../../../storage_state/d365.json');\n\ntest.use({ storageState: STORAGE_STATE })`
+          );
+          // Add path import if needed
+          if (!hasPathImport) {
+            // Find position after other imports
+            const importEndMatch = specContent.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)+/);
+            if (importEndMatch) {
+              const insertPos = importEndMatch[0].length;
+              specContent = specContent.slice(0, insertPos) + pathImport + specContent.slice(insertPos);
+            } else {
+              specContent = pathImport + specContent;
+            }
+          }
+        } else {
+          // No storage state found, add it
+          const importEndMatch = specContent.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)+/);
+          if (importEndMatch) {
+            const insertPos = importEndMatch[0].length;
+            specContent = specContent.slice(0, insertPos) + 
+              pathImport +
+              `\n// 🔐 Resolve storage state dynamically (relative to THIS file)\n` +
+              `const STORAGE_STATE = path.resolve(__dirname, '../../../../storage_state/d365.json');\n\n` +
+              `test.use({ storageState: STORAGE_STATE });\n\n` +
+              specContent.slice(insertPos);
+          } else {
+            specContent = pathImport + 
+              `\n// 🔐 Resolve storage state dynamically (relative to THIS file)\n` +
+              `const STORAGE_STATE = path.resolve(__dirname, '../../../../storage_state/d365.json');\n\n` +
+              `test.use({ storageState: STORAGE_STATE });\n\n` +
+              specContent;
+          }
+        }
+      } else if (workspaceType === 'salesforce') {
+        // Salesforce uses relative path
+        const storageStateRegex = /test\.use\s*\(\s*\{\s*storageState:\s*['"]([^'"]+)['"]\s*\}\s*\)/;
+        specContent = specContent.replace(storageStateRegex, `test.use({ storageState: '../../../../storage_state/d365.json' })`);
+      } else if (workspaceType === 'web-demo') {
+        // Web-demo uses relative path
+        const storageStateRegex = /test\.use\s*\(\s*\{\s*storageState:\s*['"]([^'"]+)['"]\s*\}\s*\)/;
+        specContent = specContent.replace(storageStateRegex, `test.use({ storageState: '../../../../storage_state/web.json' })`);
+      } else if (workspaceType === 'koerber') {
+        // Koerber uses relative path
+        const storageStateRegex = /test\.use\s*\(\s*\{\s*storageState:\s*['"]([^'"]+)['"]\s*\}\s*\)/;
         specContent = specContent.replace(storageStateRegex, `test.use({ storageState: '../../../../storage_state/d365.json' })`);
       }
 

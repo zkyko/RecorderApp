@@ -6,6 +6,8 @@ import { RecorderStartRequest, RecorderStartResponse, RecorderStopResponse, Reco
 import { Page } from 'playwright';
 import { NavigationCleanupService } from './navigation-cleanup-service';
 import { makeSafeIdentifier } from '../../core/utils/identifiers';
+import * as path from 'path';
+import * as fs from 'fs';
 
 /**
  * Service for managing QA Studio Recorder
@@ -127,6 +129,41 @@ export class RecorderService {
       // Stop recording
       this.recorderEngine.stopRecording();
       this.recorderEngine = null;
+
+      // Save storage state to workspace directory before closing browser
+      if (this.workspacePath && this.browserManager.isOpen()) {
+        try {
+          // Determine workspace type by checking workspace.json
+          const workspaceJsonPath = path.join(this.workspacePath, 'workspace.json');
+          let workspaceType: string | undefined = 'd365'; // Default to d365
+          
+          if (fs.existsSync(workspaceJsonPath)) {
+            try {
+              const workspaceMeta = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
+              workspaceType = workspaceMeta.type || 'd365';
+            } catch (e) {
+              // If we can't parse, use default
+            }
+          }
+
+          // Determine storage state file name based on workspace type
+          const storageStateFileName = workspaceType === 'web-demo' ? 'web.json' : 'd365.json';
+          const workspaceStorageStatePath = path.join(this.workspacePath, 'storage_state', storageStateFileName);
+          
+          // Ensure storage_state directory exists
+          const storageStateDir = path.dirname(workspaceStorageStatePath);
+          if (!fs.existsSync(storageStateDir)) {
+            fs.mkdirSync(storageStateDir, { recursive: true });
+          }
+
+          // Save storage state to workspace directory
+          await this.browserManager.saveStorageState(workspaceStorageStatePath);
+          console.log(`[RecorderService] Saved storage state to workspace: ${workspaceStorageStatePath}`);
+        } catch (error: any) {
+          console.warn(`[RecorderService] Failed to save storage state to workspace: ${error.message}`);
+          // Continue with closing browser even if save fails
+        }
+      }
 
       // Close browser
       await this.browserManager.close();
