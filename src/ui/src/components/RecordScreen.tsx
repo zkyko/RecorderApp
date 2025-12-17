@@ -156,6 +156,23 @@ const RecordScreen: React.FC = () => {
         // Path: <workspace>/storage_state/web.json
         const webStorageStatePath = `${workspacePath}/storage_state/web.json`;
         storageStatePath = webStorageStatePath;
+      } else if (currentWorkspace?.type === 'salesforce') {
+        // Salesforce workspace: use workspace-specific baseUrl
+        const settings = (currentWorkspace.settings || {}) as { baseUrl?: string };
+        envUrlToUse = settings.baseUrl || 'https://fourhands--fhqa.sandbox.my.salesforce-setup.com/';
+        // Use D365 storage state (shared auth)
+        storageStatePath = config?.storageStatePath;
+        if (!storageStatePath) {
+          // Try to get from config manager's default location
+          const fullConfig = await electronAPI?.getConfig();
+          storageStatePath = fullConfig?.storageStatePath;
+        }
+        // If still no path, try default workspace location
+        if (!storageStatePath && workspacePath) {
+          // Construct path manually (can't use Node.js path in browser)
+          const defaultPath = `${workspacePath}/storage_state/d365.json`;
+          storageStatePath = defaultPath;
+        }
       } else {
         // D365 / other workspaces: fall back to global D365 URL + storage state
         if (!config?.d365Url) {
@@ -350,12 +367,18 @@ const RecordScreen: React.FC = () => {
           navigate('/record/step-editor', { 
             state: { 
               rawCode: response.rawCode,
-              steps: response.steps 
+              steps: response.steps,
+              workspacePath: workspacePath || undefined
             } 
           });
         } else if (response.rawCode) {
           // Fallback: if no steps, go directly to locator cleanup
-          navigate('/record/locator-cleanup', { state: { rawCode: response.rawCode } });
+          navigate('/record/locator-cleanup', { 
+            state: { 
+              rawCode: response.rawCode,
+              workspacePath: workspacePath || undefined
+            } 
+          });
         } else {
           setError('No code was generated. Please try recording again.');
         }
@@ -380,7 +403,7 @@ const RecordScreen: React.FC = () => {
   };
 
   const getRecordingEngineLabel = () => {
-    return recordingEngine === 'playwright' ? 'Playwright Codegen' : 'QA Studio Recorder';
+    return recordingEngine === 'playwright' ? 'Playwright Codegen' : 'FourHands Automation Suite Recorder';
   };
 
   return (
@@ -388,7 +411,12 @@ const RecordScreen: React.FC = () => {
       {/* Primary Panel: Record Flow */}
       <div className="record-hero">
         <div className="text-center mb-6">
-          <h2 className="record-hero-title">Record a new {currentWorkspace?.type === 'web-demo' ? 'FH Web' : 'D365'} flow</h2>
+          <h2 className="record-hero-title">Record a new {
+            currentWorkspace?.type === 'web-demo' ? 'FH Web' 
+            : currentWorkspace?.type === 'salesforce' ? 'Salesforce'
+            : currentWorkspace?.type === 'koerber' ? 'Koerber'
+            : 'D365'
+          } flow</h2>
           <p className="record-hero-subtitle">
             Launch a browser, run through your scenario, then review steps and generate Playwright code.
           </p>
@@ -451,7 +479,7 @@ const RecordScreen: React.FC = () => {
                 className="select select-sm select-bordered bg-base-100 border-base-300 text-base-content"
                 style={{ width: 'auto', minWidth: '180px' }}
               >
-                <option value="qaStudio">QA Studio Recorder</option>
+                <option value="qaStudio">FourHands Automation Suite Recorder</option>
                 <option value="playwright">Playwright Codegen</option>
               </select>
             </>

@@ -1311,7 +1311,7 @@ const ExportTab: React.FC<{ testName: string; workspacePath: string }> = ({ test
     try {
       const response = await ipc.test.exportBundle({ workspacePath, testName });
       if (response.success) {
-        alert(`Test bundle exported successfully! (Stub: ${response.bundlePath})`);
+        alert(`Test bundle exported successfully!\n\nSaved to: ${response.bundlePath}`);
       } else {
         alert(`Failed to export: ${response.error}`);
       }
@@ -1327,7 +1327,7 @@ const ExportTab: React.FC<{ testName: string; workspacePath: string }> = ({ test
       <Stack gap="md">
         <Text fw={600}>Export Test Bundle</Text>
         <Text size="sm" c="dimmed">
-          Export this test as a bundle containing the spec file, data file, and metadata.
+          Export this test as a bundle containing the spec file, data file, and metadata. The bundle can be shared with other team members.
         </Text>
         <Button
           leftSection={<Download size={16} />}
@@ -1336,9 +1336,6 @@ const ExportTab: React.FC<{ testName: string; workspacePath: string }> = ({ test
         >
           Export Test Bundle
         </Button>
-        <Alert color="blue" title="Coming Soon">
-          Full bundle export functionality will be implemented in a future update.
-        </Alert>
       </Stack>
     </Card>
   );

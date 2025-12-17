@@ -44,10 +44,11 @@ const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = ({ opened, onClose }
     try {
       const response = await ipc.workspaces.list();
       if (response.success && response.workspaces) {
-        // Keep this list in sync with the sidebar: only valid D365 / FH Web workspaces
+        // Keep this list in sync with the sidebar: only valid workspace types
         const valid = response.workspaces.filter((w) => {
           const hasValidName = typeof w.name === 'string' && w.name.trim().length > 0;
-          const supportedType = w.type === 'd365' || w.type === 'web-demo';
+          const supportedType = w.type === 'd365' || w.type === 'web-demo' 
+                             || w.type === 'salesforce' || w.type === 'koerber';
           return hasValidName && supportedType;
         });
 
@@ -167,6 +168,10 @@ const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = ({ opened, onClose }
         return <Globe size={16} />;
       case 'd365':
         return <Folder size={16} />;
+      case 'salesforce':
+        return <Folder size={16} />; // TODO: Add Salesforce icon if available
+      case 'koerber':
+        return <Folder size={16} />; // TODO: Add Koerber icon if available
       default:
         return <Folder size={16} />;
     }
@@ -178,6 +183,10 @@ const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = ({ opened, onClose }
         return 'blue';
       case 'd365':
         return 'green';
+      case 'salesforce':
+        return 'purple';
+      case 'koerber':
+        return 'orange';
       default:
         return 'gray';
     }
@@ -249,7 +258,8 @@ const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = ({ opened, onClose }
             data={[
               { value: 'd365', label: 'D365 (Dynamics 365)' },
               { value: 'web-demo', label: 'FH Web (Web Testing)' },
-              { value: 'generic', label: 'Generic' },
+              { value: 'salesforce', label: 'Salesforce' },
+              { value: 'koerber', label: 'Koerber WMS' },
             ]}
           />
           <Button

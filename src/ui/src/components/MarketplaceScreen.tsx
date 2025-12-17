@@ -27,7 +27,7 @@ const integrations: Integration[] = [
   {
     id: 'jira',
     name: 'JIRA Integration',
-    description: 'Sync test results, create tickets, and track defects directly from QA Studio.',
+    description: 'Sync test results, create tickets, and track defects directly from FourHands Automation Suite.',
     category: 'Issue Tracking',
     status: 'available',
     icon: <ExternalLink size={24} />,
@@ -130,7 +130,7 @@ const MarketplaceScreen: React.FC = () => {
       <div style={{ marginBottom: '2rem' }}>
         <Text size="xl" fw={700} mb="xs">Marketplace</Text>
         <Text size="sm" c="dimmed">
-          Extend QA Studio with powerful integrations and connectors
+          Extend FourHands Automation Suite with powerful integrations and connectors
         </Text>
       </div>
 

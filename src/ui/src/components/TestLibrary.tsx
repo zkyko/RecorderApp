@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Edit, FileText, Plus, Code2, TestTube, Eye, Trash2, Grid3x3, List, ChevronDown, ChevronRight } from 'lucide-react';
+import { Play, Edit, FileText, Plus, Code2, TestTube, Eye, Trash2, Grid3x3, List, ChevronDown, ChevronRight, Upload } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import { formatDate, formatDateWithTooltip } from '../utils/formatDate';
 import { ipc } from '../ipc';
@@ -34,6 +34,7 @@ const TestLibrary: React.FC = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [importing, setImporting] = useState(false);
 
   // Debounce search query
   useEffect(() => {
@@ -372,6 +373,44 @@ const TestLibrary: React.FC = () => {
     }
   };
 
+  const handleImportBundle = async () => {
+    if (!workspacePath) {
+      notifications.show({
+        message: 'No workspace selected',
+        color: 'error',
+      });
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const response = await ipc.test.importBundle({ workspacePath });
+      if (response.success) {
+        const message = response.conflict
+          ? `Test imported successfully!\n\nTest name: ${response.testName}\n\nNote: A test with this name already existed, so it was renamed.`
+          : `Test imported successfully!\n\nTest name: ${response.testName}`;
+        notifications.show({
+          message,
+          color: 'success',
+        });
+        // Reload tests
+        loadTests();
+      } else {
+        notifications.show({
+          message: `Failed to import: ${response.error}`,
+          color: 'error',
+        });
+      }
+    } catch (error: any) {
+      notifications.show({
+        message: `Error: ${error.message}`,
+        color: 'error',
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -406,6 +445,15 @@ const TestLibrary: React.FC = () => {
               <option value="date">Group by: Date</option>
             </select>
             <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleImportBundle}
+                loading={importing}
+                icon={Upload}
+              >
+                Import Test
+              </Button>
               <button
                 className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-ghost'}`}
                 onClick={() => setViewMode('table')}

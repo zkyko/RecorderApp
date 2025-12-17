@@ -128,7 +128,7 @@ const Dashboard: React.FC = () => {
           <div className="card-body">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-lg font-semibold mb-1">New to QA Studio?</h3>
+                <h3 className="text-lg font-semibold mb-1">New to FourHands Automation Suite?</h3>
                 <p className="text-sm text-base-content/70">
                   Take a guided tour to learn about all the features and capabilities
                 </p>

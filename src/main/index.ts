@@ -26,7 +26,7 @@ try {
   console.warn('Failed to create cache directory:', error);
 }
 
-app.setPath('userData', path.join(os.homedir(), 'AppData', 'Roaming', 'QA-Studio'));
+app.setPath('userData', path.join(os.homedir(), 'AppData', 'Roaming', 'FourHands-Automation-Suite'));
 app.commandLine.appendSwitch('disk-cache-dir', cacheDir);
 app.commandLine.appendSwitch('disable-gpu-disk-cache'); // Disable GPU cache to avoid errors
 app.commandLine.appendSwitch('disable-software-rasterizer'); // Disable software rasterizer

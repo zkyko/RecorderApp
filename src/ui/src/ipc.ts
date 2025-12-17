@@ -176,6 +176,9 @@ export const ipc = {
     exportBundle: (request: { workspacePath: string; testName: string }): Promise<{ success: boolean; bundlePath?: string; error?: string }> => {
       return getBackend()?.testExportBundle(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
     },
+    importBundle: (request: { workspacePath: string; zipPath?: string; overwrite?: boolean }): Promise<{ success: boolean; testName?: string; importedTo?: string; error?: string; conflict?: boolean }> => {
+      return getBackend()?.testImportBundle(request) || Promise.resolve({ success: false, error: 'Electron API not available' });
+    },
   },
 
   // Trace & Report

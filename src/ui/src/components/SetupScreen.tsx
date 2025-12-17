@@ -135,9 +135,9 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
   return (
     <div className="setup-screen">
       <div className="setup-container">
-        <h1>QA Studio Setup</h1>
+        <h1>FourHands Automation Suite Setup</h1>
         <p className="setup-description">
-          Welcome! Let's configure QA Studio. This will only take a minute.
+          Welcome! Let's configure FourHands Automation Suite. This will only take a minute.
         </p>
 
         <div className="setup-section">

@@ -3,10 +3,12 @@ import * as fs from 'fs';
 import { Project, SourceFile, Node, CallExpression, StringLiteral } from 'ts-morph';
 import { SpecWriteRequest, SpecWriteResponse, SelectedParam, TestMeta, WorkspaceType, DataRow } from '../../types/v1.5';
 import { D365WaitInjector } from './d365-wait-injector';
+import { WebScrollInjector } from './web-scroll-injector';
 import { WorkspaceManager } from './workspace-manager';
 import { DataWriter } from './data-writer';
 import { SpecGenerator } from '../../generators/spec-generator';
 import { BrowserStackTmService } from './browserstackTmService';
+import { BrowserStackTmClientError } from '../../types/browserstack-tm';
 
 /**
  * Service for writing flat Playwright spec files
@@ -14,6 +16,7 @@ import { BrowserStackTmService } from './browserstackTmService';
 export class SpecWriter {
   private workspaceManager: WorkspaceManager;
   private waitInjector: D365WaitInjector;
+  private scrollInjector: WebScrollInjector;
   private dataWriter: DataWriter;
   private specGenerator: SpecGenerator;
   private browserStackTMService: BrowserStackTmService;
@@ -21,6 +24,7 @@ export class SpecWriter {
   constructor(workspaceManager: WorkspaceManager, browserStackTMService: BrowserStackTmService) {
     this.workspaceManager = workspaceManager;
     this.waitInjector = new D365WaitInjector();
+    this.scrollInjector = new WebScrollInjector();
     this.dataWriter = new DataWriter();
     this.specGenerator = new SpecGenerator();
     this.browserStackTMService = browserStackTMService;
@@ -39,12 +43,12 @@ export class SpecWriter {
       const workspace = await this.workspaceManager.loadWorkspace(request.workspacePath);
       const workspaceType: WorkspaceType = workspace?.type || 'd365';
 
-      // Ensure runtime directory exists for D365 workspaces
-      if (workspaceType === 'd365') {
+      // Ensure runtime directory exists for D365 and Salesforce workspaces (they share auth)
+      if (workspaceType === 'd365' || workspaceType === 'salesforce') {
         const runtimeDir = path.join(request.workspacePath, 'runtime');
         fs.mkdirSync(runtimeDir, { recursive: true });
         
-        // Create or update waitForD365 helper
+        // Create or update waitForD365 helper (shared by D365 and Salesforce)
         const waitHelperPath = path.join(runtimeDir, 'd365-waits.ts');
         const waitHelperContent = `import type { Page } from '@playwright/test';
 
@@ -83,8 +87,8 @@ export async function waitForD365(page: Page): Promise<void> {
       const project = new Project();
       const sourceFile = project.createSourceFile('temp.ts', request.cleanedCode, { overwrite: true });
 
-      // Inject waitForD365 calls for D365 workspaces
-      if (workspaceType === 'd365') {
+      // Inject waitForD365 calls for D365 and Salesforce workspaces (they share auth)
+      if (workspaceType === 'd365' || workspaceType === 'salesforce') {
         this.waitInjector.injectWaits(sourceFile, workspaceType);
       }
 
@@ -97,11 +101,19 @@ export async function waitForD365(page: Page): Promise<void> {
       // Replace parameterized values
       this.parameterizeCode(sourceFile, paramMap);
 
+      // Get code content for scroll injection (for web workspaces)
+      let codeContent = sourceFile.getFullText();
+      
+      // Inject scrollIntoViewIfNeeded for web workspaces
+      if (workspaceType === 'web-demo' || workspaceType === 'generic') {
+        codeContent = this.scrollInjector.injectScrolls(codeContent, workspaceType);
+      }
+
       // Generate data-driven test structure
       const specContent = this.generateSpecContent(
         request.testName,
         request.module,
-        sourceFile.getFullText(),
+        codeContent,
         workspaceType
       );
 
@@ -110,7 +122,10 @@ export async function waitForD365(page: Page): Promise<void> {
       const formattedTestName = this.specGenerator.formatTestName(request.testName);
 
       // Choose platform-specific subfolder based on workspace type
-      const platformDir = workspaceType === 'd365' ? 'd365' : 'web';
+      const platformDir = workspaceType === 'd365' ? 'd365' 
+                        : workspaceType === 'salesforce' ? 'salesforce'
+                        : workspaceType === 'koerber' ? 'koerber'
+                        : 'web';
 
       // Create bundle directory structure: tests/<platformDir>/specs/<TestName>/
       const bundleDir = path.join(testsDir, platformDir, 'specs', fileName);
@@ -152,11 +167,22 @@ export async function waitForD365(page: Page): Promise<void> {
       fs.writeFileSync(metaMdPath, metaMdContent, 'utf-8');
 
       // Ensure BrowserStack TM test case is created/linked for this bundle (v2.0 demo)
+      // Only attempt if TM is enabled on the account
       try {
-        const bundleMeta = this.browserStackTMService.readBundleMeta(bundleDir);
-        await this.browserStackTMService.ensureTestCaseForBundle(bundleMeta);
+        const isTmEnabled = await this.browserStackTMService.isTestManagementEnabled();
+        if (!isTmEnabled) {
+          console.log('[SpecWriter] BrowserStack Test Management is not enabled for this account. Skipping TM sync. (Automate execution is unaffected.)');
+        } else {
+          const bundleMeta = this.browserStackTMService.readBundleMeta(bundleDir);
+          await this.browserStackTMService.ensureTestCaseForBundle(bundleMeta);
+        }
       } catch (e: any) {
-        console.warn('[SpecWriter] Failed to sync BrowserStack TM test case:', e.message);
+        // Check if it's a 404 (TM not enabled) and provide user-friendly message
+        if (e instanceof BrowserStackTmClientError && e.statusCode === 404) {
+          console.log('[SpecWriter] BrowserStack Test Management is not enabled for this account. Skipping TM sync. (Automate execution is unaffected.)');
+        } else {
+          console.warn('[SpecWriter] Failed to sync BrowserStack TM test case:', e.message);
+        }
       }
 
       // Extract parameters from selectedParams or from the generated spec code
@@ -182,55 +208,57 @@ export async function waitForD365(page: Page): Promise<void> {
         parameters = Array.from(foundParams);
       }
 
-      // Create or update data file with parameter columns
+      // Always create or update data file (even if no parameters)
       // Data file should be at tests/<platformDir>/data/<TestName>Data.json
-      if (parameters.length > 0) {
-        // Use the dataDir we already defined above
-        fs.mkdirSync(dataDir, { recursive: true });
-        
-        const dataPath = path.join(dataDir, `${fileName}Data.json`);
-        
-        let existingRows: DataRow[] = [];
-        let existingColumns = new Set<string>();
-        
-        // Load existing data if file exists
-        if (fs.existsSync(dataPath)) {
-          try {
-            const existingContent = fs.readFileSync(dataPath, 'utf-8');
-            existingRows = JSON.parse(existingContent);
-            if (Array.isArray(existingRows) && existingRows.length > 0) {
-              existingColumns = new Set(Object.keys(existingRows[0]));
-            }
-          } catch (e) {
-            // If can't parse, start fresh
-            existingRows = [];
+      // Use the dataDir we already defined above
+      fs.mkdirSync(dataDir, { recursive: true });
+      
+      const dataPath = path.join(dataDir, `${fileName}Data.json`);
+      
+      let existingRows: DataRow[] = [];
+      let existingColumns = new Set<string>();
+      
+      // Load existing data if file exists
+      if (fs.existsSync(dataPath)) {
+        try {
+          const existingContent = fs.readFileSync(dataPath, 'utf-8');
+          existingRows = JSON.parse(existingContent);
+          if (Array.isArray(existingRows) && existingRows.length > 0) {
+            existingColumns = new Set(Object.keys(existingRows[0]));
           }
+        } catch (e) {
+          // If can't parse, start fresh
+          existingRows = [];
         }
+      }
+      
+      // Create default row helper
+      const createDefaultRow = (): DataRow => {
+        const defaultRow: DataRow = {
+          id: Date.now().toString(),
+          enabled: true,
+          name: 'Default',
+        };
         
+        // Dynamically add all parameter keys with empty strings (if parameters exist)
+        parameters.forEach(paramName => {
+          defaultRow[paramName] = '';
+        });
+        
+        return defaultRow;
+      };
+      
+      let updatedRows: DataRow[];
+      
+      if (parameters.length > 0) {
         // Get all parameter column names
         const paramColumnSet = new Set(parameters);
         
         // Merge with existing columns
         const allColumns = new Set([...existingColumns, ...paramColumnSet]);
         
-        // Create default row with all parameters included
-        const createDefaultRow = (): DataRow => {
-          const defaultRow: DataRow = {
-            id: Date.now().toString(),
-            enabled: true,
-            name: 'Default',
-          };
-          
-          // Dynamically add all parameter keys with empty strings
-          parameters.forEach(paramName => {
-            defaultRow[paramName] = '';
-          });
-          
-          return defaultRow;
-        };
-        
         // Update existing rows to include all columns
-        const updatedRows = existingRows.length > 0 
+        updatedRows = existingRows.length > 0 
           ? existingRows.map(row => {
               const updated: DataRow = { ...row };
               // Add missing parameter columns with empty values
@@ -247,11 +275,14 @@ export async function waitForD365(page: Page): Promise<void> {
         if (updatedRows.length === 0) {
           updatedRows.push(createDefaultRow());
         }
-        
-        // Write updated data file
-        const dataContent = JSON.stringify(updatedRows, null, 2);
-        fs.writeFileSync(dataPath, dataContent, 'utf-8');
+      } else {
+        // No parameters - just ensure we have at least one default row
+        updatedRows = existingRows.length > 0 ? existingRows : [createDefaultRow()];
       }
+      
+      // Write updated data file
+      const dataContent = JSON.stringify(updatedRows, null, 2);
+      fs.writeFileSync(dataPath, dataContent, 'utf-8');
 
       return {
         success: true,
@@ -319,12 +350,31 @@ export async function waitForD365(page: Page): Promise<void> {
       //   import { waitForD365 } from '../../runtime/d365-waits';
       // In the bundle structure (tests/d365/specs/<TestName>/<TestName>.spec.ts)
       // the correct relative path is: ../../../../runtime/d365-waits
-      if (workspaceType === 'd365') {
+      if (workspaceType === 'd365' || workspaceType === 'salesforce') {
         const waitImportRegex = /import\s+\{\s*waitForD365\s*\}\s+from\s+['"].*?d365-waits['"];?/g;
+        const platformDir = workspaceType === 'd365' ? 'd365' : 'salesforce';
         updatedCode = updatedCode.replace(
           waitImportRegex,
           `import { waitForD365 } from '../../../../runtime/d365-waits';`
         );
+        
+        // Ensure storage state is configured for D365 and Salesforce workspaces
+        // Storage state is at workspace root: storage_state/d365.json (shared)
+        // From bundle: Up 1 (TestName) -> Up 2 (specs) -> Up 3 (platformDir) -> Up 4 (tests) -> Root
+        // Import path: ../../../../storage_state/d365.json
+        if (!/test\.use\s*\(\s*\{[\s\S]*?storageState[\s\S]*?\}\s*\)/.test(updatedCode)) {
+          // Find the position after all imports (before test.describe)
+          const importEndMatch = updatedCode.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)+/);
+          if (importEndMatch) {
+            const insertPos = importEndMatch[0].length;
+            updatedCode = updatedCode.slice(0, insertPos) + 
+              `\ntest.use({ storageState: '../../../../storage_state/d365.json' });\n\n` +
+              updatedCode.slice(insertPos);
+          } else {
+            // If no imports found, add it at the beginning
+            updatedCode = `test.use({ storageState: '../../../../storage_state/d365.json' });\n\n${updatedCode}`;
+          }
+        }
         
         // Fix combobox fill pattern: D365 comboboxes need to be cleared before filling
         // Also fix double await issues and add waiting logic for OK buttons after Enter
@@ -385,7 +435,7 @@ export async function waitForD365(page: Page): Promise<void> {
     // 1. Remove test.setTimeout() calls (we set it at describe level)
     testBody = testBody.replace(/test\.setTimeout\([^)]*\);?\s*/g, '');
     
-    // 2. Remove test.use() calls (storage state is configured in playwright.config.ts)
+    // 2. Remove test.use() calls (we'll add storage state back for D365 workspaces)
     // Match test.use({ ... }) with proper handling of nested braces and multi-line
     testBody = testBody.replace(/test\.use\s*\(\s*\{[\s\S]*?\}\s*\);?\s*/g, '');
     
@@ -404,19 +454,23 @@ export async function waitForD365(page: Page): Promise<void> {
     let content = `import { test } from '@playwright/test';\n`;
     content += `import data from '../../data/${fileName}Data.json';\n`;
     
-    // Add waitForD365 import for D365 workspaces
-    // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+    // Add waitForD365 import for D365 and Salesforce workspaces (they share auth)
+    // Bundle structure: tests/<platformDir>/specs/<TestName>/<TestName>.spec.ts
     // Runtime structure: runtime/d365-waits.ts (at workspace root)
-    // From bundle: Up 1 (TestName) -> Up 2 (specs) -> Up 3 (d365) -> Up 4 (tests) -> Root
+    // From bundle: Up 1 (TestName) -> Up 2 (specs) -> Up 3 (platformDir) -> Up 4 (tests) -> Root
     // Import path: ../../../../runtime/d365-waits
-    if (workspaceType === 'd365') {
+    if (workspaceType === 'd365' || workspaceType === 'salesforce') {
       content += `import { waitForD365 } from '../../../../runtime/d365-waits';\n`;
     }
     content += `\n`;
     
-    // Note: The data file path is relative to the spec file location
-    // When tests run, they're copied to Recordings/tests, so data should be in Recordings/data
-    // Storage state is configured globally in playwright.config.ts, so we don't set it here
+    // Configure storage state for D365 and Salesforce workspaces (shared)
+    // Storage state is at workspace root: storage_state/d365.json
+    // From bundle: Up 1 (TestName) -> Up 2 (specs) -> Up 3 (platformDir) -> Up 4 (tests) -> Root
+    // Import path: ../../../../storage_state/d365.json
+    if (workspaceType === 'd365' || workspaceType === 'salesforce') {
+      content += `test.use({ storageState: '../../../../storage_state/d365.json' });\n\n`;
+    }
     
     const testDescription = module 
       ? `${this.formatTestName(testName)} - ${module} - Data Driven`

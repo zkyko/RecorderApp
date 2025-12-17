@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { DataWriteRequest, DataWriteResponse, DataRow } from '../../types/v1.5';
+import { DataWriteRequest, DataWriteResponse, DataRow, WorkspaceType } from '../../types/v1.5';
 
 /**
  * Service for writing JSON data files
@@ -8,14 +8,21 @@ import { DataWriteRequest, DataWriteResponse, DataRow } from '../../types/v1.5';
 export class DataWriter {
   /**
    * Write data file with test datasets
-   * Data files are stored at: tests/d365/data/<testName>Data.json
+   * Data files are stored at: tests/<platformDir>/data/<testName>Data.json
    * This matches the bundle structure used by SpecWriter
    */
   async writeData(request: DataWriteRequest): Promise<DataWriteResponse> {
     try {
-      // Use the same path structure as SpecWriter: tests/d365/data/<testName>Data.json
+      // Determine workspace type to use correct platform directory
+      const workspaceType = this.getWorkspaceType(request.workspacePath);
+      const platformDir = workspaceType === 'd365' ? 'd365' 
+                        : workspaceType === 'salesforce' ? 'salesforce'
+                        : workspaceType === 'koerber' ? 'koerber'
+                        : 'web';
+      
+      // Use the same path structure as SpecWriter: tests/<platformDir>/data/<testName>Data.json
       const testsDir = path.join(request.workspacePath, 'tests');
-      const dataDir = path.join(testsDir, 'd365', 'data');
+      const dataDir = path.join(testsDir, platformDir, 'data');
       fs.mkdirSync(dataDir, { recursive: true });
 
       // Convert test name to kebab-case filename (same as SpecGenerator.flowNameToFileName)
@@ -50,13 +57,20 @@ export class DataWriter {
 
   /**
    * Read data file
-   * Data files are stored at: tests/d365/data/<testName>Data.json
+   * Data files are stored at: tests/<platformDir>/data/<testName>Data.json
    * This matches the bundle structure used by SpecWriter
    */
   async readData(workspacePath: string, testName: string): Promise<DataRow[]> {
-    // Use the same path structure as SpecWriter: tests/d365/data/<testName>Data.json
+    // Determine workspace type to use correct platform directory
+    const workspaceType = this.getWorkspaceType(workspacePath);
+    const platformDir = workspaceType === 'd365' ? 'd365' 
+                      : workspaceType === 'salesforce' ? 'salesforce'
+                      : workspaceType === 'koerber' ? 'koerber'
+                      : 'web';
+    
+    // Use the same path structure as SpecWriter: tests/<platformDir>/data/<testName>Data.json
     const testsDir = path.join(workspacePath, 'tests');
-    const dataDir = path.join(testsDir, 'd365', 'data');
+    const dataDir = path.join(testsDir, platformDir, 'data');
     
     // Convert test name to kebab-case filename (same as SpecGenerator.flowNameToFileName)
     const fileName = testName
@@ -73,6 +87,22 @@ export class DataWriter {
 
     const content = fs.readFileSync(dataPath, 'utf-8');
     return JSON.parse(content);
+  }
+
+  /**
+   * Get workspace type from workspace path
+   */
+  private getWorkspaceType(workspacePath: string): WorkspaceType {
+    try {
+      const workspaceJsonPath = path.join(workspacePath, 'workspace.json');
+      if (fs.existsSync(workspaceJsonPath)) {
+        const workspaceMeta = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
+        return workspaceMeta.type || 'd365';
+      }
+    } catch (error) {
+      console.warn('[DataWriter] Failed to read workspace type:', error);
+    }
+    return 'd365'; // Default to d365 if can't determine
   }
 }
 

@@ -47,7 +47,8 @@ const Sidebar: React.FC = () => {
         // Filter out corrupted entries and legacy types
         const valid = response.workspaces.filter((w) => {
           const hasValidName = typeof w.name === 'string' && w.name.trim().length > 0;
-          const supportedType = w.type === 'd365' || w.type === 'web-demo';
+          const supportedType = w.type === 'd365' || w.type === 'web-demo' 
+                             || w.type === 'salesforce' || w.type === 'koerber';
           return hasValidName && supportedType;
         });
 
@@ -144,7 +145,7 @@ const Sidebar: React.FC = () => {
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <span className="logo-icon">🎬</span>
-          <span className="logo-text">QA Studio</span>
+          <span className="logo-text">FourHands</span>
         </div>
         <div className="sidebar-workspace">
           <div className="dropdown dropdown-end w-full relative">
@@ -251,7 +252,7 @@ const Sidebar: React.FC = () => {
         </div>
         <div className="sidebar-footer-meta">
           <span className="sidebar-version">v2.0.0</span>
-          <span className="sidebar-update-date">Dec 3, 2025</span>
+          <span className="sidebar-update-date">Dec 16, 2025</span>
         </div>
       </div>
 

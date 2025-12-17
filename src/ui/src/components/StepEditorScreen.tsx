@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, Text, Button, Group, Stack, TextInput, Badge, ScrollArea, ActionIcon, Checkbox, Alert, Menu, Code } from '@mantine/core';
 import { ArrowRight, Trash2, Edit2, Check, X, Plus, Clock, MessageSquare, CheckCircle } from 'lucide-react';
 import { ipc } from '../ipc';
+import { useWorkspaceStore } from '../store/workspace-store';
 import AssertionEditorModal from './AssertionEditorModal';
 import { AssertionKind, RecordedStep } from '../../../types';
 import './StepEditorScreen.css';
@@ -10,6 +11,7 @@ import './StepEditorScreen.css';
 const StepEditorScreen: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { workspacePath } = useWorkspaceStore();
   const [steps, setSteps] = useState<RecordedStep[]>([]);
   const [rawCode, setRawCode] = useState<string>('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -87,10 +89,10 @@ const StepEditorScreen: React.FC = () => {
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     // Extract parameterized steps info and create ParamCandidate objects
-    // If steps is empty (e.g., from Visual Builder), we'll detect parameters in the parameter mapping screen
-    const parameterizedSteps = steps.length > 0
+    // First check if any steps have {{}} markers
+    let parameterizedSteps = steps.length > 0
       ? steps
           .filter(step => step.value && step.value.startsWith('{{') && step.value.endsWith('}}'))
           .map((step, index) => {
@@ -105,14 +107,28 @@ const StepEditorScreen: React.FC = () => {
               suggestedName: suggestedName,
             };
           })
-      : []; // Empty array - parameter detection will happen in parameter mapping screen
+      : [];
+
+    // If no parameterized steps found from step markers, try detecting from code
+    if (parameterizedSteps.length === 0 && rawCode) {
+      try {
+        const detectResponse = await ipc.params.detect({ cleanedCode: rawCode });
+        if (detectResponse.success && detectResponse.candidates) {
+          parameterizedSteps = detectResponse.candidates;
+        }
+      } catch (error) {
+        console.error('Failed to detect parameters from code:', error);
+        // Continue with empty array - parameter detection will happen in parameter mapping screen
+      }
+    }
 
     // Navigate to locator cleanup with the final code and parameterized steps
     navigate('/record/locator-cleanup', { 
       state: { 
         rawCode: rawCode,
         steps: steps,
-        parameterizedSteps: parameterizedSteps
+        parameterizedSteps: parameterizedSteps,
+        workspacePath: workspacePath || undefined
       } 
     });
   };

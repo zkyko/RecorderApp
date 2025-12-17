@@ -1,6 +1,8 @@
 import { Project, SourceFile, Node, SyntaxKind, CallExpression, StringLiteral } from 'ts-morph';
-import { LocatorCleanupRequest, LocatorCleanupResponse, LocatorMapping } from '../../types/v1.5';
+import { LocatorCleanupRequest, LocatorCleanupResponse, LocatorMapping, WorkspaceType } from '../../types/v1.5';
 import { NavigationCleanupService } from './navigation-cleanup-service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Service for cleaning up and upgrading locators in codegen output
@@ -33,29 +35,45 @@ export class LocatorCleanupService {
       const project = new Project();
       const sourceFile = project.createSourceFile('temp.ts', code, { overwrite: true });
 
-      // Remove test.use() calls (storage state is configured in playwright.config.ts)
-      const statementsToRemove: any[] = [];
-      sourceFile.forEachDescendant((node) => {
-        if (Node.isCallExpression(node)) {
-          const expr = node.getExpression().getText();
-          if (expr === 'test.use' || expr.includes('test.use')) {
-            // Find the parent statement and mark it for removal
-            let parent = node.getParent();
-            while (parent && !Node.isStatement(parent)) {
-              parent = parent.getParent();
-            }
-            if (parent && Node.isStatement(parent)) {
-              statementsToRemove.push(parent);
+      // Determine workspace type to decide whether to preserve storageState
+      let workspaceType: WorkspaceType = 'd365'; // Default
+      if (request.workspacePath) {
+        workspaceType = this.getWorkspaceType(request.workspacePath);
+      }
+
+      // Remove test.use() calls for D365 workspaces (storage state is configured in playwright.config.ts)
+      // But preserve for web-demo and other workspaces that need it in the test code
+      if (workspaceType !== 'web-demo' && workspaceType !== 'generic') {
+        const statementsToRemove: any[] = [];
+        sourceFile.forEachDescendant((node) => {
+          if (Node.isCallExpression(node)) {
+            const expr = node.getExpression().getText();
+            if (expr === 'test.use' || expr.includes('test.use')) {
+              // Check if this is a storageState usage
+              const args = node.getArguments();
+              if (args.length > 0) {
+                const argText = args[0].getText();
+                if (argText.includes('storageState')) {
+                  // Find the parent statement and mark it for removal
+                  let parent = node.getParent();
+                  while (parent && !Node.isStatement(parent)) {
+                    parent = parent.getParent();
+                  }
+                  if (parent && Node.isStatement(parent)) {
+                    statementsToRemove.push(parent);
+                  }
+                }
+              }
             }
           }
-        }
-      });
-      // Remove statements
-      statementsToRemove.forEach(stmt => {
-        if (Node.isStatement(stmt)) {
-          stmt.remove();
-        }
-      });
+        });
+        // Remove statements
+        statementsToRemove.forEach(stmt => {
+          if (Node.isStatement(stmt)) {
+            stmt.remove();
+          }
+        });
+      }
 
       const mappings: LocatorMapping[] = [];
       
@@ -157,6 +175,22 @@ export class LocatorCleanupService {
     // For v1.5, we'll keep fragile selectors but flag them
     // The user can manually improve them later
     return selector;
+  }
+
+  /**
+   * Get workspace type from workspace path
+   */
+  private getWorkspaceType(workspacePath: string): WorkspaceType {
+    try {
+      const workspaceJsonPath = path.join(workspacePath, 'workspace.json');
+      if (fs.existsSync(workspaceJsonPath)) {
+        const workspaceMeta = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
+        return workspaceMeta.type || 'd365';
+      }
+    } catch (error) {
+      console.warn('[LocatorCleanup] Failed to read workspace type:', error);
+    }
+    return 'd365'; // Default to d365 if can't determine
   }
 }
 

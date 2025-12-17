@@ -39,6 +39,7 @@ export interface CodegenCodeUpdate {
 
 export interface LocatorCleanupRequest {
   rawCode: string;
+  workspacePath?: string; // Optional workspace path to determine workspace type for preserving storageState
 }
 
 export interface LocatorMapping {
@@ -163,12 +164,13 @@ export interface TestRunMeta {
   tracePaths?: string[];      // workspace-relative paths to .zip files
   reportPath?: string;        // workspace-relative path to HTML report (deprecated, use allureReportPath)
   allureReportPath?: string;  // workspace-relative path to Allure report (e.g. "allure-report/<runId>/index.html")
-  source?: 'local' | 'browserstack';  // v1.6: where the run executed
-  browserstack?: {            // v2.0: BrowserStack Automate metadata
+  source?: 'local' | 'browserstack';  // v1.6: where the run executed (deprecated, use executionContext)
+  browserstack?: {            // v2.0: BrowserStack Automate metadata (deprecated, use executionContext)
     sessionId?: string;
     buildId?: string;
     dashboardUrl?: string;
   };
+  executionContext?: import('./execution-context').ExecutionContext;  // v2.1: Provider-agnostic execution context
   assertionFailures?: Array<{  // v2.0: Assertion failure details
     assertionType: string;
     target: string;
@@ -191,7 +193,7 @@ export interface TestRunRequest {
   specPath: string;
   datasetFilterIds?: string[];     // subset of DataRow ids to run; if empty, run all enabled
   runMode?: 'local' | 'browserstack';  // v1.6: execution mode
-  target?: string;                     // v1.6: BrowserStack target (e.g., "Chrome", "Edge", "Pixel")
+  capability?: import('./capabilities').BrowserCapability;  // Browser capability for cloud execution
 }
 
 export type TestRunEventType = 'log' | 'error' | 'status' | 'finished';
@@ -258,7 +260,7 @@ export interface JiraDefectContext {
 // Workspace Metadata
 // ============================================================================
 
-export type WorkspaceType = "d365" | "salesforce" | "generic" | "web-demo";
+export type WorkspaceType = "d365" | "salesforce" | "generic" | "web-demo" | "koerber";
 
 export const CURRENT_WORKSPACE_VERSION = "1.5.0";
 
@@ -407,6 +409,20 @@ export interface TestExportBundleResponse {
   success: boolean;
   bundlePath?: string;       // path to exported zip/JSON
   error?: string;
+}
+
+export interface TestImportBundleRequest {
+  workspacePath: string;
+  zipPath: string;
+  overwrite?: boolean;        // If true, overwrite existing test; if false, rename
+}
+
+export interface TestImportBundleResponse {
+  success: boolean;
+  testName?: string;
+  importedTo?: string;
+  error?: string;
+  conflict?: boolean;          // True if test already existed
 }
 
 export interface DataReadRequest {

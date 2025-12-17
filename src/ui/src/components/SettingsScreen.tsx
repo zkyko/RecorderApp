@@ -1255,7 +1255,7 @@ const SettingsScreen: React.FC = () => {
                   onChange={(value) => setRecordingEngine(value as RecordingEngine)}
                   data={[
                     { 
-                      label: 'QA Studio Recorder', 
+                      label: 'FourHands Automation Suite Recorder', 
                       value: 'qaStudio',
                       disabled: false,
                     },

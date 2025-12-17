@@ -469,7 +469,7 @@ function AppContent() {
         <div style={{ padding: '2rem', textAlign: 'center', color: 'white' }}>
           <p>Loading demo backend...</p>
           <p style={{ fontSize: '12px', marginTop: '1rem', opacity: 0.7 }}>
-            Initializing QA Studio Web Demo
+            Initializing FourHands Automation Suite Web Demo
           </p>
         </div>
       </div>

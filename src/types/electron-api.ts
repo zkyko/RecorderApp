@@ -141,7 +141,7 @@ export interface ElectronAPI {
   removeLocatorStatusUpdatedListener: () => void;
 
   // Locator cleanup
-  locatorCleanup: (request: { rawCode: string }) => 
+  locatorCleanup: (request: { rawCode: string; workspacePath?: string }) =>
     Promise<{ success: boolean; cleanedCode?: string; mapping?: Array<{ original: string; upgraded: string }>; error?: string }>;
 
   // Parameter detection
@@ -195,6 +195,7 @@ export interface ElectronAPI {
   testGetSpec: (request: { workspacePath: string; testName: string }) => Promise<{ success: boolean; content?: string; error?: string }>;
   testParseLocators: (request: { workspacePath: string; testName: string }) => Promise<{ success: boolean; locators?: Array<{ name?: string; selector: string; type: string; lines: number[] }>; error?: string }>;
   testExportBundle: (request: { workspacePath: string; testName: string }) => Promise<{ success: boolean; bundlePath?: string; error?: string }>;
+  testImportBundle: (request: { workspacePath: string; zipPath?: string; overwrite?: boolean }) => Promise<{ success: boolean; testName?: string; importedTo?: string; error?: string; conflict?: boolean }>;
   testUpdateSpec: (request: any) => Promise<{ success: boolean; error?: string; updatedLines?: number[] }>;
   testAddStep: (request: any) => Promise<{ success: boolean; error?: string; updatedLines?: number[] }>;
   testDeleteStep: (request: any) => Promise<{ success: boolean; error?: string; updatedLines?: number[] }>;

@@ -10,8 +10,8 @@ export class WorkspaceManager {
   private workspaceRoot: string;
 
   constructor() {
-    // Default workspace root: ~/Documents/QA-Studio
-    this.workspaceRoot = path.join(app.getPath('documents'), 'QA-Studio');
+    // Default workspace root: ~/Documents/FourHands-Automation-Suite
+    this.workspaceRoot = path.join(app.getPath('documents'), 'FourHands-Automation-Suite');
   }
 
   /**
@@ -101,6 +101,16 @@ export class WorkspaceManager {
       // Web demo structure: tests/web-demo/
       const webDemoSpecsDir = path.join(workspacePath, 'tests', 'web-demo');
       fs.mkdirSync(webDemoSpecsDir, { recursive: true });
+    } else if (defaultType === 'salesforce') {
+      dirs.push('storage_state', 'runtime'); // Shares storage state with D365
+      // Create Salesforce-specific structure: tests/salesforce/specs/
+      const salesforceSpecsDir = path.join(workspacePath, 'tests', 'salesforce', 'specs');
+      fs.mkdirSync(salesforceSpecsDir, { recursive: true });
+    } else if (defaultType === 'koerber') {
+      dirs.push('storage_state', 'runtime');
+      // Create Koerber-specific structure: tests/koerber/specs/
+      const koerberSpecsDir = path.join(workspacePath, 'tests', 'koerber', 'specs');
+      fs.mkdirSync(koerberSpecsDir, { recursive: true });
     }
     
     for (const dir of dirs) {

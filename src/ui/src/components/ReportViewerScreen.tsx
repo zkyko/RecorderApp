@@ -81,7 +81,7 @@ const ReportViewerScreen: React.FC = () => {
 
     // Check for Allure report (preferred) or fallback to old reportPath
     if (!run.allureReportPath && !run.reportPath) {
-      setError('No Allure report available for this run. Run a test from QA Studio to generate one.');
+      setError('No Allure report available for this run. Run a test from FourHands Automation Suite to generate one.');
       setLoading(false);
       return;
     }

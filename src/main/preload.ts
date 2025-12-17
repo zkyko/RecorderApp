@@ -193,6 +193,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testGetSpec: (request: { workspacePath: string; testName: string }) => ipcRenderer.invoke('test:getSpec', request),
   testParseLocators: (request: { workspacePath: string; testName: string }) => ipcRenderer.invoke('test:parseLocators', request),
   testExportBundle: (request: { workspacePath: string; testName: string }) => ipcRenderer.invoke('test:exportBundle', request),
+  testImportBundle: (request: { workspacePath: string; zipPath?: string; overwrite?: boolean }) => ipcRenderer.invoke('test:importBundle', request),
   testUpdateSpec: (request: any) => ipcRenderer.invoke('test:updateSpec', request),
   testAddStep: (request: any) => ipcRenderer.invoke('test:addStep', request),
   testDeleteStep: (request: any) => ipcRenderer.invoke('test:deleteStep', request),

@@ -64,10 +64,10 @@ export class ConfigManager {
       workspace = this.storeAccess.get('recordingsDir');
       
       if (!workspace || !fs.existsSync(workspace)) {
-        // Default to Documents/QA-Studio
+        // Default to Documents/FourHands-Automation-Suite
         const defaultDir = path.join(
           app.getPath('documents'),
-          'QA-Studio'
+          'FourHands-Automation-Suite'
         );
         fs.mkdirSync(defaultDir, { recursive: true });
         workspace = defaultDir;

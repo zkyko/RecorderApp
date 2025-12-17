@@ -164,7 +164,7 @@ const TopToolbar: React.FC = () => {
 
     // Default
     return {
-      title: 'QA Studio',
+      title: 'FourHands Automation Suite',
       left: null,
       right: null,
     };

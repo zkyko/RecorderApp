@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, shell } from 'electron';
+import { ipcMain, BrowserWindow, shell, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { spawn, SpawnOptions } from 'child_process';
@@ -29,6 +29,8 @@ import { BrowserStackTmService } from './services/browserstackTmService';
 import { BrowserStackAutomateService } from './services/browserstackAutomateService';
 import { SpecUpdater } from './services/spec-updater';
 import { LocatorBrowserService } from './services/locator-browser-service';
+import { TestBundleExporter } from './services/test-bundle-exporter';
+import { TestBundleImporter } from './services/test-bundle-importer';
 import { runAllElectronTests } from '../ElectronTest';
 import {
   CodegenStartRequest,
@@ -58,6 +60,8 @@ import {
   LocatorInfo,
   TestExportBundleRequest,
   TestExportBundleResponse,
+  TestImportBundleRequest,
+  TestImportBundleResponse,
   DataReadRequest,
   DataReadResponse,
   DataImportExcelRequest,
@@ -115,6 +119,8 @@ export class IPCBridge {
   private jiraService: JiraService;
   private browserstackTmService: BrowserStackTmService;
   private browserstackAutomateService: BrowserStackAutomateService;
+  private testBundleExporter: TestBundleExporter;
+  private testBundleImporter: TestBundleImporter;
 
   constructor(configManager: ConfigManager, workspaceManager: WorkspaceManager, mainWindow: BrowserWindow | null = null) {
     this.configManager = configManager;
@@ -144,6 +150,8 @@ export class IPCBridge {
     this.jiraService = new JiraService(configManager);
     this.browserstackTmService = new BrowserStackTmService(configManager);
     this.browserstackAutomateService = new BrowserStackAutomateService(configManager);
+    this.testBundleExporter = new TestBundleExporter();
+    this.testBundleImporter = new TestBundleImporter(workspaceManager);
     this.locatorBrowser.setMainWindow(mainWindow);
   }
 
@@ -168,6 +176,21 @@ export class IPCBridge {
    * @param workspaceType Optional workspace type to determine which storage state to use
    * @param workspacePath Optional workspace path for workspace-specific storage state
    */
+  /**
+   * Get workspace type from workspace path
+   */
+  private async getWorkspaceType(workspacePath: string): Promise<WorkspaceType> {
+    try {
+      const workspaceMeta = await this.workspaceManager.loadWorkspace(workspacePath);
+      if (workspaceMeta) {
+        return workspaceMeta.type || 'd365';
+      }
+    } catch (error) {
+      console.warn('[IPCBridge] Failed to read workspace type:', error);
+    }
+    return 'd365'; // Default to d365 if can't determine
+  }
+
   private getStorageStatePath(workspaceType?: string, workspacePath?: string): string {
     // For web-demo workspaces, use workspace-specific web.json
     if (workspaceType === 'web-demo' && workspacePath) {
@@ -175,6 +198,15 @@ export class IPCBridge {
       if (fs.existsSync(webStorageStatePath)) {
         return webStorageStatePath;
       }
+    }
+    
+    // For Salesforce, use D365 storage state (they share the same auth)
+    if (workspaceType === 'salesforce') {
+      const config = this.configManager.getConfig();
+      if (config.storageStatePath && fs.existsSync(config.storageStatePath)) {
+        return config.storageStatePath;
+      }
+      return this.configManager.getStorageStatePath();
     }
     
     // For D365 workspaces or default, use config or default D365 storage state
@@ -224,10 +256,23 @@ export class IPCBridge {
   }> {
     const storageStatePath = this.getStorageStatePath(workspaceType, workspacePath);
     const isWebDemo = workspaceType === 'web-demo';
+    const isSalesforce = workspaceType === 'salesforce';
     
     // For web-demo, get web URL from workspace settings
     let testUrl: string | null = null;
     if (isWebDemo && workspacePath) {
+      try {
+        const workspaceJsonPath = path.join(workspacePath, 'workspace.json');
+        if (fs.existsSync(workspaceJsonPath)) {
+          const workspaceMeta = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
+          const settings = workspaceMeta.settings || {};
+          testUrl = settings.baseUrl || null;
+        }
+      } catch (error: any) {
+        console.warn('[Bridge] Failed to read workspace settings:', error.message);
+      }
+    } else if (isSalesforce && workspacePath) {
+      // For Salesforce, get URL from workspace settings
       try {
         const workspaceJsonPath = path.join(workspacePath, 'workspace.json');
         if (fs.existsSync(workspaceJsonPath)) {
@@ -246,8 +291,12 @@ export class IPCBridge {
     if (!testUrl) {
       return {
         status: 'error',
-        message: isWebDemo ? 'Web URL not configured in workspace settings' : 'D365 URL not configured',
+        message: isWebDemo ? 'Web URL not configured in workspace settings' 
+               : isSalesforce ? 'Salesforce URL not configured in workspace settings'
+               : 'D365 URL not configured',
         nextSteps: isWebDemo 
+          ? ['Configure baseUrl in workspace settings']
+          : isSalesforce
           ? ['Configure baseUrl in workspace settings']
           : ['Configure D365 URL in settings'],
         storageStatePath,
@@ -264,6 +313,12 @@ export class IPCBridge {
               'Go to Record screen',
               'Click "Login to FH Web" button',
               'Enter your web application credentials',
+            ]
+          : isSalesforce
+          ? [
+              'Go to Setup screen',
+              'Enter D365 URL and credentials',
+              'Click "Sign in to D365" to create storage state (shared with Salesforce)',
             ]
           : [
               'Go to Setup screen',
@@ -288,6 +343,12 @@ export class IPCBridge {
               'Go to Record screen',
               'Click "Login to FH Web" to re-authenticate',
             ]
+          : isSalesforce
+          ? [
+              'Storage state file is corrupted or invalid',
+              'Go to Setup screen',
+              'Re-enter D365 credentials and sign in again (shared with Salesforce)',
+            ]
           : [
               'Storage state file is corrupted or invalid',
               'Go to Setup screen',
@@ -307,6 +368,12 @@ export class IPCBridge {
           ? [
               'Go to Record screen',
               'Click "Login to FH Web" to re-authenticate',
+              'This will update the storage state',
+            ]
+          : isSalesforce
+          ? [
+              'Go to Setup screen',
+              'Re-enter D365 credentials and sign in again (shared with Salesforce)',
               'This will update the storage state',
             ]
           : [
@@ -606,9 +673,16 @@ export class IPCBridge {
     // Get spec file content
     ipcMain.handle('test:getSpec', async (_, request: TestGetSpecRequest): Promise<TestGetSpecResponse> => {
       try {
-        // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+        // Get workspace type to determine platform directory
+        const workspaceType = await this.getWorkspaceType(request.workspacePath);
+        const platformDir = workspaceType === 'd365' ? 'd365' 
+                          : workspaceType === 'salesforce' ? 'salesforce'
+                          : workspaceType === 'koerber' ? 'koerber'
+                          : 'web';
+        
+        // Bundle structure: tests/<platformDir>/specs/<TestName>/<TestName>.spec.ts
         const fileName = this.specGenerator.flowNameToFileName(request.testName);
-        const specPath = path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
+        const specPath = path.join(request.workspacePath, 'tests', platformDir, 'specs', fileName, `${fileName}.spec.ts`);
         if (!fs.existsSync(specPath)) {
           return { success: false, error: `Spec file not found: ${request.testName}` };
         }
@@ -642,9 +716,16 @@ export class IPCBridge {
     // Parse locators from spec file
     ipcMain.handle('test:parseLocators', async (_, request: TestParseLocatorsRequest): Promise<TestParseLocatorsResponse> => {
       try {
-        // Bundle structure: tests/d365/specs/<TestName>/<TestName>.spec.ts
+        // Get workspace type to determine platform directory
+        const workspaceType = await this.getWorkspaceType(request.workspacePath);
+        const platformDir = workspaceType === 'd365' ? 'd365' 
+                          : workspaceType === 'salesforce' ? 'salesforce'
+                          : workspaceType === 'koerber' ? 'koerber'
+                          : 'web';
+        
+        // Bundle structure: tests/<platformDir>/specs/<TestName>/<TestName>.spec.ts
         const fileName = this.specGenerator.flowNameToFileName(request.testName);
-        const specPath = path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName, `${fileName}.spec.ts`);
+        const specPath = path.join(request.workspacePath, 'tests', platformDir, 'specs', fileName, `${fileName}.spec.ts`);
         if (!fs.existsSync(specPath)) {
           return { success: false, error: `Spec file not found: ${request.testName}` };
         }
@@ -735,15 +816,83 @@ export class IPCBridge {
       }
     });
 
-    // Export test bundle (stub)
+    // Export test bundle
     ipcMain.handle('test:exportBundle', async (_, request: TestExportBundleRequest): Promise<TestExportBundleResponse> => {
       try {
-        // Stub: just log for now
-        console.log(`[TestExport] Export bundle requested for test: ${request.testName}`);
-        // TODO: Implement actual bundle export (zip spec + data + metadata)
-        return { success: true, bundlePath: `bundles/${request.testName}.zip` };
+        if (!this.mainWindow) {
+          return { success: false, error: 'Main window not available' };
+        }
+
+        // Convert test name to kebab-case for filename
+        const fileName = this.specGenerator.flowNameToFileName(request.testName);
+        
+        // Show save dialog
+        const result = await dialog.showSaveDialog(this.mainWindow, {
+          title: 'Export Test Bundle',
+          defaultPath: `${fileName}.zip`,
+          filters: [
+            { name: 'ZIP Files', extensions: ['zip'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        });
+
+        if (result.canceled || !result.filePath) {
+          return { success: false, error: 'Export cancelled' };
+        }
+
+        // Export bundle
+        const exportResult = await this.testBundleExporter.exportBundle(
+          request.workspacePath,
+          request.testName,
+          result.filePath
+        );
+
+        if (exportResult.success) {
+          return { success: true, bundlePath: result.filePath };
+        } else {
+          return { success: false, error: exportResult.error };
+        }
       } catch (error: any) {
         return { success: false, error: error.message || 'Failed to export bundle' };
+      }
+    });
+
+    // Import test bundle
+    ipcMain.handle('test:importBundle', async (_, request: TestImportBundleRequest): Promise<TestImportBundleResponse> => {
+      try {
+        if (!this.mainWindow) {
+          return { success: false, error: 'Main window not available' };
+        }
+
+        // If zipPath not provided, show open dialog
+        let zipPath = request.zipPath;
+        if (!zipPath) {
+          const result = await dialog.showOpenDialog(this.mainWindow, {
+            title: 'Import Test Bundle',
+            filters: [
+              { name: 'ZIP Files', extensions: ['zip'] },
+              { name: 'All Files', extensions: ['*'] },
+            ],
+            properties: ['openFile'],
+          });
+
+          if (result.canceled || !result.filePaths[0]) {
+            return { success: false, error: 'Import cancelled' };
+          }
+
+          zipPath = result.filePaths[0];
+        }
+
+        // Import bundle (automatically extracts and places files)
+        const importResult = await this.testBundleImporter.importBundle(
+          zipPath,
+          request.workspacePath,
+          { overwrite: request.overwrite || false }
+        );
+
+        return importResult;
+      } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to import bundle' };
       }
     });
 
@@ -1326,6 +1475,8 @@ export class IPCBridge {
         let bundleDir: string | null = null;
         const possiblePaths = [
           path.join(request.workspacePath, 'tests', 'd365', 'specs', fileName),
+          path.join(request.workspacePath, 'tests', 'salesforce', 'specs', fileName),
+          path.join(request.workspacePath, 'tests', 'koerber', 'specs', fileName),
           path.join(request.workspacePath, 'tests', 'd365', fileName),
           path.join(request.workspacePath, 'tests', fileName),
           path.join(request.workspacePath, 'tests', 'web-demo', 'specs', fileName),
@@ -2127,10 +2278,21 @@ export class IPCBridge {
       'browserstackTm:syncTestCaseForBundle',
       async (_event, args: { workspacePath: string; testName: string }) => {
         try {
+          // Determine workspace type to use correct platform directory and check credentials
+          const workspaceType = await this.getWorkspaceType(args.workspacePath);
+          
           // Check if BrowserStack TM is configured (uses same credentials as Automate)
+          // For web workspaces, use hardcoded credentials if global credentials are missing
           try {
             const browserstackCreds = this.configManager.getBrowserStackCredentials();
-            if (!browserstackCreds.username || !browserstackCreds.accessKey) {
+            const webUsername = 'qatest_ZJ012P';
+            const webAccessKey = 'EbNNuoEyqqYA4uxuziyg';
+            
+            // For web workspaces, allow hardcoded credentials; for others, require configured credentials
+            const isWebWorkspace = workspaceType === 'web-demo' || workspaceType === 'generic';
+            const hasCredentials = browserstackCreds.username && browserstackCreds.accessKey;
+            
+            if (!hasCredentials && !isWebWorkspace) {
               console.warn('[IPCBridge] BrowserStack credentials not configured (used by both Automate and TM), skipping sync');
               return {
                 success: false,
@@ -2151,27 +2313,35 @@ export class IPCBridge {
             .replace(/\s+/g, '-')
             .replace(/[^a-z0-9-]/g, '');
 
+          // Determine platform directory based on workspace type (same as TestRunner.updateTestMeta)
+          const platformDir = workspaceType === 'd365' ? 'd365'
+                          : workspaceType === 'salesforce' ? 'salesforce'
+                          : workspaceType === 'koerber' ? 'koerber'
+                          : 'web'; // Default to 'web' for generic/web-demo
+
           // Reuse the same lookup strategy as TestRunner.updateTestMeta
           let metaPath = path.join(
             workspacePath,
             'tests',
-            'd365',
+            platformDir,
             'specs',
             fileName,
             `${fileName}.meta.json`
           );
 
           if (!fs.existsSync(metaPath)) {
+            // Try old module structure: tests/<platformDir>/<TestName>/<TestName>.meta.json
             const oldModulePath = path.join(
               workspacePath,
               'tests',
-              'd365',
+              platformDir,
               fileName,
               `${fileName}.meta.json`
             );
             if (fs.existsSync(oldModulePath)) {
               metaPath = oldModulePath;
             } else {
+              // Try even older flat structure: tests/<TestName>.meta.json
               const oldFlatPath = path.join(
                 workspacePath,
                 'tests',
@@ -2183,6 +2353,15 @@ export class IPCBridge {
                 return { success: false, error: 'meta.json not found for this test' };
               }
             }
+          }
+
+          // Check if TM is enabled before attempting sync
+          const isTmEnabled = await this.browserstackTmService.isTestManagementEnabled();
+          if (!isTmEnabled) {
+            return {
+              success: false,
+              error: 'BrowserStack Test Management is not enabled for this account. Test Management is a separate, optional product that requires enablement on your BrowserStack account. (Automate execution is unaffected.)',
+            };
           }
 
           const bundleDir = path.dirname(metaPath);
@@ -2333,12 +2512,16 @@ export class IPCBridge {
           }
         }
 
-        // Determine environment info
-        const environment = {
-          executionProfile: runMeta?.source === 'browserstack' ? 'browserstack' as const : 'local' as const,
-          browser: runMeta?.browserstack ? 'Chrome' : undefined, // Could be enhanced with actual browser info
-          os: runMeta?.browserstack ? 'Windows' : undefined, // Could be enhanced with actual OS info
-        };
+        // Use executionContext from runMeta (provider-agnostic)
+        // Fallback to legacy browserstack field for backward compatibility
+        const executionContext = runMeta?.executionContext || (runMeta?.browserstack ? {
+          provider: 'browserstack' as const,
+          sessionId: runMeta.browserstack.sessionId,
+          buildId: runMeta.browserstack.buildId,
+          sessionUrl: runMeta.browserstack.dashboardUrl,
+        } : {
+          provider: 'local' as const,
+        });
 
         const result = await this.jiraService.createDefect({
           summary,
@@ -2351,11 +2534,6 @@ export class IPCBridge {
             module: context.module,
             id: context.workspaceId ? `${context.workspaceId}/${context.testName}` : context.testName,
           },
-          links: {
-            browserStackSessionUrl: context.browserStackSessionUrl,
-            browserStackTmTestCaseUrl: context.browserStackTmTestCaseUrl,
-            browserStackTmRunUrl: context.browserStackTmRunUrl,
-          },
           attachments: {
             screenshotPath: context.screenshotPath || (screenshotPaths.length > 0 ? screenshotPaths[0] : undefined),
             screenshotPaths: screenshotPaths.length > 1 ? screenshotPaths : undefined,
@@ -2366,7 +2544,7 @@ export class IPCBridge {
           runId: context.runId,
           startedAt: startedAt,
           finishedAt: finishedAt,
-          environment: environment,
+          execution: executionContext,
         });
 
         return {

@@ -3,31 +3,39 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, Text, Button, Group, Grid, Badge, Loader, Center, ScrollArea, Code } from '@mantine/core';
 import { ArrowRight, Check, RefreshCw } from 'lucide-react';
 import { ipc } from '../ipc';
+import { useWorkspaceStore } from '../store/workspace-store';
 import './LocatorCleanupScreen.css';
 
 const LocatorCleanupScreen: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { workspacePath } = useWorkspaceStore();
   const [rawCode, setRawCode] = useState<string>('');
   const [cleanedCode, setCleanedCode] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [mapping, setMapping] = useState<Array<{ original: string; upgraded: string }>>([]);
 
   useEffect(() => {
-    const state = location.state as { rawCode?: string };
+    const state = location.state as { rawCode?: string; workspacePath?: string };
     if (state?.rawCode) {
       setRawCode(state.rawCode);
-      handleCleanup(state.rawCode);
+      // Use workspacePath from state if provided, otherwise fall back to store
+      const effectiveWorkspacePath = state.workspacePath || workspacePath;
+      handleCleanup(state.rawCode, effectiveWorkspacePath || undefined);
     }
-  }, [location]);
+  }, [location, workspacePath]);
 
-  const handleCleanup = async (code?: string) => {
+  const handleCleanup = async (code?: string, wsPath?: string) => {
     const codeToClean = code || rawCode;
     if (!codeToClean) return;
 
     setLoading(true);
     try {
-      const response = await ipc.locator.cleanup({ rawCode: codeToClean });
+      const effectiveWorkspacePath = wsPath || workspacePath;
+      const response = await ipc.locator.cleanup({ 
+        rawCode: codeToClean,
+        workspacePath: effectiveWorkspacePath || undefined
+      });
       if (response.success && response.cleanedCode) {
         setCleanedCode(response.cleanedCode);
         setMapping(response.mapping || []);

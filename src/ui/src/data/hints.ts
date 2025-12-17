@@ -6,7 +6,7 @@ export interface Hint {
 export const HINTS_BY_ROUTE: Record<string, Hint[]> = {
   dashboard: [
     {
-      title: 'Welcome to QA Studio',
+      title: 'Welcome to FourHands Automation Suite',
       message: 'Start by recording a new test, or browse your existing tests in the Test Library.',
     },
     {
@@ -53,7 +53,7 @@ export const HINTS_BY_ROUTE: Record<string, Hint[]> = {
     },
     {
       title: 'Recording Engine',
-      message: 'You can switch between QA Studio Recorder and Playwright Codegen in Settings. Each has different strengths for different scenarios.',
+      message: 'You can switch between FourHands Automation Suite Recorder and Playwright Codegen in Settings. Each has different strengths for different scenarios.',
     },
     {
       title: 'Live Code Preview',
@@ -190,7 +190,7 @@ export const HINTS_BY_ROUTE: Record<string, Hint[]> = {
     },
     {
       title: 'Recording Engine',
-      message: 'Choose between QA Studio Recorder (custom) and Playwright Codegen. Each engine has different capabilities and use cases.',
+      message: 'Choose between FourHands Automation Suite Recorder (custom) and Playwright Codegen. Each engine has different capabilities and use cases.',
     },
     {
       title: 'Workspace Settings',

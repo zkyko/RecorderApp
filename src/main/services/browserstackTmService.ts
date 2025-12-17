@@ -83,12 +83,21 @@ export class BrowserStackTmService {
     const envSuiteName = process.env.BROWSERSTACK_TM_SUITE_NAME;
 
     // Credentials: Always use BrowserStack Automate credentials (same as Automate)
-    // Priority: Environment variables > BrowserStack Automate credentials > defaults
-    const username = envUsername || browserStackCreds.username || defaults.username || '';
-    const accessKey = envAccessKey || browserStackCreds.accessKey || defaults.accessKey || '';
+    // For web workspaces, use hardcoded service account credentials if global credentials are missing
+    // Priority: Environment variables > BrowserStack Automate credentials > hardcoded web credentials > defaults
+    const webUsername = 'qatest_ZJ012P';
+    const webAccessKey = 'EbNNuoEyqqYA4uxuziyg';
+    
+    const username = envUsername || browserStackCreds.username || webUsername || defaults.username || '';
+    const accessKey = envAccessKey || browserStackCreds.accessKey || webAccessKey || defaults.accessKey || '';
+    
+    // Determine if we're using web service account credentials
+    const isWebWorkspace = username === webUsername && accessKey === webAccessKey;
     
     // TM-specific settings (projectId, suiteName)
-    const projectId = envProjectId || settings.projectId || defaults.projectId || 'PR-25';
+    // Use PR-22 for web workspaces, PR-25 for others
+    const defaultProjectId = isWebWorkspace ? 'PR-22' : 'PR-25';
+    const projectId = envProjectId || settings.projectId || defaults.projectId || defaultProjectId;
     const suiteName = envSuiteName || settings.suiteName || defaults.suiteName || 'TestManagement For StudioAPP';
     const baseUrl = defaults.baseUrl || this.baseUrl;
 
@@ -102,6 +111,12 @@ export class BrowserStackTmService {
       console.warn('[BrowserStackTm] apiToken in TM settings is deprecated. Using BrowserStack Automate credentials instead.');
     }
 
+    // After applying all fallbacks, if we still don't have credentials, use web service account
+    if (!finalUsername || !finalAccessKey) {
+      finalUsername = webUsername;
+      finalAccessKey = webAccessKey;
+    }
+    
     if (!finalUsername || !finalAccessKey) {
       throw new BrowserStackTmError(
         'BrowserStack credentials not configured. BrowserStack Test Management uses the same credentials as BrowserStack Automate. Please set username and access key in Settings → BrowserStack.',
@@ -121,14 +136,55 @@ export class BrowserStackTmService {
   }
 
   /**
+   * Check if Test Management is enabled for this BrowserStack account
+   * 
+   * BrowserStack Test Management is a separate, optional product.
+   * Not all Automate accounts have TM enabled.
+   * This method probes the /api/v2/projects endpoint to detect capability.
+   * 
+   * @returns true if TM is enabled, false if not (404) or if there's a credential issue
+   */
+  async isTestManagementEnabled(): Promise<boolean> {
+    try {
+      const { apiToken } = this.getConfigWithToken();
+      
+      // Try to access the projects endpoint - only exists if TM is enabled
+      // If TM is not enabled, BrowserStack returns 404 with "You have stumbled on an invalid endpoint"
+      await this.makeRequest('GET', `${this.baseUrl}/projects`, apiToken);
+      
+      // If we get a valid response (even empty), TM is enabled
+      return true;
+    } catch (error: any) {
+      // 404 means TM is not enabled on this account
+      if (error instanceof BrowserStackTmClientError && error.statusCode === 404) {
+        return false;
+      }
+      // For other errors (auth, network, etc.), return false but don't throw
+      // This allows the app to continue functioning even if TM check fails
+      console.warn('[BrowserStackTm] Capability check failed:', error.message);
+      return false;
+    }
+  }
+
+  /**
    * Test connection to BrowserStack TM
    * 
    * Verifies that credentials are valid and the project is accessible.
+   * First checks if TM is enabled, then verifies project access.
    * 
    * @returns Connection test result with success status and optional error message
    */
   async testConnection(): Promise<TestConnectionResult> {
     try {
+      // First check if TM is enabled
+      const isEnabled = await this.isTestManagementEnabled();
+      if (!isEnabled) {
+        return {
+          success: false,
+          error: 'BrowserStack Test Management is not enabled for this account. Test Management is a separate, optional product that requires enablement on your BrowserStack account.',
+        };
+      }
+
       const { projectId, apiToken } = this.getConfigWithToken();
       // Try to get a single test case to verify connection (lightweight request)
       const url = `${this.baseUrl}/projects/${projectId}/test-cases?minify=true&p=1&page_size=1`;
@@ -147,6 +203,13 @@ export class BrowserStackTmService {
         };
       }
     } catch (error: any) {
+      // Check if it's a 404 (TM not enabled)
+      if (error instanceof BrowserStackTmClientError && error.statusCode === 404) {
+        return {
+          success: false,
+          error: 'BrowserStack Test Management is not enabled for this account. Test Management is a separate, optional product that requires enablement on your BrowserStack account.',
+        };
+      }
       return {
         success: false,
         error: error.message || 'Failed to connect to BrowserStack TM',
@@ -437,7 +500,7 @@ export class BrowserStackTmService {
       descriptionParts.push(metaAny.intent || metaAny.description);
       descriptionParts.push('');
     }
-    descriptionParts.push(`Project: ${projectName || 'QA Studio'}`);
+    descriptionParts.push(`Project: ${projectName || 'FourHands Automation Suite'}`);
     descriptionParts.push(`Suite: ${suiteName}`);
     if (meta.module) {
       descriptionParts.push(`Module: ${meta.module}`);
@@ -536,7 +599,7 @@ export class BrowserStackTmService {
       descriptionParts.push(metaAny.intent || metaAny.description);
       descriptionParts.push('');
     }
-    descriptionParts.push(`Project: ${projectName || 'QA Studio'}`);
+    descriptionParts.push(`Project: ${projectName || 'FourHands Automation Suite'}`);
     descriptionParts.push(`Suite: ${suiteName}`);
     if (meta.module) {
       descriptionParts.push(`Module: ${meta.module}`);
