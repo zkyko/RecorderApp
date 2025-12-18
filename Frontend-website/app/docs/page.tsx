@@ -61,7 +61,7 @@ export default function DocsPage() {
             Documentation
           </h1>
           <p className="text-xl text-zinc-400">
-            Learn how to use QA Studio to build and maintain your test automation
+            Learn how to use FourHands Automation Suite to build and maintain your test automation
           </p>
         </div>
         

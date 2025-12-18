@@ -26,7 +26,7 @@ export default function FAQPage() {
             Frequently Asked Questions
           </h1>
           <p className="text-xl text-zinc-400">
-            Everything you need to know about QA Studio
+            Everything you need to know about FourHands Automation Suite
           </p>
         </div>
 

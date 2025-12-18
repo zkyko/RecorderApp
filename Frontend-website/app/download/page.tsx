@@ -30,10 +30,10 @@ export default function DownloadPage() {
         
         <div className="mb-12">
           <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
-            Download QA Studio
+            Download FourHands Automation Suite
           </h1>
           <p className="text-xl text-zinc-400">
-            Get the latest version of QA Studio for your platform
+            Get the latest version of FourHands Automation Suite for your platform
           </p>
         </div>
         

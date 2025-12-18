@@ -33,7 +33,7 @@ const engineFeatures = [
 
 export function SecretSauce() {
   return (
-    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-zinc-950 relative">
+    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-950 relative">
       <div className="max-w-7xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -42,11 +42,11 @@ export function SecretSauce() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl sm:text-5xl font-bold mb-6 tracking-tight bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
-            One Recorder. Any Enterprise Platform.
+          <h2 className="text-4xl sm:text-5xl font-bold mb-6 tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-slate-300 bg-clip-text text-transparent">
+            Custom Recording Engine
           </h2>
-          <p className="text-lg sm:text-xl text-zinc-400 max-w-3xl mx-auto leading-relaxed">
-            Off-the-shelf recorders fail on complex enterprise apps. So we built our own.
+          <p className="text-lg sm:text-xl text-slate-400 max-w-3xl mx-auto leading-relaxed">
+            A purpose-built recorder engine designed to handle the complexities of enterprise applications like Dynamics 365, with platform-specific heuristics and multi-workspace support.
           </p>
         </motion.div>
         
@@ -102,10 +102,10 @@ export function SecretSauce() {
               <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/30">
                 <Building2 className="h-10 w-10 text-white" />
               </div>
-              <p className="text-sm font-semibold text-zinc-300">D365</p>
+              <p className="text-sm font-semibold text-slate-300">D365</p>
             </motion.div>
             
-            {/* QA Studio Recorder - Center */}
+            {/* FourHands Automation Suite Recorder - Center */}
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               whileInView={{ opacity: 1, scale: 1 }}
@@ -117,7 +117,7 @@ export function SecretSauce() {
                 <Play className="h-14 w-14 text-white" />
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 via-transparent to-transparent"></div>
               </div>
-              <p className="text-base font-bold text-zinc-200 text-center">QA Studio<br />Recorder</p>
+              <p className="text-base font-bold text-slate-200 text-center">FourHands Automation Suite<br />Recorder</p>
             </motion.div>
             
             {/* Salesforce - Left */}
@@ -131,7 +131,7 @@ export function SecretSauce() {
               <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/30 border border-cyan-400/30">
                 <Cloud className="h-10 w-10 text-white" />
               </div>
-              <p className="text-sm font-semibold text-zinc-300">Salesforce</p>
+              <p className="text-sm font-semibold text-slate-300">Salesforce</p>
             </motion.div>
             
             {/* Koerber WMS - Right */}
@@ -145,7 +145,7 @@ export function SecretSauce() {
               <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-green-500/30 border border-green-400/30">
                 <Package className="h-10 w-10 text-white" />
               </div>
-              <p className="text-sm font-semibold text-zinc-300">Koerber WMS</p>
+              <p className="text-sm font-semibold text-slate-300">Koerber WMS</p>
             </motion.div>
           </div>
         </motion.div>
@@ -169,7 +169,7 @@ export function SecretSauce() {
                     <CardTitle className="text-2xl">{feature.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CardDescription className="text-base text-zinc-400">
+                    <CardDescription className="text-base text-slate-400">
                       {feature.description}
                     </CardDescription>
                   </CardContent>

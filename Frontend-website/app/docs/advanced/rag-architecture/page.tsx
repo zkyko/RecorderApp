@@ -28,7 +28,7 @@ export default function RAGArchitecturePage() {
             </Badge>
           </div>
           <p className="text-xl text-zinc-400">
-            How QA Studio's Retrieval-Augmented Generation system enables intelligent test failure diagnosis
+            How FourHands Automation Suite's Retrieval-Augmented Generation system enables intelligent test failure diagnosis
           </p>
         </div>
 

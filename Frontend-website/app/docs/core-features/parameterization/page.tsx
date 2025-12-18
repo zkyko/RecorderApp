@@ -36,7 +36,7 @@ export default function ParameterizationPage() {
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
                 Parameterization transforms hardcoded values in recorded tests into data-driven parameters,
-                allowing the same test to run with multiple data scenarios. QA Studio uses AST parsing to
+                allowing the same test to run with multiple data scenarios. FourHands Automation Suite uses AST parsing to
                 intelligently detect parameterizable values and provides a user-friendly interface for mapping
                 them to test data.
               </p>

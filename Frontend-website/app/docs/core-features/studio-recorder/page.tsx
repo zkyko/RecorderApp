@@ -23,7 +23,7 @@ export default function StudioRecorderPage() {
             Studio Recorder
           </h1>
           <p className="text-xl text-zinc-400">
-            How QA Studio's intelligent recorder captures and processes user interactions
+            How FourHands Automation Suite's intelligent recorder captures and processes user interactions
           </p>
         </div>
 
@@ -35,7 +35,7 @@ export default function StudioRecorderPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                The Studio Recorder is QA Studio's core recording engine that captures user interactions in real-time
+                The Studio Recorder is FourHands Automation Suite's core recording engine that captures user interactions in real-time
                 and converts them into executable Playwright test code. Unlike simple recorders, it uses intelligent
                 heuristics to extract stable locators, preserve context, and generate maintainable test code.
               </p>

@@ -1,27 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Mail, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { Github, Mail, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export function Newsletter() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real implementation, this would send to your email service
-    console.log("Newsletter signup:", email);
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setEmail("");
-    }, 3000);
-  };
-
   return (
-    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-zinc-950 relative">
+    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-950 relative">
       <div className="max-w-4xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -30,58 +16,53 @@ export function Newsletter() {
           transition={{ duration: 0.6 }}
           className="text-center"
         >
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 mb-6">
-            <Mail className="h-8 w-8 text-white" />
-          </div>
-          
-          <h2 className="text-4xl sm:text-5xl font-bold mb-4 tracking-tight bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
-            Stay Updated
+          <h2 className="text-4xl sm:text-5xl font-bold mb-4 tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-slate-300 bg-clip-text text-transparent">
+            Explore the Codebase
           </h2>
           
-          <p className="text-xl text-zinc-400 mb-8 max-w-2xl mx-auto">
-            Get notified about new features, updates, and best practices for test automation
+          <p className="text-xl text-slate-400 mb-12 max-w-2xl mx-auto">
+            This project is open source and fully documented. Dive into the architecture, explore the code, or reach out to discuss implementation details.
           </p>
 
-          {!submitted ? (
-            <form onSubmit={handleSubmit} className="max-w-md mx-auto">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                  className="flex-1 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                />
-                <Button
-                  type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors font-medium whitespace-nowrap"
-                >
-                  Subscribe
-                </Button>
-              </div>
-              <p className="text-sm text-zinc-500 mt-3">
-                We respect your privacy. Unsubscribe at any time.
-              </p>
-            </form>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="max-w-md mx-auto p-6 bg-green-500/10 border border-green-500/30 rounded-lg"
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Button
+              size="lg"
+              className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-6 text-lg border border-slate-700 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all duration-300"
+              asChild
             >
-              <div className="flex items-center gap-3 text-green-400">
-                <CheckCircle2 className="h-6 w-6" />
-                <p className="text-lg font-medium">Thanks for subscribing!</p>
-              </div>
-              <p className="text-sm text-zinc-400 mt-2">
-                You'll receive updates about QA Studio's latest features and improvements.
-              </p>
-            </motion.div>
-          )}
+              <a href="https://github.com/zkyko/RecorderApp" target="_blank" rel="noopener noreferrer">
+                <Github className="mr-2 h-5 w-5" />
+                View on GitHub
+              </a>
+            </Button>
+            
+            <Button
+              size="lg"
+              variant="outline"
+              className="bg-transparent hover:bg-slate-800/50 text-white px-8 py-6 text-lg border border-slate-700 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.2)] transition-all duration-300"
+              asChild
+            >
+              <Link href="/docs/developer">
+                <ExternalLink className="mr-2 h-5 w-5" />
+                Developer Documentation
+              </Link>
+            </Button>
+          </div>
+
+          <div className="mt-12 pt-8 border-t border-slate-800/50">
+            <p className="text-slate-500 mb-4">
+              Interested in discussing this project or collaboration opportunities?
+            </p>
+            <a
+              href="mailto:nischal@example.com"
+              className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              <Mail className="h-5 w-5" />
+              <span>Get in Touch</span>
+            </a>
+          </div>
         </motion.div>
       </div>
     </section>
   );
 }
-

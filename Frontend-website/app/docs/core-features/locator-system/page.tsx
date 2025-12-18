@@ -35,7 +35,7 @@ export default function LocatorSystemPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                The Locator System is QA Studio's intelligent locator extraction and maintenance system.
+                The Locator System is FourHands Automation Suite's intelligent locator extraction and maintenance system.
                 It uses D365-specific heuristics to extract stable locators, maintains a centralized library
                 of canonical locators, and automatically updates locator status based on test execution results.
               </p>

@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "QA Studio - Self-Healing Automation Workbench for D365",
+  title: "FourHands Automation Suite - Self-Healing Automation Workbench for D365",
   description: "Stop wrestling with fragile selectors. Record, Generate, and Debug automation scripts with the power of AI Agents.",
 };
 

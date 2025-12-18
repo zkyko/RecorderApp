@@ -24,7 +24,7 @@ export default function GuidesPage() {
             User Guides
           </h1>
           <p className="text-xl text-zinc-400">
-            Step-by-step guides to help you get the most out of QA Studio
+            Step-by-step guides to help you get the most out of FourHands Automation Suite
           </p>
         </div>
 
@@ -45,7 +45,7 @@ export default function GuidesPage() {
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-                  <h4 className="font-semibold text-white mb-2">1. Launch QA Studio</h4>
+                  <h4 className="font-semibold text-white mb-2">1. Launch FourHands Automation Suite</h4>
                   <p className="text-sm text-zinc-400">
                     Open the application. On first launch, you'll be prompted to configure your environment.
                   </p>
@@ -112,7 +112,7 @@ export default function GuidesPage() {
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
                   <h4 className="font-semibold text-white mb-2">2. Interact with Your Application</h4>
                   <p className="text-sm text-zinc-400 mb-2">
-                    QA Studio launches an embedded browser window. Interact with your D365 application normally. The recorder automatically captures:
+                    FourHands Automation Suite launches an embedded browser window. Interact with your D365 application normally. The recorder automatically captures:
                   </p>
                   <ul className="text-sm text-zinc-400 space-y-1 list-disc list-inside ml-4">
                     <li>Clicks, form fills, and selections</li>
@@ -257,13 +257,13 @@ export default function GuidesPage() {
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
                   <h4 className="font-semibold text-white mb-2">2. Import Test Data</h4>
                   <p className="text-sm text-zinc-400">
-                    In the test details view, click <strong className="text-white">Import Data</strong> and select your file. QA Studio automatically detects parameters.
+                    In the test details view, click <strong className="text-white">Import Data</strong> and select your file. FourHands Automation Suite automatically detects parameters.
                   </p>
                 </div>
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
                   <h4 className="font-semibold text-white mb-2">3. Map Parameters</h4>
                   <p className="text-sm text-zinc-400 mb-2">
-                    QA Studio automatically detects parameters in your recorded steps. You can:
+                    FourHands Automation Suite automatically detects parameters in your recorded steps. You can:
                   </p>
                   <ul className="text-sm text-zinc-400 space-y-1 list-disc list-inside ml-4">
                     <li>Review detected parameters</li>
@@ -451,14 +451,14 @@ export default function GuidesPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                QA Studio supports multiple <EnrichedText text="workspaces" />, each with its own configuration, flows, and data files. Switch between workspaces seamlessly:
+                FourHands Automation Suite supports multiple <EnrichedText text="workspaces" />, each with its own configuration, flows, and data files. Switch between workspaces seamlessly:
               </p>
               <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
                 <h4 className="font-semibold text-white mb-2">Switching Workspaces</h4>
                 <ol className="text-sm text-zinc-400 space-y-2 list-decimal list-inside">
                   <li>Use the <strong className="text-white">Workspace Selector</strong> in the sidebar or header</li>
                   <li>Select your target workspace (D365, Web Demo, etc.)</li>
-                  <li>QA Studio automatically loads workspace-specific:
+                  <li>FourHands Automation Suite automatically loads workspace-specific:
                     <ul className="list-disc list-inside ml-6 mt-1">
                       <li>Flows and test files</li>
                       <li>Data files</li>

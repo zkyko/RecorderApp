@@ -90,7 +90,7 @@ const features: Feature[] = [
   },
   {
     title: "Multi-Workspace Support",
-    description: "Switch between D365 and Web Demo workspaces seamlessly. Each workspace has its own flows, data files, and configuration while sharing the same unified architecture. Demonstrates the extensibility of QA Studio's workspace system.",
+    description: "Switch between D365 and Web Demo workspaces seamlessly. Each workspace has its own flows, data files, and configuration while sharing the same unified architecture. Demonstrates the extensibility of FourHands Automation Suite's workspace system.",
     icon: Globe,
     gradient: "from-indigo-500 to-purple-500",
     iconColor: "text-indigo-400",
@@ -306,7 +306,7 @@ export function FeaturesShowcase() {
           Built to Scale. Built to Last.
         </h1>
         <p className="text-xl text-zinc-400 max-w-3xl mx-auto leading-relaxed mb-8">
-          QA Studio isn't just a recorder. It's a complete automation workbench with a pluggable architecture that adapts to your platform. Start with D365, extend to Koerber, Salesforce, or any enterprise application.
+          FourHands Automation Suite isn't just a recorder. It's a complete automation workbench with a pluggable architecture that adapts to your platform. Start with D365, extend to Koerber, Salesforce, or any enterprise application.
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Badge className="bg-violet-500/20 text-violet-400 border-violet-500/30 px-4 py-1.5">
@@ -467,7 +467,7 @@ export function FeaturesShowcase() {
               Pluggable Architecture
             </h3>
             <p className="text-zinc-300 mb-4 leading-relaxed">
-              QA Studio uses a workspace-based architecture that makes it easy to extend to new platforms. Currently optimized for <strong className="text-white">Microsoft Dynamics 365</strong>, but the system is designed to support multiple workspaces.
+              FourHands Automation Suite uses a workspace-based architecture that makes it easy to extend to new platforms. Currently optimized for <strong className="text-white">Microsoft Dynamics 365</strong>, but the system is designed to support multiple workspaces.
             </p>
             <p className="text-zinc-400 text-sm mb-4 leading-relaxed">
               To add support for a new platform (like Koerber or Salesforce), simply build the platform-specific locator extraction algorithm and plug it into the workspace system. The recorder, code generation, and execution layers remain the same.
@@ -502,7 +502,7 @@ export function FeaturesShowcase() {
           Ready to Get Started?
         </h3>
         <p className="text-zinc-400 mb-6 max-w-2xl mx-auto">
-          Download QA Studio and experience the difference. Currently optimized for D365, with support for Koerber, Salesforce, and more coming soon.
+          Download FourHands Automation Suite and experience the difference. Currently optimized for D365, with support for Koerber, Salesforce, and more coming soon.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a

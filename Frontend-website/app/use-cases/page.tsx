@@ -105,7 +105,7 @@ export default function UseCasesPage() {
             Use Cases
           </h1>
           <p className="text-xl text-zinc-400 max-w-3xl mx-auto">
-            Discover how QA Studio can transform your testing workflow across different scenarios
+            Discover how FourHands Automation Suite can transform your testing workflow across different scenarios
           </p>
         </motion.div>
 
@@ -155,7 +155,7 @@ export default function UseCasesPage() {
             <CardHeader>
               <CardTitle className="text-2xl">Ready to Get Started?</CardTitle>
               <CardDescription>
-                Download QA Studio and start automating your tests today
+                Download FourHands Automation Suite and start automating your tests today
               </CardDescription>
             </CardHeader>
             <CardContent>

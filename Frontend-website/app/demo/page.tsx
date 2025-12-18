@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import DemoApp from './DemoApp';
 
 /**
- * Demo page - renders the real QA Studio UI
+ * Demo page - renders the real FourHands Automation Suite UI
  * BackendProvider is set up in layout.tsx
  * Client-only rendering to avoid SSR issues with shared UI components
  */
@@ -26,7 +26,7 @@ export default function DemoPage() {
         color: 'white',
         backgroundColor: '#0b1020'
       }}>
-        <div>Loading QA Studio Demo...</div>
+        <div>Loading FourHands Automation Suite Demo...</div>
       </div>
     );
   }

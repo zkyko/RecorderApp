@@ -27,10 +27,10 @@ export default function CompleteSolutionPage() {
             A comprehensive automation solution for enterprise D365 environments.
           </p>
 
-          <h2>QA Studio System Architecture</h2>
+          <h2>FourHands Automation Suite System Architecture</h2>
           
           <p className="mb-6">
-            QA Studio is an Electron desktop application with a modular architecture. The system flows from recording user interactions, 
+            FourHands Automation Suite is an Electron desktop application with a modular architecture. The system flows from recording user interactions, 
             through code generation, to test execution, and finally AI-powered debugging. Each layer builds upon the previous one, 
             creating a complete automation workbench for D365.
           </p>

@@ -25,7 +25,7 @@ export function DesktopOnlyModal({ opened, onClose, message }: DesktopOnlyModalP
           {message || 'This action is available only in the Desktop App.'}
         </Text>
         <Text size="sm" c="dimmed">
-          Download QA Studio to run real tests, execute on BrowserStack, view traces, and access all advanced features.
+          Download FourHands Automation Suite to run real tests, execute on BrowserStack, view traces, and access all advanced features.
         </Text>
         <Stack gap="xs">
           <Link href="/download" passHref>
@@ -34,7 +34,7 @@ export function DesktopOnlyModal({ opened, onClose, message }: DesktopOnlyModalP
               leftSection={<Download size={16} />}
               onClick={onClose}
             >
-              Download QA Studio
+              Download FourHands Automation Suite
             </Button>
           </Link>
           <Button

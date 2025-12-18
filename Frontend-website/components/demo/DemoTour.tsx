@@ -16,7 +16,7 @@ interface TourStep {
 const tourSteps: TourStep[] = [
   {
     id: 'dashboard',
-    title: 'Welcome to QA Studio',
+    title: 'Welcome to FourHands Automation Suite',
     description: 'This is your dashboard. Here you can see an overview of your tests, recent runs, and quick actions.',
     route: '/',
   },
@@ -47,7 +47,7 @@ const tourSteps: TourStep[] = [
   {
     id: 'marketplace',
     title: 'Marketplace',
-    description: 'Extend QA Studio with powerful integrations like JIRA, BrowserStack, and more. Download the desktop app to access these features.',
+    description: 'Extend FourHands Automation Suite with powerful integrations like JIRA, BrowserStack, and more. Download the desktop app to access these features.',
     route: '/marketplace',
   },
 ];

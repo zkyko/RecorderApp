@@ -74,7 +74,7 @@ const keywordMap: KeywordConfig[] = [
   {
     term: "Playwright Runtime",
     type: "tooltip",
-    explanation: "Bundled Playwright runtime included with QA Studio. Fixed detection and error handling in v2.0 to remove dependency on system Node/cmd.exe.",
+    explanation: "Bundled Playwright runtime included with FourHands Automation Suite. Fixed detection and error handling in v2.0 to remove dependency on system Node/cmd.exe.",
   },
   {
     term: "RAG",
@@ -85,12 +85,12 @@ const keywordMap: KeywordConfig[] = [
   {
     term: "Page Object Model",
     type: "tooltip",
-    explanation: "Design pattern for organizing locators. QA Studio generates POM classes but also supports inline locators for flexibility.",
+    explanation: "Design pattern for organizing locators. FourHands Automation Suite generates POM classes but also supports inline locators for flexibility.",
   },
   {
     term: "POM",
     type: "tooltip",
-    explanation: "Page Object Model - Design pattern for organizing locators. QA Studio generates POM classes but also supports inline locators.",
+    explanation: "Page Object Model - Design pattern for organizing locators. FourHands Automation Suite generates POM classes but also supports inline locators.",
   },
   {
     term: "SpecGenerator",
@@ -118,13 +118,13 @@ const keywordMap: KeywordConfig[] = [
     term: "locator",
     type: "both",
     href: "/docs/core-features/locator-system",
-    explanation: "Selector used to identify elements on a page. QA Studio generates stable locators using platform-specific attributes and heuristics.",
+    explanation: "Selector used to identify elements on a page. FourHands Automation Suite generates stable locators using platform-specific attributes and heuristics.",
   },
   {
     term: "locators",
     type: "both",
     href: "/docs/core-features/locator-system",
-    explanation: "Selectors used to identify elements on a page. QA Studio generates stable locators using platform-specific attributes and heuristics.",
+    explanation: "Selectors used to identify elements on a page. FourHands Automation Suite generates stable locators using platform-specific attributes and heuristics.",
   },
   {
     term: "parameterization",
@@ -146,7 +146,7 @@ const keywordMap: KeywordConfig[] = [
   {
     term: "BrowserStack Automate",
     type: "tooltip",
-    explanation: "Cloud-based test execution platform. QA Studio can run tests on BrowserStack's infrastructure with multiple browsers and platforms.",
+    explanation: "Cloud-based test execution platform. FourHands Automation Suite can run tests on BrowserStack's infrastructure with multiple browsers and platforms.",
   },
   {
     term: "test bundle",

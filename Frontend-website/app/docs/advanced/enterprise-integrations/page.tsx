@@ -41,7 +41,7 @@ export default function EnterpriseIntegrationsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                QA Studio v2.0 introduces enterprise-grade integrations for test management and defect tracking. 
+                FourHands Automation Suite v2.0 introduces enterprise-grade integrations for test management and defect tracking. 
                 These integrations enable seamless workflow between test execution, result tracking, and issue management.
                 The <EnrichedText text="Assertion Engine" /> provides detailed failure metadata that powers these integrations.
               </p>

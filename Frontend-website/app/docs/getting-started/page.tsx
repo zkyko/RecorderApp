@@ -23,7 +23,7 @@ export default function GettingStartedPage() {
             Getting Started
           </h1>
           <p className="text-xl text-zinc-400">
-            Get up and running with QA Studio in minutes
+            Get up and running with FourHands Automation Suite in minutes
           </p>
         </div>
 
@@ -40,7 +40,7 @@ export default function GettingStartedPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                Download QA Studio for your platform from the{" "}
+                Download FourHands Automation Suite for your platform from the{" "}
                 <Link href="/download" className="text-blue-400 hover:text-blue-300 transition-colors">
                   download page
                 </Link>
@@ -89,7 +89,7 @@ export default function GettingStartedPage() {
                   <div>
                     <h4 className="font-semibold text-white mb-1">Select Workspace</h4>
                     <p className="text-zinc-400 text-sm">
-                      Choose your target <EnrichedText text="workspace" /> from the workspace selector. QA Studio v2.0 includes D365 and Web Demo <EnrichedText text="workspaces" />. Each workspace uses platform-specific <EnrichedText text="locator" /> algorithms while sharing the same infrastructure.
+                      Choose your target <EnrichedText text="workspace" /> from the workspace selector. FourHands Automation Suite v2.0 includes D365 and Web Demo <EnrichedText text="workspaces" />. Each workspace uses platform-specific <EnrichedText text="locator" /> algorithms while sharing the same infrastructure.
                     </p>
                   </div>
                 </div>
@@ -107,7 +107,7 @@ export default function GettingStartedPage() {
                   <div>
                     <h4 className="font-semibold text-white mb-1">Authenticate</h4>
                     <p className="text-zinc-400 text-sm">
-                      Log in to your platform through QA Studio. Your authentication state will be saved securely for future sessions.
+                      Log in to your platform through FourHands Automation Suite. Your authentication state will be saved securely for future sessions.
                     </p>
                   </div>
                 </div>
@@ -168,7 +168,7 @@ export default function GettingStartedPage() {
 
               <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                 <p className="text-sm text-blue-300">
-                  <strong>Note:</strong> The AI Debugger is optional. You can use QA Studio for recording, code generation, and test execution without an API key. The AI features enhance debugging but aren't required for core functionality.
+                  <strong>Note:</strong> The AI Debugger is optional. You can use FourHands Automation Suite for recording, code generation, and test execution without an API key. The AI features enhance debugging but aren't required for core functionality.
                 </p>
               </div>
             </CardContent>

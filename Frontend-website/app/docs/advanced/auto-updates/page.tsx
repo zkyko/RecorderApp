@@ -40,7 +40,7 @@ export default function AutoUpdatesPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                QA Studio v2.0 includes automatic update functionality that checks for new releases on GitHub 
+                FourHands Automation Suite v2.0 includes automatic update functionality that checks for new releases on GitHub 
                 and provides seamless update installation. Users no longer need to manually download and install 
                 new versions.
               </p>
@@ -115,7 +115,7 @@ export default function AutoUpdatesPage() {
     },
     "win": {
       "target": ["nsis"],
-      "publisherName": "QA Studio"
+      "publisherName": "FourHands Automation Suite"
     }
   }
 }`}</pre>

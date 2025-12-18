@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Demo wrapper for QA Studio UI
+ * Demo wrapper for FourHands Automation Suite UI
  * Sets up backend getter and renders the Electron app's UI components
  * 
  * Note: App.tsx already provides HashRouter, so we don't wrap with another router here

@@ -12,6 +12,18 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
       },
+      colors: {
+        professional: {
+          dark: "#0f172a",
+          "dark-secondary": "#1e293b",
+          "dark-tertiary": "#334155",
+          accent: "#3b82f6",
+          "accent-hover": "#2563eb",
+          "accent-light": "#60a5fa",
+          border: "#334155",
+          "border-light": "#475569",
+        },
+      },
       perspective: {
         '1000': '1000px',
       },
@@ -25,22 +37,22 @@ const config: Config = {
     themes: [
       {
         dark: {
-          "primary": "#6366f1",
-          "primary-focus": "#4f46e5",
+          "primary": "#3b82f6",
+          "primary-focus": "#2563eb",
           "primary-content": "#ffffff",
-          "secondary": "#8b5cf6",
-          "secondary-focus": "#7c3aed",
+          "secondary": "#6366f1",
+          "secondary-focus": "#4f46e5",
           "secondary-content": "#ffffff",
-          "accent": "#3b82f6",
-          "accent-focus": "#2563eb",
+          "accent": "#10b981",
+          "accent-focus": "#059669",
           "accent-content": "#ffffff",
-          "neutral": "#1f2937",
-          "neutral-focus": "#111827",
-          "neutral-content": "#f3f4f6",
-          "base-100": "#111827",
-          "base-200": "#1f2937",
-          "base-300": "#374151",
-          "base-content": "#f3f4f6",
+          "neutral": "#1e293b",
+          "neutral-focus": "#0f172a",
+          "neutral-content": "#f1f5f9",
+          "base-100": "#0f172a",
+          "base-200": "#1e293b",
+          "base-300": "#334155",
+          "base-content": "#f1f5f9",
           "info": "#3b82f6",
           "success": "#10b981",
           "warning": "#f59e0b",
@@ -59,4 +71,3 @@ const config: Config = {
 };
 
 export default config;
-

@@ -96,7 +96,7 @@ export default function GalleryPage() {
             Product Gallery
           </h1>
           <p className="text-xl text-zinc-400">
-            Explore QA Studio's interface and features through screenshots
+            Explore FourHands Automation Suite's interface and features through screenshots
           </p>
         </motion.div>
 
@@ -175,7 +175,7 @@ export default function GalleryPage() {
         >
           <Card className="bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-indigo-500/10 border-blue-500/20">
             <CardHeader>
-              <CardTitle className="text-2xl">Try QA Studio Today</CardTitle>
+              <CardTitle className="text-2xl">Try FourHands Automation Suite Today</CardTitle>
               <CardDescription>
                 Download and start automating your tests
               </CardDescription>

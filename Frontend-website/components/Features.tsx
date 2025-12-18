@@ -70,7 +70,7 @@ export function Features() {
             The precision of Code. The speed of Low-Code.
           </h2>
           <p className="text-lg sm:text-xl text-zinc-400 max-w-3xl mx-auto leading-relaxed">
-            QA Studio isn't just a recorder. It's an IDE wrapper that enforces enterprise architectural patterns automatically.
+            FourHands Automation Suite isn't just a recorder. It's an IDE wrapper that enforces enterprise architectural patterns automatically.
           </p>
         </motion.div>
         

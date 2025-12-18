@@ -23,7 +23,7 @@ export default function ArchitecturePage() {
             Architecture
           </h1>
           <p className="text-xl text-zinc-400">
-            Understanding how QA Studio is built and how it works
+            Understanding how FourHands Automation Suite is built and how it works
           </p>
         </div>
 
@@ -35,7 +35,7 @@ export default function ArchitecturePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                QA Studio is an Electron desktop application that orchestrates four collaborating branches:
+                FourHands Automation Suite is an Electron desktop application that orchestrates four collaborating branches:
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
@@ -85,7 +85,7 @@ export default function ArchitecturePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                QA Studio uses a <strong className="text-white"><EnrichedText text="workspace-based architecture" /></strong> that makes it platform-agnostic and easily extensible.
+                FourHands Automation Suite uses a <strong className="text-white"><EnrichedText text="workspace-based architecture" /></strong> that makes it platform-agnostic and easily extensible.
               </p>
               
               <div className="p-4 bg-violet-500/10 border border-violet-500/30 rounded-lg">

@@ -13,7 +13,7 @@ export default function UpdatesPage() {
               What's New
             </h1>
             <p className="text-zinc-400 text-lg">
-              Stay up to date with the latest features, improvements, and fixes in QA Studio.
+              Stay up to date with the latest features, improvements, and fixes in FourHands Automation Suite.
             </p>
           </div>
           <Changelog />

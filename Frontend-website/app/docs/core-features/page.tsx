@@ -49,7 +49,7 @@ export default function CoreFeaturesPage() {
             Core Features
           </h1>
           <p className="text-xl text-zinc-400">
-            Deep dive into how QA Studio's core features work under the hood
+            Deep dive into how FourHands Automation Suite's core features work under the hood
           </p>
         </div>
         

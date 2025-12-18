@@ -35,7 +35,7 @@ export default function TestExecutionPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-zinc-300">
-                Test execution in QA Studio handles the complete lifecycle of running tests, from workspace setup
+                Test execution in FourHands Automation Suite handles the complete lifecycle of running tests, from workspace setup
                 to result collection and debugging. It supports both local execution and cloud execution via BrowserStack,
                 with comprehensive logging, tracing, and reporting capabilities.
               </p>

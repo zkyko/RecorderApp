@@ -13,7 +13,7 @@ export function DemoBanner({ onDismiss }: DemoBannerProps) {
   return (
     <Alert
       icon={<Info size={16} />}
-      title="You're viewing the QA Studio Web Demo"
+      title="You're viewing the FourHands Automation Suite Web Demo"
       color="blue"
       variant="light"
       style={{
@@ -36,7 +36,7 @@ export function DemoBanner({ onDismiss }: DemoBannerProps) {
     >
       <Group justify="space-between" align="center" wrap="nowrap">
         <Text size="sm" style={{ flex: 1 }}>
-          Some features require the Desktop App. Download QA Studio to run real tests, execute on BrowserStack, view traces, and access all advanced features.
+          Some features require the Desktop App. Download FourHands Automation Suite to run real tests, execute on BrowserStack, view traces, and access all advanced features.
         </Text>
         <Group gap="xs" wrap="nowrap">
           <Button

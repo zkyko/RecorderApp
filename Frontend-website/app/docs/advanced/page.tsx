@@ -14,7 +14,7 @@ const advancedDocs: Array<{
 }> = [
   {
     title: "RAG Architecture",
-    description: "How QA Studio's Retrieval-Augmented Generation system enables intelligent test failure diagnosis",
+    description: "How FourHands Automation Suite's Retrieval-Augmented Generation system enables intelligent test failure diagnosis",
     icon: Brain,
     href: "/docs/advanced/rag-architecture",
   },

@@ -12,18 +12,18 @@ interface FAQItem {
 
 const faqs: FAQItem[] = [
   {
-    question: "What is QA Studio?",
-    answer: "QA Studio is a desktop application that transforms manual QA expertise into automated Playwright test scripts. It features a visual recorder, intelligent locator extraction, AI-powered debugging, and a pluggable architecture that supports multiple enterprise platforms like D365, with plans for Koerber and Salesforce.",
+    question: "What is FourHands Automation Suite?",
+    answer: "FourHands Automation Suite is a desktop application that transforms manual QA expertise into automated Playwright test scripts. It features a visual recorder, intelligent locator extraction, AI-powered debugging, and a pluggable architecture that supports multiple enterprise platforms like D365, with plans for Koerber and Salesforce.",
     category: "General"
   },
   {
-    question: "Do I need programming knowledge to use QA Studio?",
-    answer: "No! QA Studio is designed to eliminate the coding barrier. You can record test flows visually, and the tool generates Playwright test scripts automatically. The AI Debugger helps diagnose failures in plain English, making it accessible to QA engineers without programming backgrounds.",
+    question: "Do I need programming knowledge to use FourHands Automation Suite?",
+    answer: "No! FourHands Automation Suite is designed to eliminate the coding barrier. You can record test flows visually, and the tool generates Playwright test scripts automatically. The AI Debugger helps diagnose failures in plain English, making it accessible to QA engineers without programming backgrounds.",
     category: "Getting Started"
   },
   {
-    question: "Which platforms does QA Studio support?",
-    answer: "Currently, QA Studio is optimized for Microsoft Dynamics 365 Finance & Operations. The architecture is designed to be pluggable, with plans to add support for Koerber WMS and Salesforce CRM. Each platform gets its own workspace with platform-specific locator algorithms.",
+    question: "Which platforms does FourHands Automation Suite support?",
+    answer: "Currently, FourHands Automation Suite is optimized for Microsoft Dynamics 365 Finance & Operations. The architecture is designed to be pluggable, with plans to add support for Koerber WMS and Salesforce CRM. Each platform gets its own workspace with platform-specific locator algorithms.",
     category: "Platforms"
   },
   {
@@ -33,7 +33,7 @@ const faqs: FAQItem[] = [
   },
   {
     question: "What LLM providers are supported?",
-    answer: "QA Studio supports OpenAI (GPT-4, GPT-3.5-turbo) and DeepSeek. You can configure your API key in Settings → AI Debugger. The AI features are optional - you can use QA Studio for recording and test execution without an API key.",
+    answer: "FourHands Automation Suite supports OpenAI (GPT-4, GPT-3.5-turbo) and DeepSeek. You can configure your API key in Settings → AI Debugger. The AI features are optional - you can use FourHands Automation Suite for recording and test execution without an API key.",
     category: "AI Features"
   },
   {
@@ -72,18 +72,18 @@ const faqs: FAQItem[] = [
     category: "Architecture"
   },
   {
-    question: "Is QA Studio free?",
-    answer: "Yes! QA Studio is built on open-source Playwright and is free to use. There are no licensing fees. However, if you want to use the AI Debugger features, you'll need API keys from OpenAI or DeepSeek (which have their own pricing).",
+    question: "Is FourHands Automation Suite free?",
+    answer: "Yes! FourHands Automation Suite is built on open-source Playwright and is free to use. There are no licensing fees. However, if you want to use the AI Debugger features, you'll need API keys from OpenAI or DeepSeek (which have their own pricing).",
     category: "Pricing"
   },
   {
-    question: "Can I use QA Studio with CI/CD pipelines?",
-    answer: "Yes! QA Studio generates standard Playwright test scripts that can be integrated into any CI/CD pipeline. The tests are compatible with GitHub Actions, Azure DevOps, Jenkins, and other CI/CD tools. You can also run tests headlessly for automation.",
+    question: "Can I use FourHands Automation Suite with CI/CD pipelines?",
+    answer: "Yes! FourHands Automation Suite generates standard Playwright test scripts that can be integrated into any CI/CD pipeline. The tests are compatible with GitHub Actions, Azure DevOps, Jenkins, and other CI/CD tools. You can also run tests headlessly for automation.",
     category: "Integration"
   },
   {
     question: "How do I get started?",
-    answer: "1. Download QA Studio for your platform, 2. Create or load a workspace, 3. Configure your platform URL and authenticate, 4. Start recording your first test flow, 5. Review and save the generated test. Check out our Getting Started guide for detailed instructions.",
+    answer: "1. Download FourHands Automation Suite for your platform, 2. Create or load a workspace, 3. Configure your platform URL and authenticate, 4. Start recording your first test flow, 5. Review and save the generated test. Check out our Getting Started guide for detailed instructions.",
     category: "Getting Started"
   },
   {

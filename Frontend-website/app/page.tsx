@@ -7,20 +7,22 @@ import { About } from "@/components/About";
 import { Newsletter } from "@/components/Newsletter";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
+import { OriginStory } from "@/components/OriginStory";
 
 export default function Home() {
   return (
     <main className="min-h-screen relative z-10">
       <Navbar />
       <Hero />
+      <OriginStory />
       <CoreValue />
       <div id="features">
         <SecretSauce />
       </div>
       <Architecture />
       <Metrics />
-      <Newsletter />
       <About />
+      <Newsletter />
       <Footer />
     </main>
   );
