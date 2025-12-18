@@ -96,16 +96,15 @@ export default function ServicesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <Link href="/docs/developer" className="inline-flex items-center text-slate-400 hover:text-blue-400 mb-8 transition-colors">
-          <ArrowLeft className="h-4 w-4 mr-2" />
+    <>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Link href="/docs/developer" className="inline-flex items-center text-slate-400 hover:text-blue-400 mb-8 transition-colors group">
+          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
           Back to Developer Docs
         </Link>
 
         <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-slate-100 via-slate-200 to-slate-300 bg-clip-text text-transparent">
             Services
           </h1>
           <p className="text-slate-400 text-lg">
@@ -161,15 +160,18 @@ export default function ServicesPage() {
         </div>
 
         <div className="mt-12 flex gap-4">
-          <Link href="/docs/developer/generators" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-yellow-500/50 transition-colors">
-            <h3 className="font-semibold text-yellow-400 mb-2">← Previous: Code Generators</h3>
+          <Link href="/docs/developer/generators" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-blue-500/50 hover:bg-slate-900/70 transition-all shadow-lg">
+            <h3 className="font-semibold text-blue-400 mb-2">← Previous: Code Generators</h3>
             <p className="text-sm text-slate-400">Spec and POM generation</p>
           </Link>
-          <Link href="/docs/developer/types" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-cyan-500/50 transition-colors">
-            <h3 className="font-semibold text-cyan-400 mb-2">Next: Type Definitions →</h3>
+          <Link href="/docs/developer/types" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-blue-500/50 hover:bg-slate-900/70 transition-all shadow-lg">
+            <h3 className="font-semibold text-blue-400 mb-2">Next: Type Definitions →</h3>
             <p className="text-sm text-slate-400">TypeScript types and interfaces</p>
           </Link>
-        </div></div><Footer /></>
+        </div>
+      </div>
+      <Footer />
+    </>
   );
 }
 
