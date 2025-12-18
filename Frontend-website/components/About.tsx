@@ -30,6 +30,14 @@ export function About() {
           <p className="text-lg sm:text-xl text-slate-400 leading-relaxed max-w-3xl mx-auto mb-12">
             FourHands Automation Suite is a comprehensive Electron-based desktop application that addresses the unique challenges of test automation for Microsoft Dynamics 365. This project demonstrates full-stack development skills, from browser-side recording engines to AI-powered debugging systems.
           </p>
+          
+          <div className="bg-blue-600/10 border border-blue-500/30 rounded-lg p-6 mb-12 max-w-3xl mx-auto">
+            <p className="text-slate-300 text-center leading-relaxed">
+              <span className="text-blue-400 font-semibold">Note:</span> This project is still in a very early stage of the concept. 
+              Developed over 2 months during my internship, iterating from v1.0 to v2.0 with continuous improvements in architecture, 
+              user experience, and feature set. I wish I had more time to further refine and expand upon this foundation.
+            </p>
+          </div>
         </motion.div>
 
         <div className="grid md:grid-cols-3 gap-8">
@@ -61,7 +69,7 @@ export function About() {
             </div>
             <h3 className="text-xl font-semibold text-slate-100 mb-3">Timeline</h3>
             <p className="text-slate-400">
-              Developed over 18 months, iterating from v1.0 to v2.0 with continuous improvements in architecture, user experience, and feature set.
+              Developed over 2 months during my internship, iterating from v1.0 to v2.0 with continuous improvements in architecture, user experience, and feature set.
             </p>
           </motion.div>
 
