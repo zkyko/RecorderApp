@@ -1,5 +1,5 @@
 import { Footer } from "@/components/Footer";
-import { Navbar } from "@/components/Navbar";
+
 import Link from "next/link";
 import { ArrowLeft, FileCode, Sparkles, Wand2 } from "lucide-react";
 
@@ -82,10 +82,10 @@ export default function GeneratorsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <Navbar />
+    <div className="min-h-screen bg-slate-950">
+      
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <Link href="/docs/developer" className="inline-flex items-center text-zinc-400 hover:text-blue-400 mb-8 transition-colors">
+        <Link href="/docs/developer" className="inline-flex items-center text-slate-400 hover:text-blue-400 mb-8 transition-colors">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Developer Docs
         </Link>
@@ -94,7 +94,7 @@ export default function GeneratorsPage() {
           <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
             Code Generators
           </h1>
-          <p className="text-zinc-400 text-lg">
+          <p className="text-slate-400 text-lg">
             Pure functions that translate recorded steps into executable code. These generators create 
             Playwright test specifications and Page Object Model classes following best practices.
           </p>
@@ -115,41 +115,41 @@ export default function GeneratorsPage() {
                   <Icon className="h-6 w-6 mr-3 mt-1 flex-shrink-0" />
                   <div className="flex-1">
                     <h2 className="text-2xl font-semibold mb-2">{generator.name}</h2>
-                    <code className="text-xs text-zinc-400 font-mono bg-zinc-900/50 px-2 py-1 rounded">
+                    <code className="text-xs text-slate-400 font-mono bg-slate-900/50 px-2 py-1 rounded">
                       {generator.file}
                     </code>
                   </div>
                 </div>
                 
-                <p className="text-zinc-300 mb-4">{generator.description}</p>
+                <p className="text-slate-300 mb-4">{generator.description}</p>
 
                 <div className="grid md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <h3 className="font-semibold text-sm mb-2 text-zinc-200">Responsibilities</h3>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-zinc-400">
+                    <h3 className="font-semibold text-sm mb-2 text-slate-200">Responsibilities</h3>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-400">
                       {generator.responsibilities.map((resp, i) => (
                         <li key={i}>{resp}</li>
                       ))}
                     </ul>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm mb-2 text-zinc-200">Key Methods</h3>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-zinc-400">
+                    <h3 className="font-semibold text-sm mb-2 text-slate-200">Key Methods</h3>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-400">
                       {generator.keyMethods.map((method, i) => (
-                        <li key={i}><code className="text-zinc-300">{method}</code></li>
+                        <li key={i}><code className="text-slate-300">{method}</code></li>
                       ))}
                     </ul>
                   </div>
                 </div>
 
                 {generator.outputStructure && (
-                  <div className="bg-zinc-900/50 rounded p-4">
-                    <h3 className="font-semibold text-sm mb-2 text-zinc-200">Output Structure</h3>
-                    <div className="space-y-2 text-sm text-zinc-400">
+                  <div className="bg-slate-900/50 rounded p-4">
+                    <h3 className="font-semibold text-sm mb-2 text-slate-200">Output Structure</h3>
+                    <div className="space-y-2 text-sm text-slate-400">
                       {Object.entries(generator.outputStructure).map(([key, value]) => (
                         <div key={key}>
-                          <span className="text-zinc-300 font-mono text-xs">{key}:</span>{" "}
-                          <span className="text-zinc-400">{String(value)}</span>
+                          <span className="text-slate-300 font-mono text-xs">{key}:</span>{" "}
+                          <span className="text-slate-400">{String(value)}</span>
                         </div>
                       ))}
                     </div>
@@ -160,9 +160,9 @@ export default function GeneratorsPage() {
           })}
         </div>
 
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6 mb-8">
+        <div className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Code Generation Flow</h2>
-          <div className="space-y-3 text-zinc-300 text-sm">
+          <div className="space-y-3 text-slate-300 text-sm">
             <div className="flex items-start">
               <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs font-mono mr-3 mt-1">1</span>
               <div>
@@ -191,18 +191,16 @@ export default function GeneratorsPage() {
         </div>
 
         <div className="mt-12 flex gap-4">
-          <Link href="/docs/developer/main-process" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-green-500/50 transition-colors">
+          <Link href="/docs/developer/main-process" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-green-500/50 transition-colors">
             <h3 className="font-semibold text-green-400 mb-2">← Previous: Main Process</h3>
-            <p className="text-sm text-zinc-400">Electron main process and IPC</p>
+            <p className="text-sm text-slate-400">Electron main process and IPC</p>
           </Link>
-          <Link href="/docs/developer/services" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-pink-500/50 transition-colors">
+          <Link href="/docs/developer/services" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-pink-500/50 transition-colors">
             <h3 className="font-semibold text-pink-400 mb-2">Next: Services →</h3>
-            <p className="text-sm text-zinc-400">Backend services and integrations</p>
+            <p className="text-sm text-slate-400">Backend services and integrations</p>
           </Link>
-        </div>
-      </div>
-      <Footer />
-    </div>
+        </div></div><Footer /></>
   );
 }
+
 

@@ -1,5 +1,4 @@
 import { Footer } from "@/components/Footer";
-import { Navbar } from "@/components/Navbar";
 import Link from "next/link";
 import { ArrowLeft, FileCode, Zap, Search, Layers, Database, Users, Globe } from "lucide-react";
 
@@ -176,19 +175,18 @@ export default function CoreModulesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <Navbar />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <Link href="/docs/developer" className="inline-flex items-center text-zinc-400 hover:text-blue-400 mb-8 transition-colors">
-          <ArrowLeft className="h-4 w-4 mr-2" />
+    <>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Link href="/docs/developer" className="inline-flex items-center text-slate-400 hover:text-blue-400 mb-8 transition-colors group">
+          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
           Back to Developer Docs
         </Link>
 
         <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-slate-100 via-slate-200 to-slate-300 bg-clip-text text-transparent">
             Core Modules
           </h1>
-          <p className="text-zinc-400 text-lg">
+          <p className="text-slate-400 text-lg">
             The core modules run inside the browser context during recording. They handle event capture, 
             locator extraction, page classification, and session management.
           </p>
@@ -198,44 +196,44 @@ export default function CoreModulesPage() {
           {modules.map((module, index) => {
             const Icon = module.icon;
             const colorClasses = {
-              blue: "text-blue-400 border-blue-500/30 bg-blue-500/10",
-              violet: "text-violet-400 border-violet-500/30 bg-violet-500/10",
-              green: "text-green-400 border-green-500/30 bg-green-500/10",
-              yellow: "text-yellow-400 border-yellow-500/30 bg-yellow-500/10",
-              pink: "text-pink-400 border-pink-500/30 bg-pink-500/10",
-              cyan: "text-cyan-400 border-cyan-500/30 bg-cyan-500/10",
-              orange: "text-orange-400 border-orange-500/30 bg-orange-500/10",
-              purple: "text-purple-400 border-purple-500/30 bg-purple-500/10",
+              blue: "border-blue-500/30 bg-blue-600/10 hover:bg-blue-600/20",
+              violet: "border-blue-500/30 bg-blue-600/10 hover:bg-blue-600/20",
+              green: "border-blue-500/30 bg-blue-600/10 hover:bg-blue-600/20",
+              yellow: "border-blue-500/30 bg-blue-600/10 hover:bg-blue-600/20",
+              pink: "border-blue-500/30 bg-blue-600/10 hover:bg-blue-600/20",
+              cyan: "border-blue-500/30 bg-blue-600/10 hover:bg-blue-600/20",
+              orange: "border-blue-500/30 bg-blue-600/10 hover:bg-blue-600/20",
+              purple: "border-blue-500/30 bg-blue-600/10 hover:bg-blue-600/20",
             };
 
             return (
-              <div key={index} className={`border rounded-lg p-6 ${colorClasses[module.color as keyof typeof colorClasses]}`}>
+              <div key={index} className={`border rounded-lg p-6 shadow-lg ${colorClasses[module.color as keyof typeof colorClasses]}`}>
                 <div className="flex items-start mb-4">
-                  <Icon className="h-6 w-6 mr-3 mt-1 flex-shrink-0" />
+                  <Icon className="h-6 w-6 mr-3 mt-1 flex-shrink-0 text-blue-400" />
                   <div className="flex-1">
-                    <h2 className="text-2xl font-semibold mb-2">{module.name}</h2>
-                    <code className="text-xs text-zinc-400 font-mono bg-zinc-900/50 px-2 py-1 rounded">
+                    <h2 className="text-2xl font-semibold mb-2 text-slate-100">{module.name}</h2>
+                    <code className="text-xs text-slate-400 font-mono bg-slate-900/50 px-2 py-1 rounded">
                       {module.file}
                     </code>
                   </div>
                 </div>
                 
-                <p className="text-zinc-300 mb-4">{module.description}</p>
+                <p className="text-slate-300 mb-4">{module.description}</p>
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <h3 className="font-semibold text-sm mb-2 text-zinc-200">Responsibilities</h3>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-zinc-400">
+                    <h3 className="font-semibold text-sm mb-2 text-slate-200">Responsibilities</h3>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-400">
                       {module.responsibilities.map((resp, i) => (
                         <li key={i}>{resp}</li>
                       ))}
                     </ul>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm mb-2 text-zinc-200">Key Methods</h3>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-zinc-400">
+                    <h3 className="font-semibold text-sm mb-2 text-slate-200">Key Methods</h3>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-400">
                       {module.keyMethods.map((method, i) => (
-                        <li key={i}><code className="text-zinc-300">{method}</code></li>
+                        <li key={i}><code className="text-slate-300">{method}</code></li>
                       ))}
                     </ul>
                   </div>
@@ -246,18 +244,19 @@ export default function CoreModulesPage() {
         </div>
 
         <div className="mt-12 flex gap-4">
-          <Link href="/docs/developer/architecture" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-blue-500/50 transition-colors">
+          <Link href="/docs/developer/architecture" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-blue-500/50 hover:bg-slate-900/70 transition-all shadow-lg">
             <h3 className="font-semibold text-blue-400 mb-2">← Previous: Architecture</h3>
-            <p className="text-sm text-zinc-400">System architecture overview</p>
+            <p className="text-sm text-slate-400">System architecture overview</p>
           </Link>
-          <Link href="/docs/developer/main-process" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-green-500/50 transition-colors">
-            <h3 className="font-semibold text-green-400 mb-2">Next: Main Process →</h3>
-            <p className="text-sm text-zinc-400">Electron main process and IPC</p>
+          <Link href="/docs/developer/main-process" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-blue-500/50 hover:bg-slate-900/70 transition-all shadow-lg">
+            <h3 className="font-semibold text-blue-400 mb-2">Next: Main Process →</h3>
+            <p className="text-sm text-slate-400">Electron main process and IPC</p>
           </Link>
         </div>
       </div>
       <Footer />
-    </div>
+    </>
   );
 }
+
 

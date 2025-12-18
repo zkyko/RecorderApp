@@ -1,5 +1,5 @@
 import { Footer } from "@/components/Footer";
-import { Navbar } from "@/components/Navbar";
+
 import Link from "next/link";
 import { ArrowLeft, Database, Type, FileCode } from "lucide-react";
 
@@ -10,7 +10,7 @@ export default function TypesPage() {
       file: "src/types/index.ts",
       icon: Database,
       color: "blue",
-      description: "Core type definitions for QA Studio. Contains all the fundamental TypeScript types and interfaces used throughout the application.",
+      description: "Core type definitions for FourHands Automation Suite. Contains all the fundamental TypeScript types and interfaces used throughout the application.",
       types: [
         {
           name: "RecordedStep",
@@ -136,10 +136,10 @@ export default function TypesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <Navbar />
+    <div className="min-h-screen bg-slate-950">
+      
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <Link href="/docs/developer" className="inline-flex items-center text-zinc-400 hover:text-blue-400 mb-8 transition-colors">
+        <Link href="/docs/developer" className="inline-flex items-center text-slate-400 hover:text-blue-400 mb-8 transition-colors">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Developer Docs
         </Link>
@@ -148,9 +148,9 @@ export default function TypesPage() {
           <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
             Type Definitions
           </h1>
-          <p className="text-zinc-400 text-lg">
+          <p className="text-slate-400 text-lg">
             TypeScript type definitions and interfaces used throughout the application. These types provide 
-            type safety and serve as documentation for the data structures used in QA Studio.
+            type safety and serve as documentation for the data structures used in FourHands Automation Suite.
           </p>
         </div>
 
@@ -172,26 +172,26 @@ export default function TypesPage() {
                   <Icon className="h-6 w-6 mr-3 mt-1 flex-shrink-0" />
                   <div className="flex-1">
                     <h2 className="text-2xl font-semibold mb-2">{typeFile.name}</h2>
-                    <code className="text-xs text-zinc-400 font-mono bg-zinc-900/50 px-2 py-1 rounded">
+                    <code className="text-xs text-slate-400 font-mono bg-slate-900/50 px-2 py-1 rounded">
                       {typeFile.file}
                     </code>
                   </div>
                 </div>
                 
-                <p className="text-zinc-300 mb-4">{typeFile.description}</p>
+                <p className="text-slate-300 mb-4">{typeFile.description}</p>
 
                 {typeFile.types && (
                   <div className="space-y-4">
                     {typeFile.types.map((type, i) => (
-                      <div key={i} className="bg-zinc-900/50 rounded p-4">
+                      <div key={i} className="bg-slate-900/50 rounded p-4">
                         <h3 className="font-semibold text-blue-400 mb-2">{type.name}</h3>
-                        <p className="text-sm text-zinc-400 mb-2">{type.description}</p>
+                        <p className="text-sm text-slate-400 mb-2">{type.description}</p>
                         {type.fields && (
                           <div>
-                            <h4 className="text-xs font-semibold text-zinc-300 mb-1">Fields:</h4>
+                            <h4 className="text-xs font-semibold text-slate-300 mb-1">Fields:</h4>
                             <div className="flex flex-wrap gap-1">
                               {type.fields.map((field, j) => (
-                                <code key={j} className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-300">
+                                <code key={j} className="text-xs bg-zinc-800 px-2 py-1 rounded text-slate-300">
                                   {field}
                                 </code>
                               ))}
@@ -200,10 +200,10 @@ export default function TypesPage() {
                         )}
                         {type.strategies && (
                           <div>
-                            <h4 className="text-xs font-semibold text-zinc-300 mb-1">Strategies:</h4>
+                            <h4 className="text-xs font-semibold text-slate-300 mb-1">Strategies:</h4>
                             <div className="flex flex-wrap gap-1">
                               {type.strategies.map((strategy, j) => (
-                                <code key={j} className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-300">
+                                <code key={j} className="text-xs bg-zinc-800 px-2 py-1 rounded text-slate-300">
                                   {strategy}
                                 </code>
                               ))}
@@ -212,10 +212,10 @@ export default function TypesPage() {
                         )}
                         {type.values && (
                           <div>
-                            <h4 className="text-xs font-semibold text-zinc-300 mb-1">Values:</h4>
+                            <h4 className="text-xs font-semibold text-slate-300 mb-1">Values:</h4>
                             <div className="flex flex-wrap gap-1">
                               {type.values.map((value, j) => (
-                                <code key={j} className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-300">
+                                <code key={j} className="text-xs bg-zinc-800 px-2 py-1 rounded text-slate-300">
                                   {value}
                                 </code>
                               ))}
@@ -230,8 +230,8 @@ export default function TypesPage() {
                 {typeFile.keyTypes && (
                   <div className="space-y-2">
                     {typeFile.keyTypes.map((keyType, i) => (
-                      <div key={i} className="bg-zinc-900/50 rounded p-3">
-                        <code className="text-sm text-zinc-300">{keyType}</code>
+                      <div key={i} className="bg-slate-900/50 rounded p-3">
+                        <code className="text-sm text-slate-300">{keyType}</code>
                       </div>
                     ))}
                   </div>
@@ -241,9 +241,9 @@ export default function TypesPage() {
           })}
         </div>
 
-        <div className="mt-12 bg-zinc-900/50 border border-zinc-800 rounded-lg p-6">
+        <div className="mt-12 bg-slate-900/50 border border-slate-800/50 rounded-lg p-6">
           <h2 className="text-xl font-semibold mb-4">Type Safety Benefits</h2>
-          <ul className="space-y-2 text-zinc-300 text-sm">
+          <ul className="space-y-2 text-slate-300 text-sm">
             <li>✅ <strong>Compile-time checks</strong> - Catch errors before runtime</li>
             <li>✅ <strong>IDE autocomplete</strong> - Better developer experience</li>
             <li>✅ <strong>Self-documenting code</strong> - Types serve as documentation</li>
@@ -253,18 +253,16 @@ export default function TypesPage() {
         </div>
 
         <div className="mt-12 flex gap-4">
-          <Link href="/docs/developer/services" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-pink-500/50 transition-colors">
+          <Link href="/docs/developer/services" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-pink-500/50 transition-colors">
             <h3 className="font-semibold text-pink-400 mb-2">← Previous: Services</h3>
-            <p className="text-sm text-zinc-400">Backend services and integrations</p>
+            <p className="text-sm text-slate-400">Backend services and integrations</p>
           </Link>
-          <Link href="/docs/developer" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-blue-500/50 transition-colors">
+          <Link href="/docs/developer" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-blue-500/50 transition-colors">
             <h3 className="font-semibold text-blue-400 mb-2">Back to Developer Docs →</h3>
-            <p className="text-sm text-zinc-400">Developer documentation overview</p>
+            <p className="text-sm text-slate-400">Developer documentation overview</p>
           </Link>
-        </div>
-      </div>
-      <Footer />
-    </div>
+        </div></div><Footer /></>
   );
 }
+
 

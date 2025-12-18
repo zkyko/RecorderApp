@@ -1,5 +1,5 @@
 import { Footer } from "@/components/Footer";
-import { Navbar } from "@/components/Navbar";
+
 import Link from "next/link";
 import { ArrowLeft, Package, Zap, Globe, MessageSquare, Database, Code, FileText, Play, Folder } from "lucide-react";
 
@@ -96,10 +96,10 @@ export default function ServicesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <Navbar />
+    <div className="min-h-screen bg-slate-950">
+      
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <Link href="/docs/developer" className="inline-flex items-center text-zinc-400 hover:text-blue-400 mb-8 transition-colors">
+        <Link href="/docs/developer" className="inline-flex items-center text-slate-400 hover:text-blue-400 mb-8 transition-colors">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Developer Docs
         </Link>
@@ -108,7 +108,7 @@ export default function ServicesPage() {
           <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
             Services
           </h1>
-          <p className="text-zinc-400 text-lg">
+          <p className="text-slate-400 text-lg">
             Backend services that provide core functionality for recording, testing, workspace management, 
             and integrations with external systems like Jira and BrowserStack.
           </p>
@@ -137,19 +137,19 @@ export default function ServicesPage() {
                   <Icon className="h-6 w-6 mr-3 mt-1 flex-shrink-0" />
                   <div className="flex-1">
                     <h2 className="text-xl font-semibold mb-2">{service.name}</h2>
-                    <code className="text-xs text-zinc-400 font-mono bg-zinc-900/50 px-2 py-1 rounded block">
+                    <code className="text-xs text-slate-400 font-mono bg-slate-900/50 px-2 py-1 rounded block">
                       {service.file}
                     </code>
                   </div>
                 </div>
                 
-                <p className="text-zinc-300 mb-4 text-sm">{service.description}</p>
+                <p className="text-slate-300 mb-4 text-sm">{service.description}</p>
 
                 <div>
-                  <h3 className="font-semibold text-sm mb-2 text-zinc-200">Key Methods</h3>
+                  <h3 className="font-semibold text-sm mb-2 text-slate-200">Key Methods</h3>
                   <div className="flex flex-wrap gap-2">
                     {service.keyMethods.map((method, i) => (
-                      <code key={i} className="text-xs bg-zinc-900/50 px-2 py-1 rounded text-zinc-300">
+                      <code key={i} className="text-xs bg-slate-900/50 px-2 py-1 rounded text-slate-300">
                         {method}
                       </code>
                     ))}
@@ -161,18 +161,16 @@ export default function ServicesPage() {
         </div>
 
         <div className="mt-12 flex gap-4">
-          <Link href="/docs/developer/generators" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-yellow-500/50 transition-colors">
+          <Link href="/docs/developer/generators" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-yellow-500/50 transition-colors">
             <h3 className="font-semibold text-yellow-400 mb-2">← Previous: Code Generators</h3>
-            <p className="text-sm text-zinc-400">Spec and POM generation</p>
+            <p className="text-sm text-slate-400">Spec and POM generation</p>
           </Link>
-          <Link href="/docs/developer/types" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-cyan-500/50 transition-colors">
+          <Link href="/docs/developer/types" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-cyan-500/50 transition-colors">
             <h3 className="font-semibold text-cyan-400 mb-2">Next: Type Definitions →</h3>
-            <p className="text-sm text-zinc-400">TypeScript types and interfaces</p>
+            <p className="text-sm text-slate-400">TypeScript types and interfaces</p>
           </Link>
-        </div>
-      </div>
-      <Footer />
-    </div>
+        </div></div><Footer /></>
   );
 }
+
 

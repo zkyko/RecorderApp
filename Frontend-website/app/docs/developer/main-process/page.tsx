@@ -1,5 +1,5 @@
 import { Footer } from "@/components/Footer";
-import { Navbar } from "@/components/Navbar";
+
 import Link from "next/link";
 import { ArrowLeft, Settings, MessageSquare, Database, Play, Folder } from "lucide-react";
 
@@ -174,19 +174,18 @@ export default function MainProcessPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <Navbar />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <Link href="/docs/developer" className="inline-flex items-center text-zinc-400 hover:text-blue-400 mb-8 transition-colors">
-          <ArrowLeft className="h-4 w-4 mr-2" />
+    <>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Link href="/docs/developer" className="inline-flex items-center text-slate-400 hover:text-blue-400 mb-8 transition-colors group">
+          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
           Back to Developer Docs
         </Link>
 
         <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-slate-100 via-slate-200 to-slate-300 bg-clip-text text-transparent">
             Main Process
           </h1>
-          <p className="text-zinc-400 text-lg">
+          <p className="text-slate-400 text-lg">
             The Electron main process orchestrates system resources, IPC communication, and backend services. 
             This is where all the heavy lifting happens.
           </p>
@@ -211,18 +210,18 @@ export default function MainProcessPage() {
                     <Icon className="h-6 w-6 mr-3 mt-1 flex-shrink-0" />
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold mb-2">{file.name}</h3>
-                      <code className="text-xs text-zinc-400 font-mono bg-zinc-900/50 px-2 py-1 rounded">
+                      <code className="text-xs text-slate-400 font-mono bg-slate-900/50 px-2 py-1 rounded">
                         {file.file}
                       </code>
                     </div>
                   </div>
                   
-                  <p className="text-zinc-300 mb-4">{file.description}</p>
+                  <p className="text-slate-300 mb-4">{file.description}</p>
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <h4 className="font-semibold text-sm mb-2 text-zinc-200">Key Features</h4>
-                      <ul className="list-disc list-inside space-y-1 text-sm text-zinc-400">
+                      <h4 className="font-semibold text-sm mb-2 text-slate-200">Key Features</h4>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-slate-400">
                         {file.keyFeatures.map((feature, i) => (
                           <li key={i}>{feature}</li>
                         ))}
@@ -230,20 +229,20 @@ export default function MainProcessPage() {
                     </div>
                     {file.keyMethods && (
                       <div>
-                        <h4 className="font-semibold text-sm mb-2 text-zinc-200">Key Methods</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm text-zinc-400">
+                        <h4 className="font-semibold text-sm mb-2 text-slate-200">Key Methods</h4>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-slate-400">
                           {file.keyMethods.map((method, i) => (
-                            <li key={i}><code className="text-zinc-300">{method}</code></li>
+                            <li key={i}><code className="text-slate-300">{method}</code></li>
                           ))}
                         </ul>
                       </div>
                     )}
                     {file.keyHandlers && (
                       <div>
-                        <h4 className="font-semibold text-sm mb-2 text-zinc-200">IPC Handlers</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm text-zinc-400">
+                        <h4 className="font-semibold text-sm mb-2 text-slate-200">IPC Handlers</h4>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-slate-400">
                           {file.keyHandlers.map((handler, i) => (
-                            <li key={i}><code className="text-zinc-300">{handler}</code></li>
+                            <li key={i}><code className="text-slate-300">{handler}</code></li>
                           ))}
                         </ul>
                       </div>
@@ -259,10 +258,10 @@ export default function MainProcessPage() {
           <h2 className="text-2xl font-semibold mb-6">Services</h2>
           <div className="grid md:grid-cols-2 gap-4">
             {services.map((service, index) => (
-              <div key={index} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+              <div key={index} className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-4">
                 <h3 className="font-semibold text-green-400 mb-2">{service.name}</h3>
-                <code className="text-xs text-zinc-500 font-mono block mb-2">{service.file}</code>
-                <p className="text-sm text-zinc-400">{service.description}</p>
+                <code className="text-xs text-slate-500 font-mono block mb-2">{service.file}</code>
+                <p className="text-sm text-slate-400">{service.description}</p>
               </div>
             ))}
           </div>
@@ -272,28 +271,29 @@ export default function MainProcessPage() {
           <h2 className="text-2xl font-semibold mb-6">Utilities</h2>
           <div className="grid md:grid-cols-3 gap-4">
             {utils.map((util, index) => (
-              <div key={index} className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
+              <div key={index} className="bg-slate-900/50 border border-slate-800/50 rounded-lg p-4">
                 <h3 className="font-semibold text-cyan-400 mb-2">{util.name}</h3>
-                <code className="text-xs text-zinc-500 font-mono block mb-2">{util.file}</code>
-                <p className="text-sm text-zinc-400">{util.description}</p>
+                <code className="text-xs text-slate-500 font-mono block mb-2">{util.file}</code>
+                <p className="text-sm text-slate-400">{util.description}</p>
               </div>
             ))}
           </div>
         </section>
 
         <div className="mt-12 flex gap-4">
-          <Link href="/docs/developer/core" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-violet-500/50 transition-colors">
-            <h3 className="font-semibold text-violet-400 mb-2">← Previous: Core Modules</h3>
-            <p className="text-sm text-zinc-400">Browser-side recording components</p>
+          <Link href="/docs/developer/core" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-blue-500/50 hover:bg-slate-900/70 transition-all shadow-lg">
+            <h3 className="font-semibold text-blue-400 mb-2">← Previous: Core Modules</h3>
+            <p className="text-sm text-slate-400">Browser-side recording components</p>
           </Link>
-          <Link href="/docs/developer/generators" className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:border-yellow-500/50 transition-colors">
-            <h3 className="font-semibold text-yellow-400 mb-2">Next: Code Generators →</h3>
-            <p className="text-sm text-zinc-400">Spec and POM generation</p>
+          <Link href="/docs/developer/generators" className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-lg p-4 hover:border-blue-500/50 hover:bg-slate-900/70 transition-all shadow-lg">
+            <h3 className="font-semibold text-blue-400 mb-2">Next: Code Generators →</h3>
+            <p className="text-sm text-slate-400">Spec and POM generation</p>
           </Link>
         </div>
       </div>
       <Footer />
-    </div>
+    </>
   );
 }
+
 
