@@ -7,7 +7,30 @@ import { makeSafeIdentifier } from '../utils/identifiers';
 import { PageRegistryManager } from '../registry/page-registry';
 
 /**
- * Main recorder engine that coordinates event capture and step creation
+ * Main recorder engine that coordinates event capture and step creation.
+ * 
+ * The RecorderEngine is responsible for:
+ * - Starting and stopping recording sessions
+ * - Intercepting user interactions (clicks, inputs, selects, navigation)
+ * - Converting DOM events into RecordedStep objects
+ * - Extracting locators and page classifications
+ * - Handling D365-specific navigation pane interactions
+ * 
+ * @remarks
+ * The engine uses multiple strategies to capture interactions:
+ * 1. DOM event listeners injected into the page context
+ * 2. Playwright's built-in CDP (Chrome DevTools Protocol) listeners
+ * 3. Spatial heuristics for D365 navigation pane detection
+ * 
+ * @example
+ * ```typescript
+ * const engine = new RecorderEngine('Sales');
+ * await engine.startRecording(page, (step) => {
+ *   console.log('Recorded step:', step);
+ * });
+ * // ... user interacts with page ...
+ * engine.stopRecording();
+ * ```
  */
 export class RecorderEngine {
   private isRecording: boolean = false;
@@ -19,6 +42,11 @@ export class RecorderEngine {
   private currentPageIdentity: PageIdentity | null = null;
   private module?: string;
 
+  /**
+   * Creates a new RecorderEngine instance.
+   * 
+   * @param module - Optional module name (e.g., 'Sales', 'Inventory') for organizing recorded pages
+   */
   constructor(module?: string) {
     this.locatorExtractor = new LocatorExtractor();
     this.pageClassifier = new PageClassifier();
@@ -27,7 +55,24 @@ export class RecorderEngine {
   }
 
   /**
-   * Start recording on a page
+   * Starts recording user interactions on a Playwright page.
+   * 
+   * Injects event listeners and sets up CDP hooks to capture:
+   * - Click events (with special handling for D365 navigation pane)
+   * - Input/fill events (debounced to avoid per-keystroke recording)
+   * - Select/change events
+   * - Navigation events
+   * 
+   * @param page - The Playwright Page instance to record interactions on
+   * @param onStepRecorded - Callback function invoked whenever a step is recorded
+   * @throws {Error} If recording is already in progress
+   * 
+   * @example
+   * ```typescript
+   * await engine.startRecording(page, (step) => {
+   *   sessionManager.addStep(sessionId, step);
+   * });
+   * ```
    */
   async startRecording(page: Page, onStepRecorded: (step: RecordedStep) => void): Promise<void> {
     if (this.isRecording) {
@@ -60,7 +105,14 @@ export class RecorderEngine {
   }
 
   /**
-   * Update current page identity from URL and page content
+   * Updates the current page identity by extracting MI, CMP, and caption from the page.
+   * 
+   * This method is called:
+   * - When recording starts
+   * - When navigation events are detected
+   * 
+   * @param page - The Playwright Page instance to extract identity from
+   * @internal
    */
   private async updatePageIdentity(page: Page): Promise<void> {
     try {
@@ -76,7 +128,10 @@ export class RecorderEngine {
   }
 
   /**
-   * Stop recording
+   * Stops the current recording session.
+   * 
+   * Cleans up event listeners and resets internal state.
+   * Note: This does not remove injected scripts from the page, but stops processing events.
    */
   stopRecording(): void {
     this.isRecording = false;
@@ -85,7 +140,16 @@ export class RecorderEngine {
   }
 
   /**
-   * Handle intercepted events and convert them to RecordedStep
+   * Handles intercepted DOM events and converts them to RecordedStep objects.
+   * 
+   * Routes events to appropriate handlers based on event type:
+   * - 'click' -> handleClickEvent
+   * - 'fill'/'input' -> handleInputEvent
+   * - 'select'/'change' -> handleSelectEvent
+   * - 'navigate' -> handleNavigateEvent
+   * 
+   * @param event - The intercepted DOM event with type and selector/value information
+   * @internal
    */
   private async handleEvent(event: any): Promise<void> {
     if (!this.isRecording || !this.page || !this.onStepRecorded) {
@@ -119,7 +183,16 @@ export class RecorderEngine {
   }
 
   /**
-   * Handle click events
+   * Handles click events and converts them to RecordedStep objects.
+   * 
+   * Special handling for D365:
+   * - Navigation pane button detection (hamburger menu)
+   * - Navigation pane link detection (e.g., "All sales orders")
+   * - Spatial heuristic for left-side clicks
+   * 
+   * @param event - The click event with selector information
+   * @returns A RecordedStep object or null if the click should be ignored
+   * @internal
    */
   private async handleClickEvent(event: any): Promise<RecordedStep | null> {
     if (!this.page || !event.selector) {
@@ -171,8 +244,17 @@ export class RecorderEngine {
   }
 
   /**
-   * Find the D365 Navigation Pane button by walking up the DOM tree
-   * This handles cases where clicks hit SVG icons or nested elements
+   * Finds the D365 Navigation Pane button by walking up the DOM tree.
+   * 
+   * Handles cases where clicks hit SVG icons or nested elements inside the button.
+   * Looks for elements with:
+   * - data-dyn-controlname="NavBarDashboard"
+   * - aria-label containing "expand the navigation pane"
+   * - title containing "expand the navigation pane"
+   * 
+   * @param element - The element that was clicked
+   * @returns The navigation pane button element, or null if not found
+   * @internal
    */
   private async findNavigationPaneButton(element: any): Promise<any | null> {
     try {
@@ -224,9 +306,18 @@ export class RecorderEngine {
   }
 
   /**
-   * Find D365 Navigation Pane link by walking up the DOM tree
-   * This handles clicks on navigation tree leaf nodes like "All sales orders"
-   * These are often <a> tags or div[role="link"] inside the navigation pane
+   * Finds D365 Navigation Pane link by walking up the DOM tree.
+   * 
+   * Handles clicks on navigation tree leaf nodes like "All sales orders".
+   * These are often `<a>` tags or `div[role="link"]` inside the navigation pane.
+   * 
+   * Priority:
+   * 1. Elements with data-dyn-controlname in navigation pane
+   * 2. Link elements (a tag, role="link", role="treeitem") in navigation pane
+   * 
+   * @param element - The element that was clicked
+   * @returns The navigation pane link element, or null if not found
+   * @internal
    */
   private async findNavigationPaneLink(element: any): Promise<any | null> {
     try {
@@ -323,7 +414,19 @@ export class RecorderEngine {
   }
 
   /**
-   * Process a clicked element and create a step
+   * Processes a clicked element and creates a RecordedStep.
+   * 
+   * Extracts:
+   * - Element metadata (tag, role, aria-label, text)
+   * - Locator using LocatorExtractor
+   * - Page classification
+   * - Generates fieldName and methodName for POM generation
+   * 
+   * Applies filtering to skip low-value clicks (garbage elements).
+   * 
+   * @param element - The Playwright ElementHandle that was clicked
+   * @returns A RecordedStep object or null if the element should be skipped
+   * @internal
    */
   private async processClickElement(element: any): Promise<RecordedStep | null> {
     if (!this.page || !element) return null;
@@ -511,9 +614,20 @@ export class RecorderEngine {
   }
 
   /**
-   * Check if element should be skipped (low-value clicks)
-   * RELAXED: Trust that if user clicked it, we should record it (especially navigation items)
-   * This mimics Playwright Codegen behavior - it trusts user interactions
+   * Determines if an element should be skipped (low-value clicks).
+   * 
+   * Uses a relaxed approach: trusts that if a user clicked it, it should be recorded.
+   * This mimics Playwright Codegen behavior.
+   * 
+   * Special cases that are never skipped:
+   * - Left-side elements with text (spatial heuristic)
+   * - Navigation pane buttons
+   * - Links with meaningful text
+   * - Elements with text in navigation context
+   * 
+   * @param elementMeta - Metadata about the clicked element
+   * @returns true if the element should be skipped, false otherwise
+   * @internal
    */
   private shouldSkipElement(elementMeta: { tag: string; role: string; ariaLabel: string; title: string; text: string; id: string; isInteractive: boolean; isInNavPane?: boolean; isInLeftSide?: boolean }): boolean {
     const { tag, role, ariaLabel, title, text, isInteractive, isInLeftSide } = elementMeta;
@@ -616,7 +730,19 @@ export class RecorderEngine {
   }
 
   /**
-   * Generate field name for POM
+   * Generates a field name for Page Object Model (POM) classes.
+   * 
+   * Adds appropriate suffix based on locator strategy or element type:
+   * - role="button" -> "Button" suffix
+   * - role="link" -> "Link" suffix
+   * - role="textbox" -> "Input" suffix
+   * - role="combobox" -> "Select" suffix
+   * - Default -> "Element" suffix
+   * 
+   * @param baseName - The sanitized base name (e.g., "new", "save")
+   * @param locator - The locator definition to determine element type
+   * @returns The field name (e.g., "newButton", "saveLink")
+   * @internal
    */
   private getFieldName(baseName: string, locator: LocatorDefinition): string {
     // Determine suffix based on locator strategy or element type
@@ -635,7 +761,12 @@ export class RecorderEngine {
   }
 
   /**
-   * Generate method name for POM
+   * Generates a method name for Page Object Model (POM) classes.
+   * 
+   * @param baseName - The sanitized base name (e.g., "new", "save")
+   * @param action - The action type ('click', 'fill', or 'select')
+   * @returns The method name (e.g., "clickNew", "fillCustomerName")
+   * @internal
    */
   private getMethodName(baseName: string, action: 'click' | 'fill' | 'select'): string {
     const capitalized = baseName.charAt(0).toUpperCase() + baseName.slice(1);
@@ -643,8 +774,19 @@ export class RecorderEngine {
   }
 
   /**
-   * Build a clean, short description for an element
-   * FIX #1: Only use textContent for interactive elements
+   * Builds a clean, short description for an element action.
+   * 
+   * Priority order for label text:
+   * 1. aria-label
+   * 2. title attribute
+   * 3. placeholder (for inputs)
+   * 4. textContent (only for interactive elements, limited to 100 chars)
+   * 5. tag name (fallback)
+   * 
+   * @param element - The element to build description for
+   * @param action - The action type ('click', 'fill', or 'select')
+   * @returns A human-readable description (e.g., "Click New", "Fill Customer Name")
+   * @internal
    */
   private async buildDescription(element: any, action: 'click' | 'fill' | 'select'): Promise<string> {
     try {
@@ -720,7 +862,14 @@ export class RecorderEngine {
   }
 
   /**
-   * Handle input/fill events
+   * Handles input/fill events and converts them to RecordedStep objects.
+   * 
+   * Captures text input into input fields, textareas, and similar elements.
+   * The value is captured from the event or the element's current value.
+   * 
+   * @param event - The input event with selector and value information
+   * @returns A RecordedStep object or null if the input should be ignored
+   * @internal
    */
   private async handleInputEvent(event: any): Promise<RecordedStep | null> {
     if (!this.page || !event.selector) {
@@ -792,7 +941,14 @@ export class RecorderEngine {
   }
 
   /**
-   * Handle select/change events
+   * Handles select/change events and converts them to RecordedStep objects.
+   * 
+   * Captures selection changes in dropdown/select elements.
+   * The selected value is captured from the event or the element's current value.
+   * 
+   * @param event - The change event with selector and value information
+   * @returns A RecordedStep object or null if the change should be ignored
+   * @internal
    */
   private async handleSelectEvent(event: any): Promise<RecordedStep | null> {
     if (!this.page || !event.selector) {
@@ -862,8 +1018,14 @@ export class RecorderEngine {
   }
 
   /**
-   * Handle navigation events
-   * Creates a navigation step for page.goto calls - required for E2E test completeness
+   * Handles navigation events and creates navigation steps.
+   * 
+   * Creates a navigation step for page.goto calls, which is required for E2E test completeness.
+   * Only creates steps for meaningful URLs (not about:blank or empty URLs).
+   * 
+   * @param event - The navigation event with URL information
+   * @returns A RecordedStep object or null if navigation should be ignored
+   * @internal
    */
   private async handleNavigateEvent(event: any): Promise<RecordedStep | null> {
     if (!this.page) {
@@ -901,7 +1063,13 @@ export class RecorderEngine {
   }
 
   /**
-   * Set up Chrome DevTools Protocol listeners for more reliable event capture
+   * Sets up Chrome DevTools Protocol (CDP) listeners for more reliable event capture.
+   * 
+   * Enables Runtime and DOM domains to listen for CDP events.
+   * This provides an additional layer of event capture beyond DOM listeners.
+   * 
+   * @param page - The Playwright Page instance to set up CDP listeners on
+   * @internal
    */
   private async setupCDPListeners(page: Page): Promise<void> {
     const client = await page.context().newCDPSession(page);

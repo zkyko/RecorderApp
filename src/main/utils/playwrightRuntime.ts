@@ -5,14 +5,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 
 /**
- * Playwright Runtime Helper
+ * Playwright Runtime Helper.
  * 
  * Provides a fully self-contained Playwright runtime for QA Studio.
  * This allows the app to work on machines with no Node.js, npm, or npx installed.
  * 
  * The bundled runtime is expected at:
  * - Production: <app-resources>/playwright-runtime/
- * - Development: <project-root>/resources/playwright-runtime/
+ * - Development: <project-root>/playwright-runtime/ or <project-root>/resources/playwright-runtime/
  * 
  * Structure:
  *   playwright-runtime/
@@ -21,6 +21,10 @@ import * as os from 'os';
  *       @playwright/test/
  *       playwright/
  *     ms-playwright/ (browser binaries)
+ * 
+ * @remarks
+ * This module handles path resolution, runtime detection, and spawning
+ * Playwright processes using the bundled Node.js and Playwright binaries.
  */
 
 interface PlaywrightRuntimePaths {

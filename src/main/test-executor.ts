@@ -14,7 +14,18 @@ export interface TestExecutionOptions {
 }
 
 /**
- * Executes Playwright tests in a child process
+ * Executes Playwright tests in a child process.
+ * 
+ * The TestExecutor provides a simplified interface for running Playwright
+ * tests. It handles:
+ * - Syncing test files from workspace to project directory
+ * - Spawning Playwright test processes
+ * - Streaming output to UI
+ * - Process lifecycle management
+ * 
+ * @remarks
+ * v1.5: Simplified to work with workspace-based structure. Tests are
+ * synced from workspace to project root where Playwright config exists.
  */
 export class TestExecutor {
   private configManager: ConfigManager;

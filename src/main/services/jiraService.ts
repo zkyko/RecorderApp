@@ -91,8 +91,24 @@ export interface DefectPayload {
 }
 
 /**
- * Jira Service for creating issues and managing defects
- * Uses JiraRestAPI.json as source of truth for field schemas
+ * Jira Service for creating issues and managing defects.
+ * 
+ * The JiraService provides integration with Jira for:
+ * - Creating defect issues from failed test runs
+ * - Fetching field schemas and metadata
+ * - Uploading attachments (screenshots, traces, reports)
+ * - Searching for duplicate defects using fingerprints
+ * - Generating defect descriptions with test context
+ * 
+ * @remarks
+ * Uses JiraRestAPI.json as source of truth for field schemas.
+ * Supports both Jira Cloud and Jira Server/Data Center via REST API.
+ * 
+ * @example
+ * ```typescript
+ * const jiraService = new JiraService(configManager);
+ * const issue = await jiraService.createDefect(defectPayload);
+ * ```
  */
 export class JiraService {
   private configManager: ConfigManager;

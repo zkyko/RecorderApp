@@ -3,7 +3,20 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 /**
- * Manages Playwright browser lifecycle and D365 navigation
+ * Manages Playwright browser lifecycle and D365 navigation.
+ * 
+ * The BrowserManager handles:
+ * - Browser instance creation and management
+ * - Browser context creation with storage state
+ * - Page navigation and lifecycle
+ * - Storage state validation and testing
+ * - D365-specific navigation helpers
+ * - Cleanup and resource management
+ * 
+ * @remarks
+ * Provides a high-level interface for browser operations, abstracting
+ * away Playwright's lower-level APIs. Handles both D365 and generic
+ * web application scenarios.
  */
 export class BrowserManager {
   private browser: Browser | null = null;

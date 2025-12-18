@@ -1,5 +1,12 @@
 /**
- * Safe file system utilities with retry logic for Windows filesystem locks
+ * Safe file system utilities with retry logic for Windows filesystem locks.
+ * 
+ * Provides robust file deletion functions that handle Windows-specific
+ * filesystem locking issues (EBUSY errors) with automatic retry logic.
+ * 
+ * @remarks
+ * Uses fs-extra's remove() methods which handle recursive deletes and
+ * Windows edge cases better than native fs.rmSync.
  */
 import * as fs from 'fs-extra';
 

@@ -5,8 +5,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Service for cleaning up and upgrading locators in codegen output
- * Uses ts-morph to parse and transform TypeScript code
+ * Service for cleaning up and upgrading locators in codegen output.
+ * 
+ * The LocatorCleanupService uses ts-morph to parse and transform TypeScript code.
+ * It:
+ * - Applies navigation cleanup (removes login URLs, collapses duplicate gotos)
+ * - Upgrades locators from CSS/XPath to semantic locators (role, label, text)
+ * - Removes test.use() calls for D365 workspaces (storage state in config)
+ * - Preserves storage state for web-demo and generic workspaces
+ * - Tracks locator mappings for reporting
+ * 
+ * @remarks
+ * Uses AST (Abstract Syntax Tree) manipulation via ts-morph to safely transform
+ * Playwright code without breaking syntax or structure.
  */
 export class LocatorCleanupService {
   private navigationCleanupService: NavigationCleanupService;

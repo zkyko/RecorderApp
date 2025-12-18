@@ -40,8 +40,20 @@ interface RunResultForTM {
 }
 
 /**
- * Service for running Playwright tests with streaming output
- * v1.5: Uses workspace root as execution context, not dev repo
+ * Service for running Playwright tests with streaming output.
+ * 
+ * The TestRunner executes Playwright tests and provides:
+ * - Real-time streaming of test output to UI
+ * - Support for local and BrowserStack execution
+ * - Test result aggregation and reporting
+ * - Integration with BrowserStack Test Management
+ * - Locator maintenance and health checks
+ * - Trace and screenshot capture
+ * 
+ * @remarks
+ * v1.5: Uses workspace root as execution context, not dev repo.
+ * Tests are executed from the workspace directory, making them portable
+ * and independent of the development environment.
  */
 export class TestRunner {
   private currentProcess: ChildProcess | null = null;

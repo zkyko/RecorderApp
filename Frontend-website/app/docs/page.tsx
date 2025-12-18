@@ -35,6 +35,12 @@ const docCategories = [
     icon: Sparkles,
     href: "/docs/advanced",
   },
+  {
+    title: "Developer Docs",
+    description: "Complete codebase documentation for developers. Every file explained.",
+    icon: Code,
+    href: "/docs/developer",
+  },
 ];
 
 export default function DocsPage() {

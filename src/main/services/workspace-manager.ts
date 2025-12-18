@@ -4,7 +4,19 @@ import { app } from 'electron';
 import { WorkspaceMeta, WorkspaceType, CURRENT_WORKSPACE_VERSION } from '../../types/v1.5';
 
 /**
- * Manages workspace metadata, creation, and migration
+ * Manages workspace metadata, creation, and migration.
+ * 
+ * The WorkspaceManager handles the multi-workspace architecture:
+ * - Creating new workspaces with proper structure
+ * - Listing and discovering existing workspaces
+ * - Loading workspace metadata (workspace.json)
+ * - Migrating workspaces between versions
+ * - Setting/getting the current active workspace
+ * - Workspace type management (D365, Web Demo, etc.)
+ * 
+ * @remarks
+ * Workspaces are stored in ~/Documents/FourHands-Automation-Suite/.
+ * Each workspace is a self-contained directory with tests, data, traces, etc.
  */
 export class WorkspaceManager {
   private workspaceRoot: string;

@@ -1,13 +1,38 @@
 import { RecordingSession, RecordedStep, SessionConfig } from '../../types';
 
 /**
- * Manages recording sessions - creation, state, and step collection
+ * Manages recording sessions - creation, state, and step collection.
+ * 
+ * The SessionManager is responsible for:
+ * - Creating and starting new recording sessions
+ * - Tracking session state (startedAt, finishedAt)
+ * - Collecting and ordering recorded steps
+ * - Updating step descriptions
+ * 
+ * @remarks
+ * Sessions are stored in memory and identified by unique session IDs.
+ * Steps are automatically assigned order numbers and timestamps.
  */
 export class SessionManager {
   private sessions: Map<string, RecordingSession> = new Map();
 
   /**
-   * Create and start a new recording session
+   * Creates and starts a new recording session.
+   * 
+   * Generates a unique session ID and initializes a RecordingSession object
+   * with the provided configuration.
+   * 
+   * @param config - Session configuration including flowName, module, targetRepo, etc.
+   * @returns The created RecordingSession object
+   * 
+   * @example
+   * ```typescript
+   * const session = sessionManager.startSession({
+   *   flowName: 'Create Sales Order',
+   *   module: 'Sales',
+   *   d365Env: 'https://dev.dynamics.com'
+   * });
+   * ```
    */
   startSession(config: SessionConfig): RecordingSession {
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -27,7 +52,13 @@ export class SessionManager {
   }
 
   /**
-   * Stop a recording session
+   * Stops a recording session.
+   * 
+   * Sets the finishedAt timestamp and returns the session. The session remains
+   * in memory and can still be accessed via getSession().
+   * 
+   * @param sessionId - The ID of the session to stop
+   * @returns The stopped RecordingSession, or null if session not found
    */
   stopSession(sessionId: string): RecordingSession | null {
     const session = this.sessions.get(sessionId);
@@ -40,14 +71,25 @@ export class SessionManager {
   }
 
   /**
-   * Get a session by ID
+   * Gets a session by ID.
+   * 
+   * @param sessionId - The ID of the session to retrieve
+   * @returns The RecordingSession if found, null otherwise
    */
   getSession(sessionId: string): RecordingSession | null {
     return this.sessions.get(sessionId) || null;
   }
 
   /**
-   * Add a step to a session
+   * Adds a step to a session.
+   * 
+   * Automatically assigns:
+   * - order: Sequential number based on current step count
+   * - timestamp: Current date/time
+   * 
+   * @param sessionId - The ID of the session to add the step to
+   * @param step - The step data (order and timestamp will be added automatically)
+   * @throws {Error} If the session is not found
    */
   addStep(sessionId: string, step: Omit<RecordedStep, 'order' | 'timestamp'>): void {
     const session = this.sessions.get(sessionId);
@@ -66,7 +108,10 @@ export class SessionManager {
   }
 
   /**
-   * Get all steps for a session
+   * Gets all steps for a session.
+   * 
+   * @param sessionId - The ID of the session
+   * @returns An array of RecordedStep objects, or empty array if session not found
    */
   getSessionSteps(sessionId: string): RecordedStep[] {
     const session = this.sessions.get(sessionId);
@@ -78,7 +123,12 @@ export class SessionManager {
   }
 
   /**
-   * Update a step's description
+   * Updates a step's description.
+   * 
+   * @param sessionId - The ID of the session containing the step
+   * @param stepOrder - The order number of the step to update
+   * @param description - The new description text
+   * @returns true if the step was found and updated, false otherwise
    */
   updateStepDescription(sessionId: string, stepOrder: number, description: string): boolean {
     const session = this.sessions.get(sessionId);
@@ -96,7 +146,10 @@ export class SessionManager {
   }
 
   /**
-   * Clear all sessions (useful for cleanup)
+   * Clears all sessions from memory.
+   * 
+   * Useful for cleanup or resetting state. Note: This does not affect
+   * any persisted session data (if sessions are saved to disk elsewhere).
    */
   clearAllSessions(): void {
     this.sessions.clear();

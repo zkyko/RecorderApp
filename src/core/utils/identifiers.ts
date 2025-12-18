@@ -1,9 +1,20 @@
 /**
- * Utilities for sanitizing text into valid JavaScript identifiers
+ * Utilities for sanitizing text into valid JavaScript identifiers.
+ * 
+ * These functions are used to convert user-facing text (labels, captions, etc.)
+ * into valid JavaScript identifiers for use in generated code (field names, method names, class names).
  */
 
 /**
- * Remove hotkey hints like "(Alt+N)" or "(alt+enter)" from text
+ * Removes hotkey hints like "(Alt+N)" or "(alt+enter)" from text.
+ * 
+ * @param raw - The raw text that may contain hotkey hints
+ * @returns Text with hotkey hints removed
+ * 
+ * @example
+ * ```typescript
+ * stripHotkeyHints("New (Alt+N)") // Returns "New"
+ * ```
  */
 export function stripHotkeyHints(raw: string): string {
   // Remove things like "(Alt+N)" or "(alt+enter)" at the start or anywhere
@@ -11,7 +22,15 @@ export function stripHotkeyHints(raw: string): string {
 }
 
 /**
- * Drop characters in the Private Use Area and other non-ASCII glyphs
+ * Drops characters in the Private Use Area and other non-ASCII glyphs.
+ * 
+ * Removes problematic Unicode characters that can cause issues in generated code:
+ * - Private Use Area (U+E000 to U+F8FF)
+ * - Zero-width spaces (U+200B to U+200D)
+ * - Zero-width no-break space (U+FEFF)
+ * 
+ * @param raw - The raw text that may contain problematic glyphs
+ * @returns Text with problematic glyphs removed
  */
 export function stripWeirdGlyphs(raw: string): string {
   // Drop Private Use Area (U+E000 to U+F8FF) and other problematic Unicode ranges
@@ -19,15 +38,29 @@ export function stripWeirdGlyphs(raw: string): string {
 }
 
 /**
- * Normalize text by removing hotkeys and glyphs
+ * Normalizes text by removing hotkeys and glyphs.
+ * 
+ * Applies both stripHotkeyHints and stripWeirdGlyphs to clean up text.
+ * 
+ * @param raw - The raw text to normalize
+ * @returns Normalized text with hotkeys and glyphs removed
  */
 export function normalizeText(raw: string): string {
   return stripWeirdGlyphs(stripHotkeyHints(raw)).trim();
 }
 
 /**
- * Convert text to PascalCase
- * Example: "Mode of delivery" -> "ModeOfDelivery"
+ * Converts text to PascalCase.
+ * 
+ * Splits text on non-alphanumeric characters, capitalizes each word, and joins them.
+ * 
+ * @param raw - The text to convert
+ * @returns Text in PascalCase, or "Unnamed" if input is empty after normalization
+ * 
+ * @example
+ * ```typescript
+ * toPascalCase("Mode of delivery") // Returns "ModeOfDelivery"
+ * ```
  */
 export function toPascalCase(raw: string): string {
   const cleaned = normalizeText(raw);
@@ -42,8 +75,17 @@ export function toPascalCase(raw: string): string {
 }
 
 /**
- * Convert text to camelCase
- * Example: "Mode of delivery" -> "modeOfDelivery"
+ * Converts text to camelCase.
+ * 
+ * Converts to PascalCase first, then lowercases the first character.
+ * 
+ * @param raw - The text to convert
+ * @returns Text in camelCase
+ * 
+ * @example
+ * ```typescript
+ * toCamelCase("Mode of delivery") // Returns "modeOfDelivery"
+ * ```
  */
 export function toCamelCase(raw: string): string {
   const pascal = toPascalCase(raw);
@@ -51,9 +93,19 @@ export function toCamelCase(raw: string): string {
 }
 
 /**
- * Ensure the identifier is a valid JS identifier (for fields/methods)
- * Example: "(Alt+N) New" -> "new"
- *          "Mode of delivery" -> "modeOfDelivery"
+ * Ensures the identifier is a valid JavaScript identifier (for fields/methods).
+ * 
+ * Converts text to camelCase, removes invalid characters, and ensures it doesn't
+ * start with a digit. Returns "unnamed" if the result would be empty.
+ * 
+ * @param raw - The raw text to convert to a safe identifier
+ * @returns A valid JavaScript identifier
+ * 
+ * @example
+ * ```typescript
+ * makeSafeIdentifier("(Alt+N) New") // Returns "new"
+ * makeSafeIdentifier("Mode of delivery") // Returns "modeOfDelivery"
+ * ```
  */
 export function makeSafeIdentifier(raw: string): string {
   let id = toCamelCase(raw);
@@ -75,8 +127,20 @@ export function makeSafeIdentifier(raw: string): string {
 }
 
 /**
- * Generate a page class name from a page caption
- * Example: "Sales Order Details - Price Lock" -> "SalesOrderDetailsPage"
+ * Generates a page class name from a page caption.
+ * 
+ * Takes the first part before a dash (main page name), converts to PascalCase,
+ * and appends the appropriate suffix based on page kind.
+ * 
+ * @param caption - The page caption (e.g., "Sales Order Details - Price Lock")
+ * @param kind - The page pattern/kind (ListPage, DetailsPage, Dialog, etc.)
+ * @returns A class name in PascalCase with appropriate suffix
+ * 
+ * @example
+ * ```typescript
+ * makePageClassName("Sales Order Details - Price Lock", "DetailsPage")
+ * // Returns "SalesOrderDetailsPage"
+ * ```
  */
 export function makePageClassName(caption: string, kind: 'ListPage' | 'DetailsPage' | 'Dialog' | 'Workspace' | 'SimpleList' | 'TableOfContents' | 'Unknown'): string {
   // Take the first part before dash (main page name)

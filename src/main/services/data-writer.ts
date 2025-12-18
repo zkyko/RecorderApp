@@ -3,7 +3,17 @@ import * as fs from 'fs';
 import { DataWriteRequest, DataWriteResponse, DataRow, WorkspaceType } from '../../types/v1.5';
 
 /**
- * Service for writing JSON data files
+ * Service for writing JSON data files.
+ * 
+ * The DataWriter manages test data files for data-driven testing:
+ * - Writing parameterized test data to JSON files
+ * - Reading existing data files
+ * - Creating backups before overwriting
+ * - Organizing data by workspace type (d365, salesforce, koerber, web)
+ * 
+ * @remarks
+ * Data files are stored at: tests/<platformDir>/data/<testName>Data.json
+ * This matches the bundle structure used by SpecWriter.
  */
 export class DataWriter {
   /**

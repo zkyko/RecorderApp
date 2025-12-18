@@ -26,8 +26,27 @@ interface ConfigSchema {
 }
 
 /**
- * Manages persistent application configuration using electron-store
- * Using type assertion to work around TypeScript type issues with electron-store v11
+ * Manages persistent application configuration using electron-store.
+ * 
+ * The ConfigManager provides a type-safe interface for storing and retrieving
+ * application settings including:
+ * - Workspace paths and directories
+ * - D365 environment URLs
+ * - BrowserStack credentials and settings
+ * - Jira integration settings
+ * - AI provider configuration (OpenAI, DeepSeek, custom)
+ * - Developer mode flags
+ * 
+ * @remarks
+ * Uses type assertion to work around TypeScript type issues with electron-store v11.
+ * Configuration is persisted to disk and automatically loaded on application start.
+ * 
+ * @example
+ * ```typescript
+ * const config = new ConfigManager();
+ * config.setD365Url('https://dev.dynamics.com');
+ * const url = config.getD365Url();
+ * ```
  */
 export class ConfigManager {
   private store: Store<ConfigSchema>;

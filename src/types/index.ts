@@ -1,7 +1,16 @@
 /**
- * Core type definitions for QA Studio
+ * Core type definitions for QA Studio.
+ * 
+ * This module contains all the core TypeScript types and interfaces used throughout
+ * the application, including recording sessions, steps, locators, page classifications,
+ * and code generation configurations.
  */
 
+/**
+ * Supported assertion kinds for test steps.
+ * 
+ * These correspond to Playwright's expect() matchers.
+ */
 export type AssertionKind =
   | 'toHaveText'
   | 'toContainText'
@@ -12,6 +21,12 @@ export type AssertionKind =
   | 'toHaveValue'
   | 'toHaveAttribute';
 
+/**
+ * Represents a recording session containing multiple recorded steps.
+ * 
+ * A session tracks a complete user flow from start to finish, including
+ * all interactions, navigation, and assertions.
+ */
 export interface RecordingSession {
   id: string;
   flowName: string;
@@ -23,6 +38,13 @@ export interface RecordingSession {
   d365Env?: string;
 }
 
+/**
+ * Represents a single recorded step in a test flow.
+ * 
+ * A step can be an action (click, fill, select, navigate), a wait, a comment,
+ * or an assertion. Each step includes locator information, description, and
+ * metadata for code generation.
+ */
 export interface RecordedStep {
   id: string;
   pageId: string; // e.g. "SalesOrderPage"
@@ -52,6 +74,20 @@ export interface RecordedStep {
   soft?: boolean; // if true: expect.soft(...)
 }
 
+/**
+ * Defines how to locate an element on a page.
+ * 
+ * Uses a discriminated union to represent different locator strategies.
+ * The strategy determines which Playwright locator method to use:
+ * - 'role' -> getByRole()
+ * - 'label' -> getByLabel()
+ * - 'placeholder' -> getByPlaceholder()
+ * - 'text' -> getByText()
+ * - 'testid' -> getByTestId()
+ * - 'd365-controlname' -> Custom D365 locator
+ * - 'css' -> CSS selector (flagged as potentially brittle)
+ * - 'xpath' -> XPath expression (flagged as potentially brittle)
+ */
 export type LocatorDefinition =
   | { strategy: 'role'; role: string; name: string }
   | { strategy: 'label'; text: string }
@@ -62,6 +98,13 @@ export type LocatorDefinition =
   | { strategy: 'css'; selector: string; flagged?: boolean }
   | { strategy: 'xpath'; expression: string; flagged?: boolean };
 
+/**
+ * Represents the classification of a page.
+ * 
+ * Contains information about the page type, ID, name, and pattern (ListPage,
+ * DetailsPage, Dialog, etc.). Used for organizing pages and generating
+ * Page Object Model classes.
+ */
 export interface PageClassification {
   pageId: string;
   pageName: string;
@@ -73,7 +116,10 @@ export interface PageClassification {
 }
 
 /**
- * Page identity extracted from URL and page content
+ * Page identity extracted from URL and page content.
+ * 
+ * Contains D365-specific navigation parameters (MI, CMP) and page metadata.
+ * Used for page registry and navigation.
  */
 export interface PageIdentity {
   pageId: string;            // "SalesOrderListPage"
@@ -86,7 +132,9 @@ export interface PageIdentity {
 }
 
 /**
- * Page registry entry stored in JSON
+ * Page registry entry stored in JSON.
+ * 
+ * Extends PageIdentity with generated class name and file path for Page Object Model.
  */
 export interface PageRegistryEntry extends PageIdentity {
   className: string;        // "SalesOrderListPage"
@@ -94,10 +142,16 @@ export interface PageRegistryEntry extends PageIdentity {
 }
 
 /**
- * Page registry - maps pageId to registry entry
+ * Page registry - maps pageId to registry entry.
+ * 
+ * The registry is a dictionary where keys are page IDs (or "mi:MI_VALUE" for MI lookups)
+ * and values are PageRegistryEntry objects.
  */
 export type PageRegistry = Record<string, PageRegistryEntry>;
 
+/**
+ * Configuration for starting a new recording session.
+ */
 export interface SessionConfig {
   flowName: string;
   module: string;
@@ -108,6 +162,11 @@ export interface SessionConfig {
   tags?: string[];
 }
 
+/**
+ * Configuration for code generation output.
+ * 
+ * Specifies where to write generated files and formatting options.
+ */
 export interface OutputConfig {
   pagesDir: string;
   testsDir: string;
@@ -115,6 +174,11 @@ export interface OutputConfig {
   formatCode?: boolean;
 }
 
+/**
+ * Represents a generated file (POM or spec).
+ * 
+ * Contains the file path and content for code generation output.
+ */
 export interface GeneratedFile {
   path: string;
   content: string;

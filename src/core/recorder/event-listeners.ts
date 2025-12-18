@@ -1,12 +1,42 @@
 import { Page } from 'playwright';
 
 /**
- * Injects event listeners into the page to intercept user interactions
+ * Injects event listeners into the page to intercept user interactions.
+ * 
+ * The EventListeners class provides static methods to inject DOM event listeners
+ * that capture user interactions (clicks, inputs, changes) and forward them to
+ * the recorder engine. Uses context-level init scripts to ensure listeners run
+ * in all frames, including iframes.
+ * 
+ * @remarks
+ * Special handling for D365:
+ * - Navigation pane button detection
+ * - Navigation pane link detection
+ * - Spatial heuristic for left-side clicks
+ * - Debounced input events (800ms delay)
  */
 export class EventListeners {
   /**
-   * Inject scripts to intercept clicks, inputs, and other interactions
-   * Uses context-level init scripts to ensure listeners run in all frames (including iframes)
+   * Injects scripts to intercept clicks, inputs, and other interactions.
+   * 
+   * Uses context-level init scripts to ensure listeners run in all frames (including iframes).
+   * This is critical for D365 applications that may use iframes.
+   * 
+   * Captures:
+   * - Click events (with D365 navigation pane special handling)
+   * - Input events (debounced to 800ms)
+   * - Change events (for select elements)
+   * - Navigation events (via framenavigated)
+   * 
+   * @param page - The Playwright Page instance to inject listeners into
+   * @param onEvent - Callback function invoked when an event is intercepted
+   * 
+   * @example
+   * ```typescript
+   * await EventListeners.injectListeners(page, (event) => {
+   *   recorderEngine.handleEvent(event);
+   * });
+   * ```
    */
   static async injectListeners(page: Page, onEvent: (event: any) => void): Promise<void> {
     // Expose functions that can be called from the page
@@ -528,7 +558,13 @@ export class EventListeners {
   }
 
   /**
-   * Set up Playwright's built-in request interception for better control
+   * Sets up Playwright's built-in request interception for better control.
+   * 
+   * Configures route interception and console message forwarding.
+   * This provides an additional layer of event capture beyond DOM listeners.
+   * 
+   * @param page - The Playwright Page instance
+   * @param onEvent - Callback function for navigation events
    */
   static async setupPlaywrightListeners(page: Page, onEvent: (event: any) => void): Promise<void> {
     // Use Playwright's route interception to detect navigation

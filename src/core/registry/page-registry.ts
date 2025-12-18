@@ -4,19 +4,37 @@ import { PageRegistry, PageRegistryEntry, PageIdentity } from '../../types';
 import { makePageClassName } from '../utils/identifiers';
 
 /**
- * Manages the page registry - a JSON file that tracks all discovered D365 pages
+ * Manages the page registry - a JSON file that tracks all discovered D365 pages.
+ * 
+ * The page registry serves as a knowledge base mapping page identities to metadata
+ * including class names, file paths, and navigation parameters. This enables:
+ * - Reusing page objects across multiple test recordings
+ * - Quick lookup of pages by pageId or MI parameter
+ * - Generating consistent file paths for page objects
+ * 
+ * @remarks
+ * The registry is persisted to disk as JSON and loaded on initialization.
+ * Pages are indexed by both pageId and MI parameter for fast lookups.
  */
 export class PageRegistryManager {
   private registryPath: string;
   private registry: PageRegistry = {};
 
+  /**
+   * Creates a new PageRegistryManager instance.
+   * 
+   * @param registryPath - Path to the registry JSON file (default: 'Recordings/page-registry.json')
+   */
   constructor(registryPath: string = 'Recordings/page-registry.json') {
     this.registryPath = registryPath;
     this.loadRegistry();
   }
 
   /**
-   * Load registry from disk
+   * Loads the registry from disk.
+   * 
+   * Creates an empty registry if the file doesn't exist or is invalid.
+   * @internal
    */
   private loadRegistry(): void {
     try {
@@ -31,7 +49,10 @@ export class PageRegistryManager {
   }
 
   /**
-   * Save registry to disk
+   * Saves the registry to disk.
+   * 
+   * Creates the directory if it doesn't exist.
+   * @internal
    */
   private saveRegistry(): void {
     try {
@@ -48,7 +69,24 @@ export class PageRegistryManager {
   }
 
   /**
-   * Register or update a page identity
+   * Registers or updates a page identity in the registry.
+   * 
+   * Generates a class name and file path for the page, then stores it in the registry.
+   * The page is indexed by both pageId and MI parameter (if available) for fast lookups.
+   * 
+   * @param identity - The PageIdentity object to register
+   * @param module - Optional module name (e.g., 'Sales', 'Inventory') for organizing pages
+   * @returns The created PageRegistryEntry with className and filePath
+   * 
+   * @example
+   * ```typescript
+   * const entry = registry.registerPage({
+   *   pageId: 'SalesOrderListPage',
+   *   mi: 'SalesTableListPage',
+   *   caption: 'All sales orders',
+   *   type: 'list'
+   * }, 'Sales');
+   * ```
    */
   registerPage(identity: PageIdentity, module?: string): PageRegistryEntry {
     // Map PageIdentity type to PageClassification pattern for makePageClassName
@@ -89,28 +127,43 @@ export class PageRegistryManager {
   }
 
   /**
-   * Get registry entry by pageId
+   * Gets a registry entry by pageId.
+   * 
+   * @param pageId - The page ID to look up (e.g., 'SalesOrderListPage')
+   * @returns The PageRegistryEntry if found, undefined otherwise
    */
   getPage(pageId: string): PageRegistryEntry | undefined {
     return this.registry[pageId];
   }
 
   /**
-   * Get registry entry by mi parameter
+   * Gets a registry entry by MI (Menu Item) parameter.
+   * 
+   * @param mi - The MI parameter to look up (e.g., 'SalesTableListPage')
+   * @returns The PageRegistryEntry if found, undefined otherwise
    */
   getPageByMi(mi: string): PageRegistryEntry | undefined {
     return this.registry[`mi:${mi}`];
   }
 
   /**
-   * Get all registered pages
+   * Gets all registered pages.
+   * 
+   * @returns A copy of the entire registry as a PageRegistry object
    */
   getAllPages(): PageRegistry {
     return { ...this.registry };
   }
 
   /**
-   * Convert pageId to file name
+   * Converts a pageId to a file name.
+   * 
+   * Converts PascalCase to kebab-case and removes 'Page' suffix.
+   * Example: "SalesOrderListPage" -> "sales-order-list"
+   * 
+   * @param pageId - The page ID to convert
+   * @returns A file name in kebab-case
+   * @internal
    */
   private pageIdToFileName(pageId: string): string {
     return pageId

@@ -3,7 +3,31 @@ import { RecordedStep, GeneratedFile } from '../types';
 import { PageRegistryManager } from '../core/registry/page-registry';
 
 /**
- * Generates Playwright test spec files in TypeScript
+ * Generates Playwright test spec files in TypeScript.
+ * 
+ * The SpecGenerator converts recorded steps into executable Playwright test
+ * specifications. It:
+ * - Filters out invalid steps (navigation, body-only locators)
+ * - Generates data-driven tests with parameter support
+ * - Creates proper imports for Page Object Model classes
+ * - Handles assertions, waits, and custom actions
+ * - Organizes tests in bundle structure: tests/d365/specs/<TestName>/
+ * 
+ * @remarks
+ * Generated specs follow Playwright best practices and use Page Object Model
+ * pattern for maintainability. Tests are data-driven by default, with data files
+ * stored separately in tests/d365/data/.
+ * 
+ * @example
+ * ```typescript
+ * const generator = new SpecGenerator();
+ * const spec = generator.generateSpec(
+ *   'Create Sales Order',
+ *   recordedSteps,
+ *   '/path/to/output',
+ *   '/path/to/pages'
+ * );
+ * ```
  */
 export class SpecGenerator {
   private pageRegistry: PageRegistryManager;

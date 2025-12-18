@@ -1,8 +1,36 @@
+/**
+ * @fileoverview Preload script to expose safe IPC methods to renderer process.
+ * 
+ * This script runs in the renderer process context before the page loads.
+ * It uses Electron's contextBridge to safely expose IPC methods to the
+ * React UI, following security best practices (context isolation enabled).
+ * 
+ * @remarks
+ * All IPC methods are exposed through the `electronAPI` global object,
+ * which is available in the renderer process. This provides type-safe
+ * communication between the UI and the main process.
+ * 
+ * @module main/preload
+ */
+
 import { contextBridge, ipcRenderer } from 'electron';
 import { SessionConfig, OutputConfig, RecordedStep } from '../types';
 
 /**
- * Preload script to expose safe IPC methods to renderer
+ * Exposes safe IPC methods to the renderer process via contextBridge.
+ * 
+ * Provides access to:
+ * - Configuration management
+ * - Authentication and login
+ * - Session management
+ * - Code generation
+ * - Test execution
+ * - Workspace management
+ * - Integration services (Jira, BrowserStack)
+ * - Developer utilities
+ * 
+ * @remarks
+ * This object is available globally as `window.electronAPI` in the renderer process.
  */
 contextBridge.exposeInMainWorld('electronAPI', {
   // Configuration management

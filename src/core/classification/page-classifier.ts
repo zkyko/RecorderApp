@@ -2,7 +2,19 @@ import { Page } from 'playwright';
 import { PageClassification, PageIdentity } from '../../types';
 
 /**
- * Classifies D365 pages into logical page IDs based on URL patterns, titles, and breadcrumbs
+ * Classifies D365 pages into logical page IDs based on URL patterns, titles, and breadcrumbs.
+ * 
+ * The classifier identifies page types (ListPage, DetailsPage, Dialog, Workspace, etc.)
+ * and assigns meaningful page IDs for use in Page Object Model generation.
+ * 
+ * @remarks
+ * The classifier uses multiple strategies:
+ * 1. URL pattern matching (e.g., "SalesTable" -> "SalesOrderDetailsPage")
+ * 2. Breadcrumb analysis
+ * 3. Title parsing
+ * 4. URL structure inference
+ * 
+ * Pages that are not D365 pages (auth, redirect, etc.) are marked with ignoreForPOM: true.
  */
 export class PageClassifier {
   private urlPatterns: Map<string, { pageId: string; pageName: string; pattern: PageClassification['pattern'] }> = new Map([
@@ -27,7 +39,20 @@ export class PageClassifier {
   ]);
 
   /**
-   * Classify the current page
+   * Classifies the current page and returns a PageClassification object.
+   * 
+   * Extracts URL, title, and breadcrumbs, then matches against known patterns.
+   * Filters out authentication and redirect pages.
+   * 
+   * @param page - The Playwright Page instance to classify
+   * @returns A PageClassification object with pageId, pageName, pattern, etc.
+   * 
+   * @example
+   * ```typescript
+   * const classifier = new PageClassifier();
+   * const classification = await classifier.classifyPage(page);
+   * // Returns: { pageId: 'SalesOrderListPage', pageName: 'All Sales Orders', pattern: 'ListPage', ... }
+   * ```
    */
   async classifyPage(page: Page): Promise<PageClassification> {
     let url: string;
@@ -172,7 +197,18 @@ export class PageClassifier {
   }
 
   /**
-   * Extract breadcrumbs from D365 page
+   * Extracts breadcrumbs from a D365 page.
+   * 
+   * Looks for breadcrumb elements using common selectors:
+   * - [aria-label*="breadcrumb"]
+   * - .breadcrumb
+   * - nav[aria-label*="navigation"]
+   * 
+   * Falls back to navigation links if no breadcrumb elements are found.
+   * 
+   * @param page - The Playwright Page instance
+   * @returns An array of breadcrumb text strings
+   * @internal
    */
   private async extractBreadcrumbs(page: Page): Promise<string[]> {
     try {
@@ -211,7 +247,15 @@ export class PageClassifier {
   }
 
   /**
-   * Infer page ID from URL
+   * Infers a page ID from the URL structure.
+   * 
+   * Tries to extract form name from URL query parameters (e.g., "form=SalesTable"),
+   * then converts it to a page ID. Falls back to title parsing if no form parameter exists.
+   * 
+   * @param url - The page URL
+   * @param title - The page title
+   * @returns A page ID string (e.g., "SalesOrderPage")
+   * @internal
    */
   private inferPageIdFromUrl(url: string, title: string): string {
     // Extract form name from URL if possible
@@ -231,7 +275,13 @@ export class PageClassifier {
   }
 
   /**
-   * Convert D365 form name to Page ID
+   * Converts a D365 form name to a Page ID.
+   * 
+   * Removes common suffixes (ListPage, Table) and converts to PascalCase.
+   * 
+   * @param formName - The D365 form name (e.g., "SalesTable", "SalesTableListPage")
+   * @returns A page ID in PascalCase (e.g., "SalesOrderPage")
+   * @internal
    */
   private formNameToPageId(formName: string): string {
     // Remove common suffixes
@@ -245,7 +295,14 @@ export class PageClassifier {
   }
 
   /**
-   * Convert page title to Page ID
+   * Converts a page title to a Page ID.
+   * 
+   * Removes common words (Dynamics 365, Finance and Operations, F&O) and
+   * converts the remaining words to PascalCase.
+   * 
+   * @param title - The page title
+   * @returns A page ID in PascalCase
+   * @internal
    */
   private titleToPageId(title: string): string {
     // Remove common words and convert to PascalCase
@@ -260,7 +317,18 @@ export class PageClassifier {
   }
 
   /**
-   * Infer D365 form pattern from URL
+   * Infers the D365 form pattern from the URL.
+   * 
+   * Looks for keywords in the URL to determine the page type:
+   * - "ListPage" or "List" -> ListPage
+   * - "Workspace" -> Workspace
+   * - "Dialog" or "dialog" -> Dialog
+   * - "Parameters" or "Setup" -> TableOfContents
+   * - Default -> DetailsPage
+   * 
+   * @param url - The page URL
+   * @returns The inferred pattern type
+   * @internal
    */
   private inferPatternFromUrl(url: string): PageClassification['pattern'] {
     if (url.includes('ListPage') || url.includes('List')) {
@@ -280,8 +348,23 @@ export class PageClassifier {
   }
 
   /**
-   * Extract page identity from URL and page content
-   * This creates a PageIdentity object that includes mi, cmp, caption, etc.
+   * Extracts page identity from URL and page content.
+   * 
+   * Creates a PageIdentity object that includes:
+   * - MI (Menu Item) parameter from URL
+   * - CMP (Company) parameter from URL
+   * - Caption from page title
+   * - Page type (list, details, dialog, workspace, unknown)
+   * - Route path for navigation
+   * 
+   * @param page - The Playwright Page instance
+   * @returns A PageIdentity object, or null if the page should be ignored
+   * 
+   * @example
+   * ```typescript
+   * const identity = await classifier.extractPageIdentity(page);
+   * // Returns: { pageId: 'SalesOrderListPage', mi: 'SalesTableListPage', cmp: 'FH', ... }
+   * ```
    */
   async extractPageIdentity(page: Page): Promise<PageIdentity | null> {
     try {

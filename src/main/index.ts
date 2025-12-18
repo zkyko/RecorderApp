@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Main Electron process entry point for QA Studio.
+ * 
+ * This module initializes the Electron application, creates the main window,
+ * sets up IPC handlers, and manages the application lifecycle. It coordinates
+ * all main process services including workspace management, configuration,
+ * test execution, and auto-updates.
+ * 
+ * @module main/index
+ */
+
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import * as path from 'path';
 import * as os from 'os';
@@ -42,6 +53,15 @@ let testExecutor: TestExecutor;
 let workspaceManager: WorkspaceManager;
 let updaterService: UpdaterService | null = null;
 
+/**
+ * Creates and configures the main application window.
+ * 
+ * Sets up the BrowserWindow with appropriate webPreferences for security
+ * (contextIsolation enabled, nodeIntegration disabled). Loads the React UI
+ * either from the dev server (development) or built files (production).
+ * 
+ * @internal
+ */
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1400,

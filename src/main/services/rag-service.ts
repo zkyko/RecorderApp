@@ -21,8 +21,27 @@ interface LLMResponse {
 }
 
 /**
- * RAG Service for AI-powered test debugging
- * Loads test context (.meta.md and _failure.json) and chats with LLM
+ * RAG (Retrieval-Augmented Generation) Service for AI-powered test debugging.
+ * 
+ * The RAGService provides AI-powered debugging assistance by:
+ * - Loading test context from .meta.md and _failure.json files
+ * - Building comprehensive system prompts with test metadata
+ * - Chatting with LLM providers (OpenAI, DeepSeek, custom) about test failures
+ * - Providing context-aware debugging suggestions
+ * 
+ * @remarks
+ * Uses the SpecGenerator to include test code in the context.
+ * Supports multiple AI providers configured via ConfigManager.
+ * 
+ * @example
+ * ```typescript
+ * const ragService = new RAGService(configManager);
+ * const response = await ragService.chatWithTest(
+ *   workspacePath,
+ *   'CreateSalesOrder',
+ *   [{ role: 'user', content: 'Why did this test fail?' }]
+ * );
+ * ```
  */
 export class RAGService {
   private configManager: ConfigManager;

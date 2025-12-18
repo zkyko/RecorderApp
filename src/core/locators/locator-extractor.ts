@@ -2,18 +2,39 @@ import { Page, ElementHandle } from 'playwright';
 import { LocatorDefinition } from '../../types';
 
 /**
- * Extracts stable locators from DOM elements following POM guidelines priority order
+ * Extracts stable locators from DOM elements following Playwright best practices.
+ * 
+ * Uses a priority-based strategy to find the most stable locator:
+ * 1. D365-specific: data-dyn-controlname (highest priority for D365)
+ * 2. getByRole(role, { name }) - Accessibility-based
+ * 3. getByLabel(text) / aria-label - Label-based
+ * 4. getByPlaceholder(text) - Placeholder-based
+ * 5. getByText(text) - Text-based (for short, meaningful text)
+ * 6. data-test-id attributes - Test ID-based
+ * 7. CSS/XPath (fallback, flagged as potentially brittle)
+ * 
+ * @remarks
+ * The extractor prioritizes semantic locators over structural ones to improve
+ * test maintainability. CSS selectors are only used as a last resort and are
+ * flagged to indicate they may be brittle.
  */
 export class LocatorExtractor {
   /**
-   * Extract the best locator for an element following priority order:
-   * 1. D365-specific: data-dyn-controlname (highest priority for D365)
-   * 2. getByRole(role, { name })
-   * 3. getByLabel(text) / aria-label
-   * 4. getByPlaceholder(text)
-   * 5. getByText(text) with filters
-   * 6. data-test-id attributes
-   * 7. CSS/XPath (fallback, flagged)
+   * Extracts the best locator for an element following priority order.
+   * 
+   * Tries each strategy in order until one succeeds. Falls back to CSS selector
+   * if no semantic locator can be found.
+   * 
+   * @param page - The Playwright Page instance (used for accessibility snapshot)
+   * @param element - The element to extract a locator for, or null
+   * @returns A LocatorDefinition object describing how to locate the element
+   * 
+   * @example
+   * ```typescript
+   * const extractor = new LocatorExtractor();
+   * const locator = await extractor.extractLocator(page, element);
+   * // Returns: { strategy: 'role', role: 'button', name: 'Save' }
+   * ```
    */
   async extractLocator(page: Page, element: ElementHandle<HTMLElement> | null): Promise<LocatorDefinition> {
     try {
@@ -60,8 +81,14 @@ export class LocatorExtractor {
   }
 
   /**
-   * Try to get D365-specific data-dyn-controlname locator
-   * This is the most stable locator for D365 F&O controls
+   * Attempts to extract a D365-specific data-dyn-controlname locator.
+   * 
+   * This is the most stable locator for D365 Finance & Operations controls,
+   * as these attributes are specifically designed for automation.
+   * 
+   * @param element - The element to check for data-dyn-controlname
+   * @returns A LocatorDefinition with strategy 'd365-controlname', or null if not found
+   * @internal
    */
   private async tryD365ControlName(element: ElementHandle<HTMLElement>): Promise<LocatorDefinition | null> {
     try {
@@ -81,7 +108,15 @@ export class LocatorExtractor {
   }
 
   /**
-   * Try to get role + name locator using accessibility snapshot
+   * Attempts to extract a role-based locator using Playwright's accessibility snapshot.
+   * 
+   * Uses the element's ARIA role and accessible name to create a semantic locator.
+   * Priority for name: accessibility name > aria-label > title > placeholder
+   * 
+   * @param page - The Playwright Page instance for accessibility snapshot
+   * @param element - The element to extract role and name from
+   * @returns A LocatorDefinition with strategy 'role', or null if not available
+   * @internal
    */
   private async tryRole(page: Page, element: ElementHandle<HTMLElement>): Promise<LocatorDefinition | null> {
     try {
@@ -111,7 +146,18 @@ export class LocatorExtractor {
   }
 
   /**
-   * Try to get label locator
+   * Attempts to extract a label-based locator.
+   * 
+   * Checks multiple sources for label text:
+   * 1. aria-label attribute
+   * 2. Associated `<label for="id">` element
+   * 3. Element's labels property (for form controls)
+   * 4. title attribute (important for icon-only buttons)
+   * 
+   * @param page - The Playwright Page instance (unused but kept for consistency)
+   * @param element - The element to extract label from
+   * @returns A LocatorDefinition with strategy 'label', or null if not found
+   * @internal
    */
   private async tryLabel(page: Page, element: ElementHandle<HTMLElement>): Promise<LocatorDefinition | null> {
     try {
@@ -153,7 +199,13 @@ export class LocatorExtractor {
   }
 
   /**
-   * Try to get placeholder locator
+   * Attempts to extract a placeholder-based locator.
+   * 
+   * Useful for input fields that have placeholder text but no visible label.
+   * 
+   * @param element - The input element to extract placeholder from
+   * @returns A LocatorDefinition with strategy 'placeholder', or null if not found
+   * @internal
    */
   private async tryPlaceholder(element: ElementHandle<HTMLElement>): Promise<LocatorDefinition | null> {
     try {
@@ -173,9 +225,15 @@ export class LocatorExtractor {
   }
 
   /**
-   * Try to get text locator (only for short, meaningful text)
-   * IMPROVED: Also captures non-interactive elements in navigation pane with meaningful text
-   * This mimics Playwright Codegen behavior for D365 navigation links like "All sales orders"
+   * Attempts to extract a text-based locator.
+   * 
+   * Only used for short, meaningful text (3-80 characters). Also captures
+   * non-interactive elements in navigation pane with meaningful text, mimicking
+   * Playwright Codegen behavior for D365 navigation links like "All sales orders".
+   * 
+   * @param element - The element to extract text from
+   * @returns A LocatorDefinition with strategy 'text', or null if text is too long or empty
+   * @internal
    */
   private async tryText(element: ElementHandle<HTMLElement>): Promise<LocatorDefinition | null> {
     try {
@@ -265,7 +323,14 @@ export class LocatorExtractor {
   }
 
   /**
-   * Try to get data-test-id locator
+   * Attempts to extract a test ID-based locator.
+   * 
+   * Checks for data-test-id or data-qa attributes, which are specifically
+   * designed for test automation.
+   * 
+   * @param element - The element to check for test ID attributes
+   * @returns A LocatorDefinition with strategy 'testid', or null if not found
+   * @internal
    */
   private async tryTestId(element: ElementHandle<HTMLElement>): Promise<LocatorDefinition | null> {
     try {
@@ -287,7 +352,14 @@ export class LocatorExtractor {
   }
 
   /**
-   * Build CSS selector as fallback
+   * Builds a CSS selector as a fallback when no semantic locator is available.
+   * 
+   * Prefers ID-based selectors, then falls back to tag + class combinations.
+   * This is a last resort and should be flagged as potentially brittle.
+   * 
+   * @param element - The element to build a CSS selector for
+   * @returns A CSS selector string, or null if unable to build one
+   * @internal
    */
   private async buildCssSelector(element: ElementHandle<HTMLElement>): Promise<string | null> {
     try {

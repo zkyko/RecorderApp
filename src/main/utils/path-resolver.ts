@@ -9,6 +9,8 @@ import fs from 'fs';
  * In Production, resources are shipped via extraResources and are located
  * next to the executable (process.resourcesPath).
  * In Development, resources are in the project root.
+ * 
+ * @returns The absolute path to the runtime directory
  */
 export const getRuntimePath = (): string => {
   if (app.isPackaged) {

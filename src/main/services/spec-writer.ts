@@ -12,7 +12,19 @@ import { BrowserStackTmService } from './browserstackTmService';
 import { BrowserStackTmClientError } from '../../types/browserstack-tm';
 
 /**
- * Service for writing flat Playwright spec files
+ * Service for writing flat Playwright spec files.
+ * 
+ * The SpecWriter generates and writes Playwright test specifications with:
+ * - Parameterized test data support
+ * - Workspace-specific wait helpers (D365, Salesforce)
+ * - Scroll injection for web workspaces
+ * - BrowserStack Test Management integration
+ * - Test metadata generation (.meta.md files)
+ * - Data file creation and management
+ * 
+ * @remarks
+ * Generates specs in bundle structure: tests/<platformDir>/specs/<TestName>/
+ * Also creates associated data files and metadata files.
  */
 export class SpecWriter {
   private workspaceManager: WorkspaceManager;

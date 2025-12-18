@@ -5,7 +5,31 @@ import { makePageClassName } from '../core/utils/identifiers';
 import { PageRegistryManager } from '../core/registry/page-registry';
 
 /**
- * Generates Page Object Model classes in TypeScript
+ * Generates Page Object Model (POM) classes in TypeScript.
+ * 
+ * The POMGenerator creates reusable page object classes that encapsulate page
+ * elements and actions. It:
+ * - Groups steps by pageId to create one POM per page
+ * - Generates locator fields using Playwright best practices
+ * - Creates action methods (click, fill, select) for each interaction
+ * - Preserves existing methods and fields when updating
+ * - Extends D365BasePage for common D365 functionality
+ * - Uses page registry for accurate class names and navigation
+ * 
+ * @remarks
+ * Generated POMs follow the Page Object Model pattern and extend D365BasePage
+ * for D365-specific functionality. Locators are generated using the most stable
+ * strategy available (role, label, text, etc.).
+ * 
+ * @example
+ * ```typescript
+ * const generator = new POMGenerator();
+ * const poms = generator.generatePOMs(
+ *   recordedSteps,
+ *   '/path/to/output',
+ *   'Sales'
+ * );
+ * ```
  */
 export class POMGenerator {
   private pageRegistry: PageRegistryManager;

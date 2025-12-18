@@ -10,8 +10,19 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 /**
- * Service for managing QA Studio Recorder
- * Uses existing RecorderEngine to capture steps and converts them to Playwright code
+ * Service for managing QA Studio Recorder.
+ * 
+ * The RecorderService orchestrates the recording process by:
+ * - Launching and managing browser instances
+ * - Starting/stopping the RecorderEngine
+ * - Collecting recorded steps
+ * - Converting steps to Playwright code in real-time
+ * - Handling navigation cleanup
+ * - Sending updates to the UI via IPC
+ * 
+ * @remarks
+ * Uses the existing RecorderEngine to capture steps and converts them to
+ * Playwright code for live preview in the UI.
  */
 export class RecorderService {
   private browserManager: BrowserManager;

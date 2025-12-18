@@ -8,7 +8,19 @@ import { RecordedStep } from '../../types';
 import { runPlaywright } from '../utils/playwrightRuntime';
 
 /**
- * Service for launching and managing Playwright Codegen
+ * Service for launching and managing Playwright Codegen.
+ * 
+ * The CodegenService provides an alternative recording method using Playwright's
+ * built-in codegen tool. It:
+ * - Launches Playwright codegen with proper configuration
+ * - Watches the generated output file for live updates
+ * - Parses generated code into RecordedStep objects
+ * - Sends code updates to the UI in real-time
+ * - Handles process lifecycle (start/stop)
+ * 
+ * @remarks
+ * This is an alternative to the QA Studio Recorder. Codegen uses Playwright's
+ * native recording capabilities and generates code directly.
  */
 export class CodegenService {
   private currentProcess: ChildProcess | null = null;

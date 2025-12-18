@@ -1,3 +1,13 @@
+/**
+ * @fileoverview Electron self-test/diagnostics module.
+ * 
+ * This module provides comprehensive system diagnostics for QA Studio.
+ * It runs a suite of checks to verify that all components are properly
+ * configured and functioning correctly.
+ * 
+ * @module ElectronTest
+ */
+
 import { ElectronTestResult } from './types';
 import { runtimeCheck } from './checks/runtimeCheck';
 import { configCheck } from './checks/configCheck';
@@ -26,6 +36,28 @@ const CHECKS: CheckFn[] = [
   ragCheck as CheckFn,
 ];
 
+/**
+ * Runs all Electron self-tests and returns results.
+ * 
+ * Executes a suite of diagnostic checks including:
+ * - Runtime environment checks (Playwright, Node.js)
+ * - Configuration validation
+ * - Workspace structure verification
+ * - Test execution capability
+ * - Integration connectivity (BrowserStack, Jira)
+ * - Updater service status
+ * - RAG service configuration
+ * 
+ * @returns Array of test results with status, duration, and details
+ * 
+ * @example
+ * ```typescript
+ * const results = await runAllElectronTests();
+ * results.forEach(result => {
+ *   console.log(`${result.label}: ${result.status}`);
+ * });
+ * ```
+ */
 export async function runAllElectronTests(): Promise<ElectronTestResult[]> {
   const results: ElectronTestResult[] = [];
 
