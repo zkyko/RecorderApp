@@ -1,5 +1,7 @@
-userName: nbhandari_KMkNq9
-accessKey: 1tnaMGT6bqxfiTNX9zd7
+# BrowserStack credentials should be configured via Settings UI or environment variables
+# This file is for BrowserStack CLI configuration only
+# userName: <configure via Settings → BrowserStack>
+# accessKey: <configure via Settings → BrowserStack>
 projectName: "D365 Auto-Recorder"
 buildName: "Recorder Test Build"
 CUSTOM_TAG_1: "Playwright"

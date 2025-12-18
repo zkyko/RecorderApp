@@ -90,7 +90,28 @@ import {
 } from '../types/v1.5';
 
 /**
- * IPC bridge between React UI and Node.js core
+ * IPC bridge between React UI and Node.js core.
+ * 
+ * The IPCBridge class handles all inter-process communication between the Electron
+ * renderer process (React UI) and the main process (Node.js backend). It provides
+ * a unified API for:
+ * - Recording sessions (start/stop recording)
+ * - Code generation (specs, POMs)
+ * - Test execution (local and BrowserStack)
+ * - Workspace management
+ * - Configuration management
+ * - Integration services (Jira, BrowserStack TM, RAG)
+ * 
+ * @remarks
+ * All IPC handlers are registered in the registerHandlers() method. The bridge
+ * uses Electron's ipcMain to listen for requests from the renderer process and
+ * routes them to appropriate services.
+ * 
+ * @example
+ * ```typescript
+ * const bridge = new IPCBridge(configManager, workspaceManager, mainWindow);
+ * bridge.registerHandlers();
+ * ```
  */
 export class IPCBridge {
   private sessionManager: SessionManager;
@@ -2298,17 +2319,11 @@ export class IPCBridge {
           const workspaceType = await this.getWorkspaceType(args.workspacePath);
           
           // Check if BrowserStack TM is configured (uses same credentials as Automate)
-          // For web workspaces, use hardcoded credentials if global credentials are missing
           try {
             const browserstackCreds = this.configManager.getBrowserStackCredentials();
-            const webUsername = 'qatest_ZJ012P';
-            const webAccessKey = 'EbNNuoEyqqYA4uxuziyg';
-            
-            // For web workspaces, allow hardcoded credentials; for others, require configured credentials
-            const isWebWorkspace = workspaceType === 'web-demo' || workspaceType === 'generic';
             const hasCredentials = browserstackCreds.username && browserstackCreds.accessKey;
             
-            if (!hasCredentials && !isWebWorkspace) {
+            if (!hasCredentials) {
               console.warn('[IPCBridge] BrowserStack credentials not configured (used by both Automate and TM), skipping sync');
               return {
                 success: false,

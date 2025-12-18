@@ -4,8 +4,18 @@ import { URL } from 'url';
 import { ConfigManager } from '../config-manager';
 
 /**
- * BrowserStack Automate Service
- * Handles interactions with BrowserStack Automate API
+ * BrowserStack Automate Service.
+ * 
+ * Handles interactions with BrowserStack Automate API for:
+ * - Retrieving plan details and session limits
+ * - Listing available browsers and devices
+ * - Fetching session information
+ * - Getting build and project details
+ * - Managing test sessions
+ * 
+ * @remarks
+ * Uses BrowserStack Automate credentials (username and access key) for authentication.
+ * Provides access to BrowserStack's cloud testing infrastructure.
  */
 export class BrowserStackAutomateService {
   private configManager: ConfigManager;
@@ -17,21 +27,23 @@ export class BrowserStackAutomateService {
 
   /**
    * Get BrowserStack Automate configuration
-   * Hardcoded defaults for organization credentials
+   * Requires credentials to be configured in Settings
    */
   private getConfig(): {
     username: string;
     accessKey: string;
     apiToken: string;
   } {
-    // Hardcoded defaults for BrowserStack Automate
-    const defaultUsername = 'nbhandari_KMkNq9';
-    const defaultAccessKey = '1tnaMGT6bqxfiTNX9zd7';
+    // Read BrowserStack config from settings
+    const browserStackCreds = this.configManager.getBrowserStackCredentials();
+    const username = browserStackCreds.username || '';
+    const accessKey = browserStackCreds.accessKey || '';
     
-    // Read BrowserStack config from settings (if available)
-    const config = this.configManager.getConfig();
-    const username = (config as any).browserstackUsername || defaultUsername;
-    const accessKey = (config as any).browserstackAccessKey || defaultAccessKey;
+    if (!username || !accessKey) {
+      throw new Error(
+        'BrowserStack credentials not configured. Please set username and access key in Settings → BrowserStack.'
+      );
+    }
     
     // BrowserStack Automate uses username:accessKey for Basic Auth
     const apiToken = `${username}:${accessKey}`;

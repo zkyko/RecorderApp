@@ -46,21 +46,12 @@ export class BrowserStackExecutionProvider implements ExecutionProvider {
     // Load BrowserStack settings from workspace
     const workspaceSettings = this.loadWorkspaceSettings();
 
-    // Hardcode credentials for web workspaces (web-demo and generic)
-    if (this.workspaceType === 'web-demo' || this.workspaceType === 'generic') {
-      // Hardcoded service account credentials for web-only workspaces
-      this.credentials = {
-        username: 'qatest_ZJ012P',
-        accessKey: 'EbNNuoEyqqYA4uxuziyg',
-      };
-    } else {
-      // Resolve credentials for other workspace types (workspace -> global -> error)
-      const globalCreds = this.configManager.getBrowserStackCredentials();
-      this.credentials = {
-        username: workspaceSettings.username || globalCreds.username || '',
-        accessKey: workspaceSettings.accessKey || globalCreds.accessKey || '',
-      };
-    }
+    // Resolve credentials for all workspace types (workspace -> global -> error)
+    const globalCreds = this.configManager.getBrowserStackCredentials();
+    this.credentials = {
+      username: workspaceSettings.username || globalCreds.username || '',
+      accessKey: workspaceSettings.accessKey || globalCreds.accessKey || '',
+    };
 
     if (!this.credentials.username || !this.credentials.accessKey) {
       throw new Error(

@@ -26,10 +26,22 @@ import {
 import { TestMeta } from '../../types/v1.5';
 
 /**
- * BrowserStack Test Management Service
+ * BrowserStack Test Management Service.
  * 
  * Provides a clean service layer for BrowserStack TM integration.
- * Handles test case creation, test run publishing, and bundle integration.
+ * Handles:
+ * - Test case creation and updates
+ * - Test run publishing with results
+ * - Bundle metadata integration
+ * - Test case and run listing with pagination
+ * - Connection testing
+ * - Test case history retrieval
+ * 
+ * @remarks
+ * Configuration is loaded from:
+ * 1. Default config file (config/browserstack-tm.defaults.json)
+ * 2. Settings UI / persisted config (via ConfigManager)
+ * 3. Environment variables (final override)
  * 
  * @example
  * ```typescript
@@ -83,38 +95,23 @@ export class BrowserStackTmService {
     const envSuiteName = process.env.BROWSERSTACK_TM_SUITE_NAME;
 
     // Credentials: Always use BrowserStack Automate credentials (same as Automate)
-    // For web workspaces, use hardcoded service account credentials if global credentials are missing
-    // Priority: Environment variables > BrowserStack Automate credentials > hardcoded web credentials > defaults
-    const webUsername = 'qatest_ZJ012P';
-    const webAccessKey = 'EbNNuoEyqqYA4uxuziyg';
-    
-    const username = envUsername || browserStackCreds.username || webUsername || defaults.username || '';
-    const accessKey = envAccessKey || browserStackCreds.accessKey || webAccessKey || defaults.accessKey || '';
-    
-    // Determine if we're using web service account credentials
-    const isWebWorkspace = username === webUsername && accessKey === webAccessKey;
+    // Priority: Environment variables > BrowserStack Automate credentials > defaults
+    const username = envUsername || browserStackCreds.username || defaults.username || '';
+    const accessKey = envAccessKey || browserStackCreds.accessKey || defaults.accessKey || '';
     
     // TM-specific settings (projectId, suiteName)
-    // Use PR-22 for web workspaces, PR-25 for others
-    const defaultProjectId = isWebWorkspace ? 'PR-22' : 'PR-25';
-    const projectId = envProjectId || settings.projectId || defaults.projectId || defaultProjectId;
+    const projectId = envProjectId || settings.projectId || defaults.projectId || 'PR-25';
     const suiteName = envSuiteName || settings.suiteName || defaults.suiteName || 'TestManagement For StudioAPP';
     const baseUrl = defaults.baseUrl || this.baseUrl;
 
     // Final credentials (always from Automate credentials, not from TM apiToken)
-    let finalUsername = username;
-    let finalAccessKey = accessKey;
+    const finalUsername = username;
+    const finalAccessKey = accessKey;
     
     // Note: apiToken in TM settings is deprecated - always use Automate credentials
     // If apiToken exists, log a warning but don't use it (use Automate credentials instead)
     if (settings.apiToken) {
       console.warn('[BrowserStackTm] apiToken in TM settings is deprecated. Using BrowserStack Automate credentials instead.');
-    }
-
-    // After applying all fallbacks, if we still don't have credentials, use web service account
-    if (!finalUsername || !finalAccessKey) {
-      finalUsername = webUsername;
-      finalAccessKey = webAccessKey;
     }
     
     if (!finalUsername || !finalAccessKey) {
