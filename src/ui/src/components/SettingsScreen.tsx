@@ -280,28 +280,28 @@ const SettingsScreen: React.FC = () => {
       const response = await ipc.settings.getJiraConfig();
       if (response.success && response.config) {
         setJiraSettings({
-          baseUrl: response.config.baseUrl || 'https://fourhands.atlassian.net',
+          baseUrl: response.config.baseUrl || '',
           email: response.config.email || '',
           // Don't load API token for security; user can re-enter or leave blank to keep existing
           apiToken: '',
-          projectKey: response.config.projectKey || 'QST',
+          projectKey: response.config.projectKey || '',
         });
       } else {
         // Fallback if config is missing
         setJiraSettings({
-          baseUrl: 'https://fourhands.atlassian.net',
+          baseUrl: '',
           email: '',
           apiToken: '',
-          projectKey: 'QST',
+          projectKey: '',
         });
       }
     } catch (error) {
       console.error('Failed to load Jira settings:', error);
       setJiraSettings(prev => ({
         ...prev,
-        baseUrl: prev.baseUrl || 'https://fourhands.atlassian.net',
+        baseUrl: prev.baseUrl || '',
         apiToken: '••••••••••••••••••••••••••••••••',
-        projectKey: prev.projectKey || 'QST',
+        projectKey: prev.projectKey || '',
       }));
     }
   };

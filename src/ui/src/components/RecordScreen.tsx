@@ -151,7 +151,7 @@ const RecordScreen: React.FC = () => {
       if (currentWorkspace?.type === 'web-demo') {
         // FH Web workspace: use workspace-specific baseUrl
         const settings = (currentWorkspace.settings || {}) as { baseUrl?: string };
-        envUrlToUse = settings.baseUrl || 'https://fh-test-fourhandscom.azurewebsites.net/';
+        envUrlToUse = settings.baseUrl || '';
         // Use web storage state if it exists (saved from web login)
         // Path: <workspace>/storage_state/web.json
         const webStorageStatePath = `${workspacePath}/storage_state/web.json`;
@@ -159,7 +159,7 @@ const RecordScreen: React.FC = () => {
       } else if (currentWorkspace?.type === 'salesforce') {
         // Salesforce workspace: use workspace-specific baseUrl
         const settings = (currentWorkspace.settings || {}) as { baseUrl?: string };
-        envUrlToUse = settings.baseUrl || 'https://fourhands--fhqa.sandbox.my.salesforce-setup.com/';
+        envUrlToUse = settings.baseUrl || '';
         // Use D365 storage state (shared auth)
         storageStatePath = config?.storageStatePath;
         if (!storageStatePath) {

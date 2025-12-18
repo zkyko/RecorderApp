@@ -206,17 +206,18 @@ export class JiraService {
     const workspaceConfig = this.loadWorkspaceJiraConfig(workspacePath);
 
     // Merge strategy: workspace fills gaps, global provides defaults
-    const baseUrl = jiraConfig.baseUrl || 'https://fourhands.atlassian.net';
+    // All values must be configured - no hardcoded defaults
+    const baseUrl = jiraConfig.baseUrl || '';
     const email = jiraConfig.email || '';
     const apiToken = jiraConfig.apiToken || '';
-    const projectKey = workspaceConfig.projectKey || jiraConfig.projectKey || 'QST';
+    const projectKey = workspaceConfig.projectKey || jiraConfig.projectKey || '';
     const issueType = workspaceConfig.issueType || 'Bug';
     const labels = [
       ...(workspaceConfig.labels || []),
     ];
 
-    if (!email || !apiToken) {
-      throw new Error('Jira email or API token is not configured. Please set them in Settings.');
+    if (!baseUrl || !email || !apiToken || !projectKey) {
+      throw new Error('Jira configuration incomplete. Please configure base URL, email, API token, and project key in Settings → Jira.');
     }
 
     return {

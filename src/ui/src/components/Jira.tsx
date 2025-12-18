@@ -30,12 +30,12 @@ export const Jira: React.FC = () => {
         if (response.success && response.config?.baseUrl) {
           setJiraUrl(response.config.baseUrl);
         } else {
-          // Default to common Jira URL
-          setJiraUrl('https://fourhands.atlassian.net');
+          // No default - user must configure
+          setJiraUrl('');
         }
       } catch (error) {
         console.error('[Jira] Failed to load Jira URL:', error);
-        setJiraUrl('https://fourhands.atlassian.net');
+        setJiraUrl('');
       }
     };
     loadJiraUrl();

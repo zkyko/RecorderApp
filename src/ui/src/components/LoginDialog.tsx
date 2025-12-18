@@ -19,7 +19,7 @@ declare global {
 const LoginDialog: React.FC<LoginDialogProps> = ({ onLoginSuccess, onSkip, forceShow = false }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [d365Url, setD365Url] = useState('https://fourhands-test.sandbox.operations.dynamics.com/');
+  const [d365Url, setD365Url] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);

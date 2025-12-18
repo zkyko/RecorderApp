@@ -135,10 +135,8 @@ export class WorkspaceManager {
     
     // Set default settings based on workspace type
     const settings: Record<string, unknown> = {};
-    if (defaultType === 'web-demo') {
-      // Default URL for web-demo workspaces
-      settings.baseUrl = 'https://fh-test-fourhandscom.azurewebsites.net/';
-    } else if (defaultType === 'd365') {
+    // Users should configure baseUrl in workspace settings - no hardcoded defaults
+    if (defaultType === 'd365') {
       // D365 workspaces use d365Url from global config
       settings.baseUrl = undefined; // Will use global d365Url
     }
